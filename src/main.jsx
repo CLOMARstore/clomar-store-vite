@@ -43,15 +43,17 @@ const downloadText = (filename, content) => {
 };
 
 const demoProducts = [
-  { id: 'demo-1', code: '0001', name: 'Zapatillas deportivas Newton Nimble Leather', category: 'Calzado', price: 380, cost: 220, stock: 5, stock_min: 2, image_url: '' },
-  { id: 'demo-2', code: '0002', name: 'Sombrero para el sol Bora Bora Booney', category: 'Accesorios', price: 80, cost: 40, stock: 2, stock_min: 2, image_url: '' },
-  { id: 'demo-3', code: '0003', name: 'Camisa de popelina de manga larga para hombre', category: 'Ropa', price: 120, cost: 55, stock: 1, stock_min: 2, image_url: '' },
+  { id: 'demo-1', code: '0001', name: 'Zapatillas deportivas Newton Nimble Leather', category: 'Calzado', price: 380, cost: 220, stock: 5, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true },
+  { id: 'demo-2', code: '0002', name: 'Sombrero para el sol Bora Bora Booney', category: 'Accesorios', price: 80, cost: 40, stock: 2, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true },
+  { id: 'demo-3', code: '0003', name: 'Camisa de popelina de manga larga para hombre', category: 'Ropa', price: 120, cost: 55, stock: 1, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true },
 ];
 
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
 const logoSrc = (store) => store?.logo_url || APP_ICON;
+const productImageSrc = (product) => product?.image_url || APP_ICON;
+const cleanFileName = (name = 'producto') => String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').toLowerCase();
 const ROLE_LABELS = {
   dueno: 'Dueño',
   admin: 'Administrador',
@@ -293,8 +295,9 @@ function useProducts(profile) {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select('id,code,name,category,price,cost,stock,image_url,status,stock_min,store_id')
+      .select('id,code,name,category,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active')
       .eq('status', 'Activo')
+      .eq('active', true)
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('name');
     if (!error) setProducts(data || []);
@@ -440,7 +443,7 @@ function POS({ products, reloadProducts, customers, profile }) {
   const [lastTicket, setLastTicket] = useState(null);
   const normalized = query.trim().toLowerCase();
   const matches = useMemo(() => {
-    const base = !normalized ? products.slice(0, 12) : products.filter(p => `${p.code} ${p.name} ${p.category}`.toLowerCase().includes(normalized)).slice(0, 20);
+    const base = !normalized ? products.slice(0, 12) : products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
   }, [products, normalized]);
   const total = cart.reduce((sum, item) => sum + asNum(item.price) * asNum(item.qty), 0);
@@ -493,8 +496,9 @@ function POS({ products, reloadProducts, customers, profile }) {
           <div className="search-box"><Search size={18}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Buscar por nombre, código o categoría..." autoFocus /></div>
           <div className="product-list">
             {matches.map(product => (
-              <button key={product.id} className="product-row" onClick={() => addProduct(product)}>
-                <div><strong>{product.name}</strong><small>{product.code} · {product.category} · Stock {asNum(product.stock)}</small></div>
+              <button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}>
+                <img className="product-thumb" src={productImageSrc(product)} alt={product.name} />
+                <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small></div>
                 <b>{money(product.price)}</b>
               </button>
             ))}
@@ -537,21 +541,148 @@ function POS({ products, reloadProducts, customers, profile }) {
 
 
 function Products({ products, reload, profile }) {
-  const [form, setForm] = useState({ code:'', name:'', category:'General', price:'', cost:'', stock:'0', stock_min:'2' });
-  const fieldLabels = {
-    code: 'Código', name: 'Nombre del producto', category: 'Categoría', price: 'Precio de venta', cost: 'Costo de compra', stock: 'Stock inicial', stock_min: 'Stock mínimo'
-  };
-  const fieldPlaceholders = {
-    code: 'Ejemplo: 0004 o código de barras', name: 'Nombre comercial del producto', category: 'Ejemplo: Ropa, Calzado, Accesorios', price: 'Precio al cliente', cost: 'Costo de compra', stock: 'Cantidad disponible', stock_min: 'Alerta mínima'
-  };
+  const emptyForm = { code:'', barcode:'', name:'', category:'General', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'' };
+  const [form, setForm] = useState(emptyForm);
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
+  const filteredProducts = products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.toLowerCase()));
+
+  useEffect(() => {
+    if (!imageFile) {
+      setPreviewUrl(form.image_url || '');
+      return;
+    }
+    const localUrl = URL.createObjectURL(imageFile);
+    setPreviewUrl(localUrl);
+    return () => URL.revokeObjectURL(localUrl);
+  }, [imageFile, form.image_url]);
+
+  async function uploadProductImage() {
+    if (!imageFile) return { image_url: form.image_url || '', image_path: '' };
+    const storeId = profile?.store_id || DEFAULT_STORE_ID;
+    const filePath = `${storeId}/${Date.now()}-${cleanFileName(imageFile.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(filePath, imageFile, { cacheControl: '3600', upsert: false });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+    return { image_url: data?.publicUrl || '', image_path: filePath };
+  }
+
   async function save(e) {
     e.preventDefault();
     if (!hasSupabaseConfig) return alert('Configura Supabase para guardar productos.');
-    const payload = { ...form, price:asNum(form.price), cost:asNum(form.cost), stock:asNum(form.stock), stock_min:asNum(form.stock_min), status:'Activo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null };
-    const { error } = await supabase.from('products').insert(payload);
-    if (error) alert(error.message); else { setForm({ code:'', name:'', category:'General', price:'', cost:'', stock:'0', stock_min:'2' }); reload(); }
+    if (!form.name.trim()) return alert('Coloca el nombre del producto.');
+    if (asNum(form.price) <= 0) return alert('Coloca un precio de venta válido.');
+    setSaving(true);
+    try {
+      const imageData = await uploadProductImage();
+      const payload = {
+        code: form.code.trim(),
+        barcode: form.barcode.trim(),
+        name: form.name.trim(),
+        category: form.category.trim() || 'General',
+        brand: form.brand.trim(),
+        size: form.size.trim(),
+        color: form.color.trim(),
+        description: form.description.trim(),
+        price: asNum(form.price),
+        cost: asNum(form.cost),
+        stock: asNum(form.stock),
+        stock_min: asNum(form.stock_min),
+        status: 'Activo',
+        active: true,
+        image_url: imageData.image_url,
+        image_path: imageData.image_path,
+        store_id: profile?.store_id || DEFAULT_STORE_ID,
+        created_by: profile?.id || null,
+      };
+      const { error } = await supabase.from('products').insert(payload);
+      if (error) throw error;
+      setForm(emptyForm);
+      setImageFile(null);
+      setPreviewUrl('');
+      reload();
+      alert('Producto guardado correctamente.');
+    } catch (error) {
+      alert(error.message || 'No se pudo guardar el producto.');
+    } finally {
+      setSaving(false);
+    }
   }
-  return <div className="page"><div className="hero compact-hero"><h1>📦 Productos</h1><p>Crea artículos para vender y controlar stock.</p></div><div className="two-col"><form className="card form-grid" onSubmit={save}>{['code','name','category','price','cost','stock','stock_min'].map(k=><label key={k}>{fieldLabels[k]}<input value={form[k]} placeholder={fieldPlaceholders[k]} inputMode={['price','cost','stock','stock_min'].includes(k) ? 'decimal' : 'text'} onChange={e=>setForm({...form,[k]:e.target.value})}/></label>)}<button className="primary-btn">Guardar producto</button></form><section className="card compact-card"><h3>Lista de productos</h3>{products.map(p=><div className="list-row" key={p.id}><span>{p.code} · {p.name}</span><strong>{money(p.price)}</strong></div>)}</section></div></div>;
+
+  async function deactivateProduct(product) {
+    if (!confirm(`¿Desactivar ${product.name}? No se borrará el historial de ventas.`)) return;
+    const { error } = await supabase.from('products').update({ active: false, status: 'Inactivo' }).eq('id', product.id);
+    if (error) alert(error.message); else reload();
+  }
+
+  return (
+    <div className="page">
+      <div className="hero compact-hero"><h1>📦 Productos con imágenes</h1><p>Crea artículos visuales con marca, talla, color, código de barras y foto.</p></div>
+      <div className="two-col product-admin-layout">
+        <form className="card form-grid" onSubmit={save}>
+          <h3>Nuevo producto</h3>
+          <div className="image-uploader">
+            <div className="image-preview-box">
+              <img src={previewUrl || APP_ICON} alt="Vista previa" />
+              <small>{previewUrl ? 'Vista previa de imagen' : 'Sin imagen cargada'}</small>
+            </div>
+            <label>Subir imagen del producto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setImageFile(e.target.files?.[0] || null)} /></label>
+            <label>O pegar URL pública de imagen<input value={form.image_url} onChange={e=>{ setImageFile(null); setForm({...form,image_url:e.target.value}); }} placeholder="https://..." /></label>
+          </div>
+          <div className="form-split">
+            <label>Código interno<input value={form.code} onChange={e=>setForm({...form,code:e.target.value})} placeholder="0004" /></label>
+            <label>Código de barras<input value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Escanea o escribe el código" /></label>
+          </div>
+          <label>Nombre del producto<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre comercial del producto" /></label>
+          <div className="form-split">
+            <label>Categoría<input value={form.category} onChange={e=>setForm({...form,category:e.target.value})} placeholder="Ropa, Calzado, Accesorios" /></label>
+            <label>Marca<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})} placeholder="Marca" /></label>
+          </div>
+          <div className="form-split">
+            <label>Talla<input value={form.size} onChange={e=>setForm({...form,size:e.target.value})} placeholder="S, M, L, 38, 40" /></label>
+            <label>Color<input value={form.color} onChange={e=>setForm({...form,color:e.target.value})} placeholder="Negro, rosa, azul" /></label>
+          </div>
+          <label>Descripción<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Material, modelo, detalles para catálogo" /></label>
+          <div className="form-split">
+            <label>Precio de venta<input value={form.price} inputMode="decimal" onChange={e=>setForm({...form,price:e.target.value})} placeholder="0.00" /></label>
+            <label>Costo de compra<input value={form.cost} inputMode="decimal" onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0.00" /></label>
+          </div>
+          <div className="form-split">
+            <label>Stock inicial<input value={form.stock} inputMode="decimal" onChange={e=>setForm({...form,stock:e.target.value})} /></label>
+            <label>Stock mínimo<input value={form.stock_min} inputMode="decimal" onChange={e=>setForm({...form,stock_min:e.target.value})} /></label>
+          </div>
+          <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar producto'}</button>
+        </form>
+        <section className="card compact-card">
+          <h3>Lista de productos</h3>
+          <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por nombre, marca, código o barcode..." /></div>
+          <div className="product-card-list">
+            {filteredProducts.map(p=>(
+              <div className="product-card-item" key={p.id}>
+                <img src={productImageSrc(p)} alt={p.name} />
+                <div>
+                  <strong>{p.name}</strong>
+                  <small>{p.code || 'Sin código'} · {p.barcode || 'Sin barcode'} · {p.category || 'General'}</small>
+                  <small>{p.brand || 'Sin marca'} · {p.size || 'Sin talla'} · {p.color || 'Sin color'}</small>
+                  {p.description && <small>{p.description}</small>}
+                </div>
+                <div className="product-card-actions">
+                  <b>{money(p.price)}</b>
+                  <small>Stock {asNum(p.stock)}</small>
+                  <button type="button" className="secondary-btn" onClick={()=>deactivateProduct(p)}>Desactivar</button>
+                </div>
+              </div>
+            ))}
+            {!filteredProducts.length && <p className="muted">No hay productos activos.</p>}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function Customers({ customers, reload, profile }) {
@@ -590,7 +721,7 @@ function Customers({ customers, reload, profile }) {
 
 function Inventory({ products }) {
   const byCat = products.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
-  return <div className="page"><div className="hero compact-hero"><h1>📘 Inventario</h1><p>Vista compacta por categoría y stock.</p></div>{Object.entries(byCat).map(([cat, items]) => <section className="card compact-card inventory-block" key={cat}><h3>{cat}</h3>{items.map(p=><div className="list-row" key={p.id}><span>{p.code} · {p.name}<small>Stock mínimo {asNum(p.stock_min)}</small></span><strong className={asNum(p.stock) <= asNum(p.stock_min) ? 'danger-text' : ''}>Stock {asNum(p.stock)}</strong></div>)}</section>)}</div>;
+  return <div className="page"><div className="hero compact-hero"><h1>📘 Inventario</h1><p>Vista compacta por categoría y stock.</p></div>{Object.entries(byCat).map(([cat, items]) => <section className="card compact-card inventory-block" key={cat}><h3>{cat}</h3>{items.map(p=><div className="list-row inventory-product-row" key={p.id}><img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/><span>{p.code} · {p.name}<small>{p.brand || 'Sin marca'} · {p.color || 'Sin color'} · Stock mínimo {asNum(p.stock_min)}</small></span><strong className={asNum(p.stock) <= asNum(p.stock_min) ? 'danger-text' : ''}>Stock {asNum(p.stock)}</strong></div>)}</section>)}</div>;
 }
 
 function StockEntry({ products, reloadProducts, profile }) {
@@ -635,7 +766,7 @@ function StockEntry({ products, reloadProducts, profile }) {
         <section className="card compact-card">
           <h3>Producto seleccionado</h3>
           {selected ? <>
-            <div className="list-row"><span>{selected.name}<small>{selected.code} · {selected.category}</small></span><strong>{money(selected.price)}</strong></div>
+            <div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div>
             <div className="list-row"><span>Stock actual</span><strong>{asNum(selected.stock)}</strong></div>
             <div className="list-row"><span>Stock después</span><strong>{asNum(selected.stock) + asNum(form.qty)}</strong></div>
           </> : <p className="muted">No hay productos.</p>}
