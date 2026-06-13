@@ -580,18 +580,32 @@ function POS({ products, reloadProducts, customers, profile }) {
 
 
 
-function CategoriesAdmin({ profile, categories = [], subcategories = [], reloadCategories }) {
-  const [form, setForm] = useState({ name: '', parent_id: '', description: '', sort_order: '100' });
+function CategoriesAdmin({ profile, categories = [], subcategories = [], products = [], reloadCategories }) {
+  const [form, setForm] = useState({ name: '', type: 'principal', parent_id: '', description: '', sort_order: '100' });
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState({});
+
+  const productCountFor = (cat) => products.filter(p => p.active !== false && (p.category_id === cat.id || p.subcategory_id === cat.id || p.category === cat.name || p.subcategory === cat.name)).length;
+  const visibleCategories = categories.filter(cat => {
+    const children = subcategories.filter(s => s.parent_id === cat.id);
+    const text = `${cat.name} ${children.map(c => c.name).join(' ')}`.toLowerCase();
+    return text.includes(query.toLowerCase());
+  });
+
+  function resetForm() {
+    setForm({ name: '', type: 'principal', parent_id: '', description: '', sort_order: '100' });
+  }
 
   async function save(e) {
     e.preventDefault();
     if (!form.name.trim()) return alert('Coloca el nombre de la categoría o subcategoría.');
+    if (form.type === 'subcategoria' && !form.parent_id) return alert('Selecciona la categoría principal de esta subcategoría.');
     setSaving(true);
     const payload = {
       store_id: profile?.store_id || DEFAULT_STORE_ID,
       name: form.name.trim(),
-      parent_id: form.parent_id || null,
+      parent_id: form.type === 'subcategoria' ? form.parent_id : null,
       description: form.description.trim(),
       sort_order: asNum(form.sort_order || 100),
       active: true,
@@ -599,8 +613,15 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], reloadC
     const { error } = await supabase.from('product_categories').insert(payload);
     setSaving(false);
     if (error) return alert(error.message || 'No se pudo guardar la categoría.');
-    setForm({ name: '', parent_id: '', description: '', sort_order: '100' });
+    resetForm();
     reloadCategories?.();
+  }
+
+  async function renameCategory(cat) {
+    const nextName = prompt('Nuevo nombre de categoría/subcategoría:', cat.name);
+    if (!nextName || !nextName.trim() || nextName.trim() === cat.name) return;
+    const { error } = await supabase.from('product_categories').update({ name: nextName.trim() }).eq('id', cat.id);
+    if (error) alert(error.message); else reloadCategories?.();
   }
 
   async function deactivateCategory(cat) {
@@ -609,36 +630,93 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], reloadC
     if (error) alert(error.message); else reloadCategories?.();
   }
 
+  function toggle(id) {
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
   return (
     <div className="page">
-      <div className="hero compact-hero"><h1>🏷️ Categorías</h1><p>Organiza productos por categorías principales y subcategorías para ventas, catálogo y reportes.</p></div>
-      <div className="two-col category-admin-layout">
-        <form className="card form-grid" onSubmit={save}>
+      <div className="hero compact-hero"><h1>🏷️ Categorías</h1><p>Panel profesional para organizar productos por categoría principal y subcategoría.</p></div>
+      <div className="category-toolbar card compact-card">
+        <div>
+          <h3>Resumen de categorías</h3>
+          <p className="muted">{categories.length} categorías principales · {subcategories.length} subcategorías activas · {products.filter(p=>p.active!==false).length} productos activos</p>
+        </div>
+        <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar categoría o subcategoría..." /></div>
+      </div>
+      <div className="two-col category-admin-layout polished-categories">
+        <form className="card form-grid category-form-card" onSubmit={save}>
           <h3>Nueva categoría</h3>
-          <label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ejemplo: Ropa hombre" /></label>
-          <label>Tipo
-            <select value={form.parent_id} onChange={e=>setForm({...form,parent_id:e.target.value})}>
-              <option value="">Categoría principal</option>
-              {categories.map(c => <option key={c.id} value={c.id}>Subcategoría de: {c.name}</option>)}
+          <label>Tipo de registro
+            <select value={form.type} onChange={e=>setForm({...form,type:e.target.value,parent_id:''})}>
+              <option value="principal">Categoría principal</option>
+              <option value="subcategoria">Subcategoría</option>
             </select>
           </label>
-          <label>Descripción<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Uso interno opcional" /></label>
-          <label>Orden<input value={form.sort_order} onChange={e=>setForm({...form,sort_order:e.target.value})} inputMode="numeric" /></label>
-          <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar categoría'}</button>
+          {form.type === 'subcategoria' && (
+            <label>Categoría padre
+              <select value={form.parent_id} onChange={e=>setForm({...form,parent_id:e.target.value})}>
+                <option value="">Selecciona categoría principal</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+          )}
+          <label>{form.type === 'principal' ? 'Nombre de categoría principal' : 'Nombre de subcategoría'}
+            <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder={form.type === 'principal' ? 'Ejemplo: Tecnología' : 'Ejemplo: Correas hombre'} />
+          </label>
+          <label>Descripción interna
+            <input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Opcional para control interno" />
+          </label>
+          <label>Orden
+            <input value={form.sort_order} onChange={e=>setForm({...form,sort_order:e.target.value})} inputMode="numeric" />
+          </label>
+          <div className="form-actions-row">
+            <button type="button" className="secondary-btn" onClick={resetForm}>Limpiar</button>
+            <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </div>
         </form>
-        <section className="card compact-card">
-          <h3>Mapa de categorías</h3>
-          <div className="category-tree">
-            {categories.map(cat => {
+        <section className="card compact-card category-panel-card">
+          <div className="category-panel-head">
+            <div>
+              <h3>Mapa de categorías</h3>
+              <p className="muted">Haz clic en “Ver” para desplegar subcategorías.</p>
+            </div>
+          </div>
+          <div className="category-card-grid">
+            {visibleCategories.map(cat => {
               const children = subcategories.filter(s => s.parent_id === cat.id);
+              const catProducts = productCountFor(cat);
+              const isOpen = expanded[cat.id] || query.trim();
               return (
-                <div className="category-tree-block" key={cat.id}>
-                  <div className="category-tree-head"><strong>{cat.name}</strong><button className="secondary-btn" onClick={()=>deactivateCategory(cat)}>Desactivar</button></div>
-                  {children.length ? <div className="subcategory-pills">{children.map(sub => <span key={sub.id}>{sub.name}<button onClick={()=>deactivateCategory(sub)}>×</button></span>)}</div> : <small className="muted">Sin subcategorías.</small>}
-                </div>
+                <article className="category-card-pro" key={cat.id}>
+                  <div className="category-card-main">
+                    <div className="category-icon-badge">🏷️</div>
+                    <div>
+                      <strong>{cat.name}</strong>
+                      <small>{children.length} subcategorías · {catProducts} productos</small>
+                    </div>
+                  </div>
+                  <div className="category-card-actions">
+                    <button type="button" className="secondary-btn" onClick={()=>toggle(cat.id)}>{isOpen ? 'Ocultar' : 'Ver'}</button>
+                    <button type="button" className="secondary-btn" onClick={()=>renameCategory(cat)}>Editar</button>
+                    <button type="button" className="danger-mini-btn" onClick={()=>deactivateCategory(cat)}>Desactivar</button>
+                  </div>
+                  {isOpen && (
+                    <div className="subcategory-list-pro">
+                      {children.length ? children.map(sub => (
+                        <div className="subcategory-row-pro" key={sub.id}>
+                          <span>{sub.name}</span>
+                          <small>{productCountFor(sub)} productos</small>
+                          <button type="button" onClick={()=>renameCategory(sub)}>Editar</button>
+                          <button type="button" className="danger-text-btn" onClick={()=>deactivateCategory(sub)}>Desactivar</button>
+                        </div>
+                      )) : <p className="muted empty-subcategory">Sin subcategorías registradas.</p>}
+                    </div>
+                  )}
+                </article>
               );
             })}
-            {!categories.length && <p className="muted">No hay categorías activas.</p>}
+            {!visibleCategories.length && <p className="muted">No se encontraron categorías con ese criterio.</p>}
           </div>
         </section>
       </div>
@@ -1170,7 +1248,7 @@ function AppShell({ session }) {
     panel: <Panel products={products} profile={profile}/>,
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
-    categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
+    categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
     inventario: <Inventory products={products}/>,
     reportes: <Reports products={products} profile={profile}/>,
     creditos: <Credits profile={profile}/>,
