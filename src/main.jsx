@@ -5,7 +5,10 @@ import { LogOut, Menu, Search, ShoppingCart, X } from 'lucide-react';
 import './styles.css';
 
 const money = (value) => `S/ ${Number(value || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
 const asNum = (v) => Number(v || 0);
 const fmtDate = (value) => value ? new Date(value).toLocaleString('es-PE') : '';
 const ticketText = (sale, items = [], payments = []) => {
@@ -45,6 +48,38 @@ const demoProducts = [
   { id: 'demo-3', code: '0003', name: 'Camisa de popelina de manga larga para hombre', category: 'Ropa', price: 120, cost: 55, stock: 1, stock_min: 2, image_url: '' },
 ];
 
+const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
+const ROLE_LABELS = {
+  dueno: 'Dueño',
+  admin: 'Administrador',
+  cajero: 'Cajero',
+  almacen: 'Almacén',
+  lectura: 'Solo lectura',
+};
+const ROLE_HOME = {
+  dueno: 'panel',
+  admin: 'panel',
+  cajero: 'ventas',
+  almacen: 'productos',
+  lectura: 'reportes',
+};
+const MODULE_PERMISSIONS = {
+  panel: ['dueno', 'admin', 'lectura'],
+  ventas: ['dueno', 'admin', 'cajero'],
+  creditos: ['dueno', 'admin', 'cajero'],
+  caja: ['dueno', 'admin', 'cajero'],
+  reportes: ['dueno', 'admin', 'lectura'],
+  productos: ['dueno', 'admin', 'almacen'],
+  inventario: ['dueno', 'admin', 'almacen', 'lectura'],
+  ingreso: ['dueno', 'admin', 'almacen'],
+  clientes: ['dueno', 'admin', 'cajero'],
+  usuarios: ['dueno', 'admin'],
+  tienda: ['dueno', 'admin'],
+};
+const canAccess = (role, moduleKey) => MODULE_PERMISSIONS[moduleKey]?.includes(role || 'cajero');
+const firstAllowedModule = (role) => ROLE_HOME[role] || 'ventas';
+
+
 function useAuth() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +100,80 @@ function useAuth() {
   }, []);
 
   return { session, loading };
+}
+
+
+function useUserProfile(session) {
+  const [profile, setProfile] = useState(null);
+  const [store, setStore] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function loadProfile() {
+    if (!hasSupabaseConfig || !session?.user?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    const fallbackProfile = {
+      id: session.user.id,
+      store_id: DEFAULT_STORE_ID,
+      email: session.user.email,
+      full_name: session.user.email,
+      role: 'cajero',
+      status: 'Activo',
+    };
+    const nextProfile = profileError ? fallbackProfile : (profileData || fallbackProfile);
+    setProfile(nextProfile);
+
+    const { data: storeData } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', nextProfile.store_id || DEFAULT_STORE_ID)
+      .single();
+    setStore(storeData || { id: DEFAULT_STORE_ID, name: 'Clomar Store Pro' });
+    setLoading(false);
+  }
+
+  useEffect(() => { loadProfile(); }, [session?.user?.id]);
+  return { profile, store, loading, reload: loadProfile };
+}
+
+function roleMeta(profile) {
+  return ROLE_LABELS[profile?.role] || 'Usuario';
+}
+
+function AccessDenied({ profile, setCurrent }) {
+  return (
+    <div className="page">
+      <div className="hero compact-hero">
+        <h1>🔒 Acceso restringido</h1>
+        <p>Tu rol actual es {roleMeta(profile)}. No tienes permiso para este módulo.</p>
+      </div>
+      <section className="card compact-card">
+        <p className="muted">Regresa a un módulo permitido o solicita al dueño cambiar tus permisos.</p>
+        <button className="primary-btn" onClick={() => setCurrent(firstAllowedModule(profile?.role))}>Ir a mi panel</button>
+      </section>
+    </div>
+  );
+}
+
+function InactiveUser({ profile }) {
+  return (
+    <main className="login-page">
+      <section className="login-card">
+        <div className="brand-logo">🔒</div>
+        <h1>Usuario inactivo</h1>
+        <p>La cuenta {profile?.email || ''} está inactiva. Contacta al dueño o administrador.</p>
+        <button className="primary-btn" onClick={() => supabase?.auth.signOut()}>Cerrar sesión</button>
+      </section>
+    </main>
+  );
 }
 
 function Login() {
@@ -107,7 +216,8 @@ function Login() {
   );
 }
 
-function Sidebar({ current, setCurrent, open, setOpen, session }) {
+function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }) {
+  const role = profile?.role || 'cajero';
   const sections = [
     { title: 'Gestionar negocio', items: [
       ['panel', '📊', 'Panel dueño'],
@@ -122,14 +232,18 @@ function Sidebar({ current, setCurrent, open, setOpen, session }) {
       ['ingreso', '📥', 'Ingreso mercadería'],
     ]},
     { title: 'Contactos', items: [['clientes', '👥', 'Clientes']]},
-  ];
+    { title: 'Administración', items: [
+      ['usuarios', '🧑‍💼', 'Usuarios'],
+      ['tienda', '🏪', 'Tienda'],
+    ]},
+  ].map(section => ({ ...section, items: section.items.filter(([key]) => canAccess(role, key)) })).filter(section => section.items.length);
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
       <div className="sidebar-head">
         <div className="mini-logo">🛍️</div>
         <div>
-          <strong>Clomar Store Pro</strong>
-          <small>{session?.user?.email || 'Usuario'}</small>
+          <strong>{store?.name || 'Clomar Store Pro'}</strong>
+          <small>{profile?.full_name || session?.user?.email || 'Usuario'} · {roleMeta(profile)}</small>
         </div>
         <button className="ghost mobile-only" onClick={() => setOpen(false)}><X size={18}/></button>
       </div>
@@ -148,22 +262,22 @@ function Sidebar({ current, setCurrent, open, setOpen, session }) {
   );
 }
 
-function Header({ setOpen, current }) {
+function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes'
+    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda'
   };
   return (
     <header className="app-header">
       <button className="ghost mobile-only" onClick={() => setOpen(true)}><Menu/></button>
       <div>
         <h2>{titleMap[current]}</h2>
-        <p>Clomar Store Pro · App comercial rápida</p>
+        <p>{store?.name || 'Clomar Store Pro'} · {roleMeta(profile)}</p>
       </div>
     </header>
   );
 }
 
-function useProducts() {
+function useProducts(profile) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -176,18 +290,19 @@ function useProducts() {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select('id,code,name,category,price,cost,stock,image_url,status,stock_min')
+      .select('id,code,name,category,price,cost,stock,image_url,status,stock_min,store_id')
       .eq('status', 'Activo')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('name');
     if (!error) setProducts(data || []);
     setLoading(false);
   }
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => { loadProducts(); }, [profile?.store_id]);
   return { products, loading, reload: loadProducts };
 }
 
-function useCustomers() {
+function useCustomers(profile) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -202,16 +317,17 @@ function useCustomers() {
       .from('customers')
       .select('*')
       .eq('status', 'Activo')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('name');
     if (!error) setCustomers(data || []);
     setLoading(false);
   }
 
-  useEffect(() => { loadCustomers(); }, []);
+  useEffect(() => { loadCustomers(); }, [profile?.store_id]);
   return { customers, loading, reload: loadCustomers };
 }
 
-function useSales() {
+function useSales(profile) {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(false);
   async function loadSales(limit = 50) {
@@ -220,16 +336,17 @@ function useSales() {
     const { data, error } = await supabase
       .from('sales')
       .select('*')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('created_at', { ascending: false })
       .limit(limit);
     if (!error) setSales(data || []);
     setLoading(false);
   }
-  useEffect(() => { loadSales(); }, []);
+  useEffect(() => { loadSales(); }, [profile?.store_id]);
   return { sales, loading, reload: loadSales };
 }
 
-function useCashMovements() {
+function useCashMovements(profile) {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(false);
   async function loadMovements(limit = 80) {
@@ -238,16 +355,17 @@ function useCashMovements() {
     const { data, error } = await supabase
       .from('cash_movements')
       .select('*')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('created_at', { ascending: false })
       .limit(limit);
     if (!error) setMovements(data || []);
     setLoading(false);
   }
-  useEffect(() => { loadMovements(); }, []);
+  useEffect(() => { loadMovements(); }, [profile?.store_id]);
   return { movements, loading, reload: loadMovements };
 }
 
-function useStockMovements() {
+function useStockMovements(profile) {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(false);
   async function loadMovements(limit = 80) {
@@ -256,12 +374,13 @@ function useStockMovements() {
     const { data, error } = await supabase
       .from('stock_movements')
       .select('*, products(name, code)')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('created_at', { ascending: false })
       .limit(limit);
     if (!error) setMovements(data || []);
     setLoading(false);
   }
-  useEffect(() => { loadMovements(); }, []);
+  useEffect(() => { loadMovements(); }, [profile?.store_id]);
   return { movements, loading, reload: loadMovements };
 }
 
@@ -269,14 +388,14 @@ function Kpi({ label, value, helper }) {
   return <div className="kpi"><span>{label}</span><strong>{value}</strong><small>{helper}</small></div>;
 }
 
-function Panel({ products }) {
-  const { sales } = useSales();
-  const { movements } = useCashMovements();
+function Panel({ products, profile }) {
+  const { sales } = useSales(profile);
+  const { movements } = useCashMovements(profile);
   const stockCritico = products.filter(p => asNum(p.stock) <= asNum(p.stock_min ?? 2));
   const today = todayISO();
   const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today);
   const ingresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Ingreso','Apertura'].includes(m.type));
-  const egresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Egreso','Compra','Retiro'].includes(m.type));
+  const egresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
   const totalVentas = salesToday.reduce((s, v) => s + asNum(v.total), 0);
   const cajaNeta = ingresosToday.reduce((s, v) => s + asNum(v.amount), 0) - egresosToday.reduce((s, v) => s + asNum(v.amount), 0);
   return (
@@ -309,7 +428,7 @@ function Panel({ products }) {
   );
 }
 
-function POS({ products, reloadProducts, customers }) {
+function POS({ products, reloadProducts, customers, profile }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [method, setMethod] = useState('Efectivo');
@@ -348,16 +467,17 @@ function POS({ products, reloadProducts, customers }) {
     if (!cart.length || saving) return;
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
-    const salePayload = { customer_name: customer || 'Cliente', payment_method: method, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado' };
+    const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
+    const salePayload = { customer_name: customer || 'Cliente', payment_method: method, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
     const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
     if (error) { alert(error.message); setSaving(false); return; }
-    const items = cart.map(item => ({ sale_id: sale.id, product_id: item.id, product_name: item.name, qty: item.qty, price: item.price, subtotal: asNum(item.qty) * asNum(item.price) }));
+    const items = cart.map(item => ({ sale_id: sale.id, product_id: item.id, product_name: item.name, qty: item.qty, price: item.price, subtotal: asNum(item.qty) * asNum(item.price), store_id: profile?.store_id || DEFAULT_STORE_ID }));
     await supabase.from('sale_items').insert(items);
     for (const item of cart) {
       await supabase.from('products').update({ stock: asNum(item.stock) - asNum(item.qty) }).eq('id', item.id);
-      await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta B${sale.receipt_number || sale.id}` });
+      await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta B${sale.receipt_number || sale.id}`, ...meta });
     }
-    await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta B${sale.receipt_number || sale.id}` });
+    await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta B${sale.receipt_number || sale.id}`, ...meta });
     setLastTicket({ sale, items });
     setCart([]); setSaving(false); reloadProducts();
   }
@@ -413,7 +533,7 @@ function POS({ products, reloadProducts, customers }) {
 }
 
 
-function Products({ products, reload }) {
+function Products({ products, reload, profile }) {
   const [form, setForm] = useState({ code:'', name:'', category:'General', price:'', cost:'', stock:'0', stock_min:'2' });
   const fieldLabels = {
     code: 'Código', name: 'Nombre del producto', category: 'Categoría', price: 'Precio de venta', cost: 'Costo de compra', stock: 'Stock inicial', stock_min: 'Stock mínimo'
@@ -424,21 +544,21 @@ function Products({ products, reload }) {
   async function save(e) {
     e.preventDefault();
     if (!hasSupabaseConfig) return alert('Configura Supabase para guardar productos.');
-    const payload = { ...form, price:asNum(form.price), cost:asNum(form.cost), stock:asNum(form.stock), stock_min:asNum(form.stock_min), status:'Activo' };
+    const payload = { ...form, price:asNum(form.price), cost:asNum(form.cost), stock:asNum(form.stock), stock_min:asNum(form.stock_min), status:'Activo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null };
     const { error } = await supabase.from('products').insert(payload);
     if (error) alert(error.message); else { setForm({ code:'', name:'', category:'General', price:'', cost:'', stock:'0', stock_min:'2' }); reload(); }
   }
   return <div className="page"><div className="hero compact-hero"><h1>📦 Productos</h1><p>Crea artículos para vender y controlar stock.</p></div><div className="two-col"><form className="card form-grid" onSubmit={save}>{['code','name','category','price','cost','stock','stock_min'].map(k=><label key={k}>{fieldLabels[k]}<input value={form[k]} placeholder={fieldPlaceholders[k]} inputMode={['price','cost','stock','stock_min'].includes(k) ? 'decimal' : 'text'} onChange={e=>setForm({...form,[k]:e.target.value})}/></label>)}<button className="primary-btn">Guardar producto</button></form><section className="card compact-card"><h3>Lista de productos</h3>{products.map(p=><div className="list-row" key={p.id}><span>{p.code} · {p.name}</span><strong>{money(p.price)}</strong></div>)}</section></div></div>;
 }
 
-function Customers({ customers, reload }) {
+function Customers({ customers, reload, profile }) {
   const [form, setForm] = useState({ name:'', phone:'', document:'', address:'', credit_limit:'0' });
   const [query, setQuery] = useState('');
   const filtered = customers.filter(c => `${c.name} ${c.phone} ${c.document}`.toLowerCase().includes(query.toLowerCase()));
   async function save(e) {
     e.preventDefault();
     if (!form.name.trim()) return alert('Coloca el nombre del cliente.');
-    const payload = { ...form, credit_limit: asNum(form.credit_limit), status: 'Activo' };
+    const payload = { ...form, credit_limit: asNum(form.credit_limit), status: 'Activo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null };
     const { error } = await supabase.from('customers').insert(payload);
     if (error) alert(error.message); else { setForm({ name:'', phone:'', document:'', address:'', credit_limit:'0' }); reload(); }
   }
@@ -470,7 +590,7 @@ function Inventory({ products }) {
   return <div className="page"><div className="hero compact-hero"><h1>📘 Inventario</h1><p>Vista compacta por categoría y stock.</p></div>{Object.entries(byCat).map(([cat, items]) => <section className="card compact-card inventory-block" key={cat}><h3>{cat}</h3>{items.map(p=><div className="list-row" key={p.id}><span>{p.code} · {p.name}<small>Stock mínimo {asNum(p.stock_min)}</small></span><strong className={asNum(p.stock) <= asNum(p.stock_min) ? 'danger-text' : ''}>Stock {asNum(p.stock)}</strong></div>)}</section>)}</div>;
 }
 
-function StockEntry({ products, reloadProducts }) {
+function StockEntry({ products, reloadProducts, profile }) {
   const [form, setForm] = useState({ product_id:'', provider:'', qty:'1', cost:'0', method:'Efectivo', paid:'0', note:'' });
   const selected = products.find(p => p.id === form.product_id) || products[0];
   const total = asNum(form.qty) * asNum(form.cost);
@@ -488,10 +608,10 @@ function StockEntry({ products, reloadProducts }) {
     const { error: prodError } = await supabase.from('products').update({ stock: newStock, cost: asNum(form.cost) }).eq('id', selected.id);
     if (prodError) return alert(prodError.message);
     const note = `Proveedor: ${form.provider || 'Sin proveedor'} · Método: ${form.method} · ${form.note || ''}`;
-    await supabase.from('stock_movements').insert({ product_id: selected.id, type: 'Entrada', qty: asNum(form.qty), note });
-    await supabase.from('cash_movements').insert({ type: form.method === 'Crédito' ? 'Compra crédito' : 'Compra', payment_method: form.method, amount: asNum(form.paid || total), note: `Ingreso mercadería: ${selected.name}. ${note}` });
+    await supabase.from('stock_movements').insert({ product_id: selected.id, type: 'Entrada', qty: asNum(form.qty), note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
+    await supabase.from('cash_movements').insert({ type: form.method === 'Crédito' ? 'Compra crédito' : 'Compra', payment_method: form.method, amount: asNum(form.paid || total), note: `Ingreso mercadería: ${selected.name}. ${note}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
     alert(`Ingreso registrado. Nuevo stock: ${newStock}`);
-    setForm({ product_id: selected.id, provider:'', qty:'1', cost:String(selected.cost || 0), method:'Efectivo', paid:'0', note:'' });
+    setForm({ product_id: selected.id, provider:'', qty:'1', cost:String(form.cost || selected.cost || 0), method:'Efectivo', paid:'0', note:'' });
     reloadProducts();
   }
   return (
@@ -522,20 +642,20 @@ function StockEntry({ products, reloadProducts }) {
   );
 }
 
-function CashPage() {
-  const { movements, reload } = useCashMovements();
+function CashPage({ profile }) {
+  const { movements, reload } = useCashMovements(profile);
   const [form, setForm] = useState({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' });
   const today = todayISO();
   const todayMovs = movements.filter(m => String(m.created_at || '').slice(0,10) === today);
   const ingresos = todayMovs.filter(m => ['Ingreso','Apertura'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
-  const egresosList = todayMovs.filter(m => ['Egreso','Compra','Retiro'].includes(m.type));
+  const egresosList = todayMovs.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
   const egresos = egresosList.reduce((s,m)=>s+asNum(m.amount),0);
   const creditos = todayMovs.filter(m => String(m.type).includes('Crédito')).reduce((s,m)=>s+asNum(m.amount),0);
   const abonos = todayMovs.filter(m => String(m.note || '').toLowerCase().includes('abono')).reduce((s,m)=>s+asNum(m.amount),0);
   async function save(e) {
     e.preventDefault();
     if (asNum(form.amount) <= 0) return alert('El monto debe ser mayor a cero.');
-    const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note });
+    const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
     if (error) alert(error.message); else { setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' }); reload(); }
   }
   const groupByType = todayMovs.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + asNum(m.amount); return acc; }, {});
@@ -571,7 +691,7 @@ function CashPage() {
 }
 
 
-function Credits() {
+function Credits({ profile }) {
   const [sales, setSales] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -582,12 +702,14 @@ function Credits() {
     const { data: creditSales } = await supabase
       .from('sales')
       .select('*')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .or('status.eq.Crédito,payment_method.eq.Crédito')
       .order('created_at', { ascending: false });
     setSales(creditSales || []);
     const { data: pays, error: payError } = await supabase
       .from('credit_payments')
       .select('*')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('created_at', { ascending: false });
     if (!payError) setPayments(pays || []);
     setLoading(false);
@@ -602,10 +724,10 @@ function Credits() {
     if (!selected) return alert('No hay crédito seleccionado.');
     const amount = Math.min(asNum(form.amount), asNum(selected.balance));
     if (amount <= 0) return alert('El abono debe ser mayor a cero.');
-    const payload = { sale_id: selected.id, customer_name: selected.customer_name || 'Cliente', amount, method: form.method, note: form.note };
+    const payload = { sale_id: selected.id, customer_name: selected.customer_name || 'Cliente', amount, method: form.method, note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
     const { error } = await supabase.from('credit_payments').insert(payload);
     if (error) return alert('Falta ejecutar la actualización SQL de V01.4: tabla credit_payments.');
-    await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: form.method, amount, note: `Abono crédito B${selected.receipt_number}. ${form.note || ''}` });
+    await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: form.method, amount, note: `Abono crédito B${selected.receipt_number}. ${form.note || ''}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
     if (amount >= asNum(selected.balance)) await supabase.from('sales').update({ status: 'Pagado' }).eq('id', selected.id);
     setForm({ sale_id:'', amount:'0', method:'Efectivo', note:'' });
     loadCredits();
@@ -632,11 +754,11 @@ function Credits() {
 }
 
 
-function Reports({ products }) {
-  const { sales } = useSales();
-  const { movements } = useCashMovements();
+function Reports({ products, profile }) {
+  const { sales } = useSales(profile);
+  const { movements } = useCashMovements(profile);
   const [payments, setPayments] = useState([]);
-  useEffect(() => { if (hasSupabaseConfig) supabase.from('credit_payments').select('*').then(({data}) => setPayments(data || [])); }, []);
+  useEffect(() => { if (hasSupabaseConfig) supabase.from('credit_payments').select('*').eq('store_id', profile?.store_id || DEFAULT_STORE_ID).then(({data}) => setPayments(data || [])); }, [profile?.store_id]);
   const totalSales = sales.reduce((s,v)=>s+asNum(v.total),0);
   const creditSales = sales.filter(s => s.status === 'Crédito' || s.payment_method === 'Crédito');
   const totalCredits = creditSales.reduce((s,v)=>s+asNum(v.total),0);
@@ -644,29 +766,153 @@ function Reports({ products }) {
   const avg = sales.length ? totalSales / sales.length : 0;
   const byMethod = sales.reduce((acc, s) => { acc[s.payment_method || 'Sin método'] = (acc[s.payment_method || 'Sin método'] || 0) + asNum(s.total); return acc; }, {});
   const byCat = products.reduce((acc, p) => { acc[p.category || 'General'] = (acc[p.category || 'General'] || 0) + asNum(p.stock); return acc; }, {});
-  const egresos = movements.filter(m => ['Egreso','Compra','Retiro'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
+  const egresos = movements.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
   return <div className="page"><div className="hero compact-hero"><h1>📈 Reportes</h1><p>Ventas, caja, créditos, abonos e inventario en vista rápida.</p></div><div className="kpi-grid"><Kpi label="Total vendido" value={money(totalSales)} helper={`${sales.length} ventas`} /><Kpi label="Ticket promedio" value={money(avg)} helper="Promedio de venta" /><Kpi label="Crédito pendiente" value={money(Math.max(0,totalCredits-totalPaidCredits))} helper="Por cobrar" /><Kpi label="Egresos" value={money(egresos)} helper="Compras y salidas" /></div><div className="two-col"><section className="card compact-card"><h3>Ventas por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!sales.length && <p className="muted">No hay ventas todavía.</p>}</section><section className="card compact-card"><h3>Stock por categoría</h3>{Object.entries(byCat).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{v}</strong></div>)}</section></div><div className="two-col extra-row"><section className="card compact-card"><h3>Abonos recibidos</h3>{payments.slice(0,8).map(p=><div className="list-row" key={p.id}><span>{p.customer_name}<small>{fmtDate(p.created_at)} · {p.method}</small></span><strong>{money(p.amount)}</strong></div>)}{!payments.length && <p className="muted">No hay abonos registrados.</p>}</section><section className="card compact-card"><h3>Movimientos de caja</h3>{movements.slice(0,8).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}</section></div></div>;
 }
 
 
+
+function UsersAdmin({ profile }) {
+  const [profiles, setProfiles] = useState([]);
+  const [saving, setSaving] = useState('');
+  const [drafts, setDrafts] = useState({});
+  const roles = ['dueno', 'admin', 'cajero', 'almacen', 'lectura'];
+
+  async function loadProfiles() {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,email,full_name,role,status,created_at,store_id')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
+      .order('created_at', { ascending: true });
+    if (!error) setProfiles(data || []);
+  }
+
+  useEffect(() => { loadProfiles(); }, [profile?.store_id]);
+
+  function draft(row) {
+    return drafts[row.id] || { full_name: row.full_name || '', role: row.role || 'cajero', status: row.status || 'Activo' };
+  }
+
+  function setDraftValue(row, key, value) {
+    setDrafts(prev => ({ ...prev, [row.id]: { ...draft(row), [key]: value } }));
+  }
+
+  async function saveProfile(row) {
+    const next = draft(row);
+    setSaving(row.id);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ full_name: next.full_name, role: next.role, status: next.status, updated_at: new Date().toISOString() })
+      .eq('id', row.id);
+    setSaving('');
+    if (error) return alert(error.message || 'No se pudo actualizar el usuario. Revisa políticas SQL V01.6.');
+    await loadProfiles();
+  }
+
+  return (
+    <div className="page">
+      <div className="hero compact-hero"><h1>🧑‍💼 Usuarios y roles</h1><p>Administra permisos por usuario. Los usuarios nuevos se crean primero en Supabase Auth.</p></div>
+      <section className="card compact-card">
+        <h3>Cómo crear un usuario nuevo</h3>
+        <p className="muted">Ruta: Supabase → Authentication → Users → Add user → Create new user. Activa Auto Confirm User. Luego regresa aquí para asignar rol.</p>
+      </section>
+      <section className="card compact-card extra-row">
+        <h3>Usuarios registrados</h3>
+        {profiles.map(row => {
+          const d = draft(row);
+          return (
+            <div className="list-row" key={row.id}>
+              <span>
+                <strong>{row.email || 'Sin correo'}</strong>
+                <small>Creado: {fmtDate(row.created_at)} · Rol actual: {ROLE_LABELS[row.role] || row.role}</small>
+              </span>
+              <input value={d.full_name} onChange={e=>setDraftValue(row, 'full_name', e.target.value)} placeholder="Nombre" />
+              <select value={d.role} onChange={e=>setDraftValue(row, 'role', e.target.value)}>
+                {roles.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+              </select>
+              <select value={d.status} onChange={e=>setDraftValue(row, 'status', e.target.value)}>
+                <option>Activo</option><option>Inactivo</option>
+              </select>
+              <button className="secondary-btn" onClick={() => saveProfile(row)} disabled={saving === row.id}>{saving === row.id ? 'Guardando...' : 'Guardar'}</button>
+            </div>
+          );
+        })}
+        {!profiles.length && <p className="muted">No hay perfiles registrados todavía.</p>}
+      </section>
+    </div>
+  );
+}
+
+function StoreSettings({ store, reloadProfile }) {
+  const [form, setForm] = useState(store || {});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setForm(store || {}); }, [store?.id]);
+
+  async function save(e) {
+    e.preventDefault();
+    setSaving(true);
+    const payload = {
+      name: form.name || 'Clomar Store Pro',
+      ruc: form.ruc || '',
+      address: form.address || '',
+      phone: form.phone || '',
+      email: form.email || '',
+      logo_url: form.logo_url || '',
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('stores').update(payload).eq('id', store?.id || DEFAULT_STORE_ID);
+    setSaving(false);
+    if (error) return alert(error.message || 'No se pudo actualizar la tienda.');
+    await reloadProfile();
+    alert('Datos de tienda actualizados.');
+  }
+
+  return (
+    <div className="page">
+      <div className="hero compact-hero"><h1>🏪 Configuración de tienda</h1><p>Datos base para usuarios, tickets, comprobantes y catálogo.</p></div>
+      <form className="card form-grid" onSubmit={save}>
+        <label>Nombre comercial<input value={form.name || ''} onChange={e=>setForm({...form, name:e.target.value})} placeholder="Clomar Store Pro" /></label>
+        <label>RUC<input value={form.ruc || ''} onChange={e=>setForm({...form, ruc:e.target.value})} placeholder="RUC de la tienda" /></label>
+        <label>Dirección<input value={form.address || ''} onChange={e=>setForm({...form, address:e.target.value})} placeholder="Dirección" /></label>
+        <label>Teléfono / WhatsApp<input value={form.phone || ''} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Celular" /></label>
+        <label>Correo<input value={form.email || ''} onChange={e=>setForm({...form, email:e.target.value})} placeholder="correo@tienda.com" /></label>
+        <label>Logo URL<input value={form.logo_url || ''} onChange={e=>setForm({...form, logo_url:e.target.value})} placeholder="Se usará en una versión posterior para logo personalizado" /></label>
+        <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar tienda'}</button>
+      </form>
+    </div>
+  );
+}
+
 function AppShell({ session }) {
   const [current, setCurrent] = useState('ventas');
   const [open, setOpen] = useState(false);
-  const { products, loading, reload } = useProducts();
-  const { customers, reload: reloadCustomers } = useCustomers();
-  const { sales } = useSales();
-  const content = {
-    panel: <Panel products={products}/>,
-    ventas: <POS products={products} reloadProducts={reload} customers={customers}/>,
-    productos: <Products products={products} reload={reload}/>,
+  const { profile, store, loading: profileLoading, reload: reloadProfile } = useUserProfile(session);
+  const { products, loading, reload } = useProducts(profile);
+  const { customers, reload: reloadCustomers } = useCustomers(profile);
+
+  useEffect(() => {
+    if (profile && !canAccess(profile.role, current)) setCurrent(firstAllowedModule(profile.role));
+  }, [profile?.role, current]);
+
+  if (profileLoading) return <div className="loader full">Cargando perfil y permisos...</div>;
+  if (profile?.status === 'Inactivo') return <InactiveUser profile={profile} />;
+
+  const contentMap = {
+    panel: <Panel products={products} profile={profile}/>,
+    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile}/>,
+    productos: <Products products={products} reload={reload} profile={profile}/>,
     inventario: <Inventory products={products}/>,
-    reportes: <Reports products={products}/>,
-    creditos: <Credits/>,
-    caja: <CashPage />,
-    ingreso: <StockEntry products={products} reloadProducts={reload}/>,
-    clientes: <Customers customers={customers} reload={reloadCustomers}/>,
-  }[current];
-  return <div className="app"><Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session}/><main className="main"><Header setOpen={setOpen} current={current}/>{loading ? <div className="loader">Cargando...</div> : content}</main></div>;
+    reportes: <Reports products={products} profile={profile}/>,
+    creditos: <Credits profile={profile}/>,
+    caja: <CashPage profile={profile} />,
+    ingreso: <StockEntry products={products} reloadProducts={reload} profile={profile}/>,
+    clientes: <Customers customers={customers} reload={reloadCustomers} profile={profile}/>,
+    usuarios: <UsersAdmin profile={profile}/>,
+    tienda: <StoreSettings store={store} reloadProfile={reloadProfile}/>,
+  };
+  const content = canAccess(profile?.role, current) ? contentMap[current] : <AccessDenied profile={profile} setCurrent={setCurrent} />;
+  return <div className="app"><Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session} profile={profile} store={store}/><main className="main"><Header setOpen={setOpen} current={current} profile={profile} store={store}/>{loading ? <div className="loader">Cargando...</div> : content}</main></div>;
 }
 
 function Root() {
