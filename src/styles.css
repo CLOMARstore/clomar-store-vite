@@ -4,3 +4,7 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
 
 /* V01.4 ticket, créditos y caja detallada */
 .extra-row{margin-top:14px}.ticket-box{margin-top:14px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:18px;padding:14px}.ticket-box h4{margin:0 0 8px}.ticket-box p{margin:6px 0;color:#374151}.ticket-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.secondary-btn{border:1px solid var(--line);background:#fff;color:#111827;border-radius:12px;padding:11px 12px;font-weight:800}.secondary-btn:hover{border-color:#111827}.form-grid h3{margin:0 0 6px}.list-row span{min-width:0}.list-row strong{white-space:nowrap}@media print{.sidebar,.app-header,.hero,.search-box,.primary-btn,.secondary-btn,.menu-section,.logout{display:none!important}.page,.main{padding:0!important}.card{box-shadow:none!important;border:0!important}.ticket-box{display:block!important;border:1px solid #000!important}}
+
+
+/* V01.7 branding Clomar Store */
+.brand-logo img{width:68px;height:68px;object-fit:contain;display:block}.mini-logo img{width:34px;height:34px;object-fit:contain;display:block}.brand-preview{border:1px solid var(--line);background:#fff;border-radius:18px;padding:14px;margin:12px 0;display:grid;gap:10px}.brand-preview span{text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--muted);font-weight:900}.brand-preview img{width:min(360px,100%);max-height:150px;object-fit:contain;display:block;background:#fff;border-radius:12px;padding:8px;border:1px solid #f1f1f1}

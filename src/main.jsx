@@ -49,6 +49,9 @@ const demoProducts = [
 ];
 
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
+const APP_ICON = '/logo-clomar-icon.png';
+const APP_LOGO_FULL = '/logo-clomar-full.png';
+const logoSrc = (store) => store?.logo_url || APP_ICON;
 const ROLE_LABELS = {
   dueno: 'Dueño',
   admin: 'Administrador',
@@ -167,7 +170,7 @@ function InactiveUser({ profile }) {
   return (
     <main className="login-page">
       <section className="login-card">
-        <div className="brand-logo">🔒</div>
+        <div className="brand-logo"><img src={APP_ICON} alt="Clomar Store" /></div>
         <h1>Usuario inactivo</h1>
         <p>La cuenta {profile?.email || ''} está inactiva. Contacta al dueño o administrador.</p>
         <button className="primary-btn" onClick={() => supabase?.auth.signOut()}>Cerrar sesión</button>
@@ -195,7 +198,7 @@ function Login() {
   return (
     <main className="login-page">
       <section className="login-card">
-        <div className="brand-logo">🛍️</div>
+        <div className="brand-logo"><img src={APP_ICON} alt="Clomar Store" /></div>
         <h1>Clomar Store</h1>
         <p>POS rápido para ventas, inventario, caja y créditos.</p>
         {!hasSupabaseConfig && (
@@ -240,7 +243,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
       <div className="sidebar-head">
-        <div className="mini-logo">🛍️</div>
+        <div className="mini-logo"><img src={logoSrc(store)} alt="Logo tienda" /></div>
         <div>
           <strong>{store?.name || 'Clomar Store Pro'}</strong>
           <small>{profile?.full_name || session?.user?.email || 'Usuario'} · {roleMeta(profile)}</small>
@@ -877,7 +880,11 @@ function StoreSettings({ store, reloadProfile }) {
         <label>Dirección<input value={form.address || ''} onChange={e=>setForm({...form, address:e.target.value})} placeholder="Dirección" /></label>
         <label>Teléfono / WhatsApp<input value={form.phone || ''} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Celular" /></label>
         <label>Correo<input value={form.email || ''} onChange={e=>setForm({...form, email:e.target.value})} placeholder="correo@tienda.com" /></label>
-        <label>Logo URL<input value={form.logo_url || ''} onChange={e=>setForm({...form, logo_url:e.target.value})} placeholder="Se usará en una versión posterior para logo personalizado" /></label>
+        <label>Logo URL<input value={form.logo_url || ''} onChange={e=>setForm({...form, logo_url:e.target.value})} placeholder="Opcional: pega una URL pública del logo" /></label>
+        <div className="brand-preview">
+          <span>Vista de marca</span>
+          <img src={form.logo_url || APP_LOGO_FULL} alt="Logo Clomar Store" />
+        </div>
         <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar tienda'}</button>
       </form>
     </div>
