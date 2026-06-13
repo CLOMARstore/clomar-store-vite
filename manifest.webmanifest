@@ -1,0 +1,14 @@
+{
+  "name": "Clomar Store Pro",
+  "short_name": "Clomar Store",
+  "description": "POS rápido para ventas, inventario, caja y créditos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f5f2",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
