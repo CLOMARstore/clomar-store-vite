@@ -75,6 +75,7 @@ const MODULE_PERMISSIONS = {
   caja: ['dueno', 'admin', 'cajero'],
   reportes: ['dueno', 'admin', 'lectura'],
   productos: ['dueno', 'admin', 'almacen'],
+  categorias: ['dueno', 'admin', 'almacen'],
   inventario: ['dueno', 'admin', 'almacen', 'lectura'],
   ingreso: ['dueno', 'admin', 'almacen'],
   clientes: ['dueno', 'admin', 'cajero'],
@@ -233,6 +234,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     ]},
     { title: 'Productos e inventario', items: [
       ['productos', '📦', 'Productos'],
+      ['categorias', '🏷️', 'Categorías'],
       ['inventario', '📘', 'Inventario'],
       ['ingreso', '📥', 'Ingreso mercadería'],
     ]},
@@ -269,7 +271,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda'
+    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', categorias: 'Categorías', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda'
   };
   return (
     <header className="app-header">
@@ -295,7 +297,7 @@ function useProducts(profile) {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select('id,code,name,category,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active')
+      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active')
       .eq('status', 'Activo')
       .eq('active', true)
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
@@ -331,6 +333,43 @@ function useCustomers(profile) {
 
   useEffect(() => { loadCustomers(); }, [profile?.store_id]);
   return { customers, loading, reload: loadCustomers };
+}
+
+
+function useCategories(profile) {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function loadCategories() {
+    if (!hasSupabaseConfig) {
+      setCategories([
+        { id: 'cat-demo-1', name: 'Ropa hombre', parent_id: null, sort_order: 1, active: true },
+        { id: 'cat-demo-2', name: 'Ropa mujer', parent_id: null, sort_order: 2, active: true },
+        { id: 'cat-demo-3', name: 'Calzado', parent_id: null, sort_order: 3, active: true },
+      ]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('product_categories')
+      .select('id,store_id,name,description,parent_id,sort_order,active')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
+      .eq('active', true)
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+    if (!error) setCategories(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadCategories(); }, [profile?.store_id]);
+  return {
+    categories: categories.filter(c => !c.parent_id),
+    subcategories: categories.filter(c => c.parent_id),
+    allCategories: categories,
+    loading,
+    reload: loadCategories,
+  };
 }
 
 function useSales(profile) {
@@ -443,7 +482,7 @@ function POS({ products, reloadProducts, customers, profile }) {
   const [lastTicket, setLastTicket] = useState(null);
   const normalized = query.trim().toLowerCase();
   const matches = useMemo(() => {
-    const base = !normalized ? products.slice(0, 12) : products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
+    const base = !normalized ? products.slice(0, 12) : products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
   }, [products, normalized]);
   const total = cart.reduce((sum, item) => sum + asNum(item.price) * asNum(item.qty), 0);
@@ -498,7 +537,7 @@ function POS({ products, reloadProducts, customers, profile }) {
             {matches.map(product => (
               <button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}>
                 <img className="product-thumb" src={productImageSrc(product)} alt={product.name} />
-                <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small></div>
+                <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small></div>
                 <b>{money(product.price)}</b>
               </button>
             ))}
@@ -540,14 +579,90 @@ function POS({ products, reloadProducts, customers, profile }) {
 }
 
 
-function Products({ products, reload, profile }) {
-  const emptyForm = { code:'', barcode:'', name:'', category:'General', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'' };
+
+function CategoriesAdmin({ profile, categories = [], subcategories = [], reloadCategories }) {
+  const [form, setForm] = useState({ name: '', parent_id: '', description: '', sort_order: '100' });
+  const [saving, setSaving] = useState(false);
+
+  async function save(e) {
+    e.preventDefault();
+    if (!form.name.trim()) return alert('Coloca el nombre de la categoría o subcategoría.');
+    setSaving(true);
+    const payload = {
+      store_id: profile?.store_id || DEFAULT_STORE_ID,
+      name: form.name.trim(),
+      parent_id: form.parent_id || null,
+      description: form.description.trim(),
+      sort_order: asNum(form.sort_order || 100),
+      active: true,
+    };
+    const { error } = await supabase.from('product_categories').insert(payload);
+    setSaving(false);
+    if (error) return alert(error.message || 'No se pudo guardar la categoría.');
+    setForm({ name: '', parent_id: '', description: '', sort_order: '100' });
+    reloadCategories?.();
+  }
+
+  async function deactivateCategory(cat) {
+    if (!confirm(`¿Desactivar ${cat.name}? No se borrarán los productos ya registrados.`)) return;
+    const { error } = await supabase.from('product_categories').update({ active: false }).eq('id', cat.id);
+    if (error) alert(error.message); else reloadCategories?.();
+  }
+
+  return (
+    <div className="page">
+      <div className="hero compact-hero"><h1>🏷️ Categorías</h1><p>Organiza productos por categorías principales y subcategorías para ventas, catálogo y reportes.</p></div>
+      <div className="two-col category-admin-layout">
+        <form className="card form-grid" onSubmit={save}>
+          <h3>Nueva categoría</h3>
+          <label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ejemplo: Ropa hombre" /></label>
+          <label>Tipo
+            <select value={form.parent_id} onChange={e=>setForm({...form,parent_id:e.target.value})}>
+              <option value="">Categoría principal</option>
+              {categories.map(c => <option key={c.id} value={c.id}>Subcategoría de: {c.name}</option>)}
+            </select>
+          </label>
+          <label>Descripción<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Uso interno opcional" /></label>
+          <label>Orden<input value={form.sort_order} onChange={e=>setForm({...form,sort_order:e.target.value})} inputMode="numeric" /></label>
+          <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar categoría'}</button>
+        </form>
+        <section className="card compact-card">
+          <h3>Mapa de categorías</h3>
+          <div className="category-tree">
+            {categories.map(cat => {
+              const children = subcategories.filter(s => s.parent_id === cat.id);
+              return (
+                <div className="category-tree-block" key={cat.id}>
+                  <div className="category-tree-head"><strong>{cat.name}</strong><button className="secondary-btn" onClick={()=>deactivateCategory(cat)}>Desactivar</button></div>
+                  {children.length ? <div className="subcategory-pills">{children.map(sub => <span key={sub.id}>{sub.name}<button onClick={()=>deactivateCategory(sub)}>×</button></span>)}</div> : <small className="muted">Sin subcategorías.</small>}
+                </div>
+              );
+            })}
+            {!categories.length && <p className="muted">No hay categorías activas.</p>}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Products({ products, reload, profile, categories = [], subcategories = [], reloadCategories }) {
+  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'' };
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
-  const filteredProducts = products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const filteredProducts = products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const selectedSubcategories = subcategories.filter(c => c.parent_id === form.category_id);
+  function setCategoryById(categoryId) {
+    const cat = categories.find(c => c.id === categoryId);
+    setForm({ ...form, category_id: categoryId, category: cat?.name || '', subcategory_id: '', subcategory: '' });
+  }
+  function setSubcategoryById(subcategoryId) {
+    const sub = subcategories.find(c => c.id === subcategoryId);
+    setForm({ ...form, subcategory_id: subcategoryId, subcategory: sub?.name || '' });
+  }
 
   useEffect(() => {
     if (!imageFile) {
@@ -584,6 +699,9 @@ function Products({ products, reload, profile }) {
         barcode: form.barcode.trim(),
         name: form.name.trim(),
         category: form.category.trim() || 'General',
+        subcategory: form.subcategory.trim(),
+        category_id: form.category_id || null,
+        subcategory_id: form.subcategory_id || null,
         brand: form.brand.trim(),
         size: form.size.trim(),
         color: form.color.trim(),
@@ -639,9 +757,20 @@ function Products({ products, reload, profile }) {
           </div>
           <label>Nombre del producto<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre comercial del producto" /></label>
           <div className="form-split">
-            <label>Categoría<input value={form.category} onChange={e=>setForm({...form,category:e.target.value})} placeholder="Ropa, Calzado, Accesorios" /></label>
-            <label>Marca<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})} placeholder="Marca" /></label>
+            <label>Categoría
+              <select value={form.category_id} onChange={e=>setCategoryById(e.target.value)}>
+                <option value="">Selecciona categoría</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label>Subcategoría
+              <select value={form.subcategory_id} onChange={e=>setSubcategoryById(e.target.value)} disabled={!form.category_id}>
+                <option value="">Selecciona subcategoría</option>
+                {selectedSubcategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
           </div>
+          <label>Marca<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})} placeholder="Marca" /></label>
           <div className="form-split">
             <label>Talla<input value={form.size} onChange={e=>setForm({...form,size:e.target.value})} placeholder="S, M, L, 38, 40" /></label>
             <label>Color<input value={form.color} onChange={e=>setForm({...form,color:e.target.value})} placeholder="Negro, rosa, azul" /></label>
@@ -666,7 +795,7 @@ function Products({ products, reload, profile }) {
                 <img src={productImageSrc(p)} alt={p.name} />
                 <div>
                   <strong>{p.name}</strong>
-                  <small>{p.code || 'Sin código'} · {p.barcode || 'Sin barcode'} · {p.category || 'General'}</small>
+                  <small>{p.code || 'Sin código'} · {p.barcode || 'Sin barcode'} · {p.category || 'General'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small>
                   <small>{p.brand || 'Sin marca'} · {p.size || 'Sin talla'} · {p.color || 'Sin color'}</small>
                   {p.description && <small>{p.description}</small>}
                 </div>
@@ -766,7 +895,7 @@ function StockEntry({ products, reloadProducts, profile }) {
         <section className="card compact-card">
           <h3>Producto seleccionado</h3>
           {selected ? <>
-            <div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div>
+            <div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category}{selected.subcategory ? ` / ${selected.subcategory}` : ''} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div>
             <div className="list-row"><span>Stock actual</span><strong>{asNum(selected.stock)}</strong></div>
             <div className="list-row"><span>Stock después</span><strong>{asNum(selected.stock) + asNum(form.qty)}</strong></div>
           </> : <p className="muted">No hay productos.</p>}
@@ -1028,6 +1157,7 @@ function AppShell({ session }) {
   const { profile, store, loading: profileLoading, reload: reloadProfile } = useUserProfile(session);
   const { products, loading, reload } = useProducts(profile);
   const { customers, reload: reloadCustomers } = useCustomers(profile);
+  const { categories, subcategories, reload: reloadCategories } = useCategories(profile);
 
   useEffect(() => {
     if (profile && !canAccess(profile.role, current)) setCurrent(firstAllowedModule(profile.role));
@@ -1039,7 +1169,8 @@ function AppShell({ session }) {
   const contentMap = {
     panel: <Panel products={products} profile={profile}/>,
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile}/>,
-    productos: <Products products={products} reload={reload} profile={profile}/>,
+    productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
+    categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     inventario: <Inventory products={products}/>,
     reportes: <Reports products={products} profile={profile}/>,
     creditos: <Credits profile={profile}/>,
