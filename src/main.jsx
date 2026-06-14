@@ -1397,9 +1397,13 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   const [subcategoryId, setSubcategoryId] = useState('all');
   const [mode, setMode] = useState('both');
   const [labelSize, setLabelSize] = useState('medium');
+  const [sheetLayout, setSheetLayout] = useState('a4_3x8');
   const [showPrice, setShowPrice] = useState(true);
   const [showLogo, setShowLogo] = useState(true);
+  const [showCodeText, setShowCodeText] = useState(true);
+  const [defaultQty, setDefaultQty] = useState(1);
   const [selected, setSelected] = useState(new Set());
+  const [quantities, setQuantities] = useState({});
 
   const activeProducts = useMemo(() => products.filter(p => p.active !== false && p.status !== 'Inactivo'), [products]);
   const filtered = useMemo(() => activeProducts.filter(p => {
@@ -1411,8 +1415,24 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   }), [activeProducts, search, categoryId, subcategoryId, categories, subcategories]);
 
   const chosen = useMemo(() => activeProducts.filter(p => selected.has(p.id)), [activeProducts, selected]);
-  const printable = chosen.length ? chosen : filtered;
+  const basePrintable = chosen.length ? chosen : filtered;
   const visibleSubcategories = useMemo(() => categoryId === 'all' ? subcategories : subcategories.filter(s => s.parent_id === categoryId), [categoryId, subcategories]);
+
+  const printableItems = useMemo(() => {
+    const items = [];
+    for (const product of basePrintable) {
+      const qty = Math.max(1, Math.min(500, Number(quantities[product.id] || defaultQty || 1)));
+      for (let i = 0; i < qty; i++) items.push({ product, copy: i + 1, key: `${product.id}-${i}` });
+    }
+    return items;
+  }, [basePrintable, quantities, defaultQty]);
+
+  const sheetInfo = {
+    a4_2x6: 'A4: 2 columnas x 6 filas',
+    a4_3x8: 'A4: 3 columnas x 8 filas',
+    a4_4x10: 'A4: 4 columnas x 10 filas',
+    roll_1col: 'Rollo térmico: 1 columna',
+  }[sheetLayout];
 
   function toggleProduct(id) {
     setSelected(prev => {
@@ -1423,57 +1443,84 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   }
   function selectFiltered() { setSelected(new Set(filtered.map(p => p.id))); }
   function clearSelection() { setSelected(new Set()); }
+  function setQty(id, value) {
+    const qty = Math.max(1, Math.min(500, Number(value || 1)));
+    setQuantities(prev => ({ ...prev, [id]: qty }));
+  }
+  function applyQtyToFiltered() {
+    const qty = Math.max(1, Math.min(500, Number(defaultQty || 1)));
+    const next = { ...quantities };
+    filtered.forEach(p => { next[p.id] = qty; });
+    setQuantities(next);
+  }
+  function applyStockQtyToFiltered() {
+    const next = { ...quantities };
+    filtered.forEach(p => { next[p.id] = Math.max(1, Math.min(500, Number(p.stock || 1))); });
+    setQuantities(next);
+  }
   function printLabels() {
-    if (!printable.length) return alert('No hay productos para imprimir.');
+    if (!printableItems.length) return alert('No hay productos para imprimir.');
     setTimeout(() => window.print(), 100);
   }
 
   return (
     <div className="page labels-page">
-      <div className="hero compact-hero"><h1>🏷️ Etiquetas QR y código de barras</h1><p>Genera etiquetas en PDF para imprimir, recortar y pegar en productos.</p></div>
+      <div className="hero compact-hero"><h1>🏷️ Etiquetas QR y código de barras</h1><p>Genera varias etiquetas por hoja PDF, con cantidad por producto y formato A4 o térmico.</p></div>
       <div className="tool-grid labels-tools">
         <section className="card compact-card">
           <h3>Filtros</h3>
           <label>Buscar producto<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, código, barcode, marca o color" /></label>
           <label>Categoría<select value={categoryId} onChange={e=>{ setCategoryId(e.target.value); setSubcategoryId('all'); }}><option value="all">Todas</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           <label>Subcategoría<select value={subcategoryId} onChange={e=>setSubcategoryId(e.target.value)}><option value="all">Todas</option>{visibleSubcategories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-          <div className="import-summary label-summary"><Kpi label="Filtrados" value={filtered.length} helper="productos" /><Kpi label="Seleccionados" value={chosen.length || filtered.length} helper={chosen.length ? 'manual' : 'por filtro'} /></div>
+          <div className="import-summary label-summary"><Kpi label="Filtrados" value={filtered.length} helper="productos" /><Kpi label="Seleccionados" value={chosen.length || filtered.length} helper={chosen.length ? 'manual' : 'por filtro'} /><Kpi label="Etiquetas" value={printableItems.length} helper="a imprimir" /></div>
           <div className="button-row"><button className="secondary-btn" onClick={selectFiltered}>Seleccionar filtrados</button><button className="secondary-btn" onClick={clearSelection}>Limpiar selección</button></div>
         </section>
 
         <section className="card compact-card">
-          <h3>Diseño de etiqueta</h3>
+          <h3>Diseño de hoja</h3>
           <label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="both">QR + barras</option><option value="qr">Solo QR</option><option value="barcode">Solo código de barras</option></select></label>
-          <label>Tamaño<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Pequeña 40 x 30 mm</option><option value="medium">Mediana 50 x 30 mm</option><option value="large">Ropa 60 x 40 mm</option></select></label>
+          <label>Tamaño de etiqueta<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Pequeña 40 x 30 mm</option><option value="medium">Mediana 50 x 30 mm</option><option value="large">Ropa 60 x 40 mm</option></select></label>
+          <label>Formato de hoja<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas x 6 filas</option><option value="a4_3x8">A4: 3 columnas x 8 filas</option><option value="a4_4x10">A4: 4 columnas x 10 filas</option><option value="roll_1col">Rollo térmico: 1 columna</option></select></label>
           <label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Mostrar precio</label>
           <label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Mostrar marca Clomar Store</label>
+          <label className="check-row"><input type="checkbox" checked={showCodeText} onChange={e=>setShowCodeText(e.target.checked)} /> Mostrar código escrito</label>
           <button className="primary-btn" onClick={printLabels}>Imprimir / Guardar PDF</button>
-          <p className="muted">En la ventana de impresión elige <strong>Guardar como PDF</strong> o tu impresora de etiquetas.</p>
+          <p className="muted">Formato: <strong>{sheetInfo}</strong>. En impresión elige <strong>Guardar como PDF</strong>.</p>
         </section>
       </div>
 
-      <section className="card compact-card">
+      <section className="card compact-card no-print">
+        <h3>Cantidad por producto</h3>
+        <div className="quantity-tools">
+          <label>Cantidad rápida<input type="number" min="1" max="500" value={defaultQty} onChange={e=>setDefaultQty(e.target.value)} /></label>
+          <button className="secondary-btn" onClick={applyQtyToFiltered}>Aplicar cantidad a filtrados</button>
+          <button className="secondary-btn" onClick={applyStockQtyToFiltered}>Usar stock como cantidad</button>
+        </div>
+        <p className="muted">Ejemplo: si un producto tiene cantidad 10, saldrán 10 etiquetas de ese producto en el mismo PDF.</p>
+      </section>
+
+      <section className="card compact-card no-print">
         <h3>Productos para etiquetas</h3>
-        <div className="product-pick-list">
-          {filtered.map(p => <label key={p.id} className="product-pick-row"><input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleProduct(p.id)} /><img src={productImageSrc(p)} alt={p.name}/><span><strong>{p.name}</strong><small>{p.code} · {p.barcode || 'Sin barcode'} · {p.category || 'Sin categoría'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small></span><b>{money(p.price)}</b></label>)}
+        <div className="product-pick-list product-pick-list-qty">
+          {filtered.map(p => <label key={p.id} className="product-pick-row qty-row"><input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleProduct(p.id)} /><img src={productImageSrc(p)} alt={p.name}/><span><strong>{p.name}</strong><small>{p.code} · {p.barcode || 'Sin barcode'} · {p.category || 'Sin categoría'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small><small>Stock: {p.stock ?? 0} · Precio: {money(p.price)}</small></span><div className="qty-box"><small>Cant.</small><input type="number" min="1" max="500" value={quantities[p.id] || defaultQty} onChange={e=>setQty(p.id, e.target.value)} /></div></label>)}
           {!filtered.length && <p className="muted">No hay productos con esos filtros.</p>}
         </div>
       </section>
 
       <section className="card compact-card no-print">
         <h3>Vista previa</h3>
-        <p className="muted">Se imprimen {printable.length} etiquetas. Si no seleccionas productos, se imprimen todos los filtrados.</p>
+        <p className="muted">Se imprimirán <strong>{printableItems.length}</strong> etiquetas. Si no seleccionas productos, se imprimen todos los filtrados con sus cantidades.</p>
       </section>
 
-      <div className={`print-label-sheet label-size-${labelSize}`}>
-        {printable.map(product => {
+      <div className={`print-label-sheet label-size-${labelSize} sheet-${sheetLayout}`}>
+        {printableItems.map(({ product, key }) => {
           const code = productScanCode(product);
-          return <div className="print-label" key={product.id}>
+          return <div className="print-label" key={key}>
             {showLogo && <div className="label-brand"><img src={APP_ICON} alt="Clomar"/><span>{store?.name || 'Clomar Store'}</span></div>}
             <div className="label-name">{product.name}</div>
-            {showPrice && <div className="label-price">{money(product.price)}</div>}
+            {showPrice && Number(product.price || 0) > 0 && <div className="label-price">{money(product.price)}</div>}
             <div className={`label-codes mode-${mode}`}>{(mode === 'qr' || mode === 'both') && <img className="label-qr" src={qrUrl(code)} alt={`QR ${code}`} />}{(mode === 'barcode' || mode === 'both') && <BarcodeSVG value={code} />}</div>
-            <div className="label-code-text">{code}</div>
+            {showCodeText && <div className="label-code-text">{code}</div>}
           </div>;
         })}
       </div>

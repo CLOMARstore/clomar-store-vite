@@ -148,3 +148,34 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
   .print-label { border: 1px solid #ccc; box-shadow: none; border-radius: 2mm; color: #000; }
   .label-name, .label-price, .label-code-text, .label-brand { color: #000 !important; }
 }
+
+/* V01.11B - Etiquetas múltiples por hoja PDF */
+.quantity-tools { display: grid; grid-template-columns: 180px 1fr 1fr; gap: 10px; align-items: end; }
+.quantity-tools label { margin: 0; }
+.quantity-tools input { width: 100%; }
+.product-pick-list-qty .qty-row { grid-template-columns: auto 54px 1fr 88px; }
+.qty-box { display: grid; gap: 4px; justify-items: center; }
+.qty-box small { font-size: 10px; margin: 0; text-transform: uppercase; letter-spacing: .08em; }
+.qty-box input { width: 74px; padding: 9px 8px; text-align: center; border: 1px solid var(--border); border-radius: 12px; font-weight: 900; }
+.sheet-a4_2x6 { grid-template-columns: repeat(2, 60mm); justify-content: center; }
+.sheet-a4_3x8 { grid-template-columns: repeat(3, 50mm); justify-content: center; }
+.sheet-a4_4x10 { grid-template-columns: repeat(4, 40mm); justify-content: center; }
+.sheet-roll_1col { grid-template-columns: 60mm; justify-content: start; }
+@media (max-width: 980px) {
+  .quantity-tools { grid-template-columns: 1fr; }
+  .product-pick-list-qty .qty-row { grid-template-columns: auto 48px 1fr; }
+  .qty-box { grid-column: 1 / -1; justify-items: stretch; }
+  .qty-box input { width: 100%; }
+}
+@media print {
+  @page { size: A4; margin: 8mm; }
+  .print-label-sheet.sheet-a4_2x6 { grid-template-columns: repeat(2, 60mm) !important; }
+  .print-label-sheet.sheet-a4_3x8 { grid-template-columns: repeat(3, 50mm) !important; }
+  .print-label-sheet.sheet-a4_4x10 { grid-template-columns: repeat(4, 40mm) !important; }
+  .print-label-sheet.sheet-roll_1col { grid-template-columns: 60mm !important; }
+  .print-label-sheet { justify-content: center !important; align-content: start !important; gap: 2mm !important; }
+  .label-size-small .print-label { width: 40mm !important; height: 30mm !important; }
+  .label-size-medium .print-label { width: 50mm !important; height: 30mm !important; }
+  .label-size-large .print-label { width: 60mm !important; height: 40mm !important; }
+  .print-label { padding: 2mm !important; overflow: hidden !important; }
+}
