@@ -43,6 +43,62 @@ const downloadText = (filename, content) => {
   URL.revokeObjectURL(url);
 };
 
+
+const escapeHtml = (value = '') => String(value ?? '').replace(/[&<>'"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+const receiptNumber = (sale) => sale?.receipt_number ? `B${sale.receipt_number}` : `B${String(sale?.id || '').slice(0, 8) || '—'}`;
+const publicAssetUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+  return `${window.location.origin}${raw.startsWith('/') ? raw : `/${raw}`}`;
+};
+const receiptQrData = (sale, store) => [
+  store?.name || 'Clomar Store',
+  `Comprobante ${receiptNumber(sale)}`,
+  `Total ${money(sale?.total || 0)}`,
+  `Fecha ${fmtDate(sale?.created_at || new Date())}`,
+].join(' | ');
+const receiptTotals = (sale, items = []) => {
+  const subtotal = items.reduce((sum, it) => sum + asNum(it.subtotal || asNum(it.qty) * asNum(it.price)), 0) || asNum(sale?.total);
+  return { subtotal, total: asNum(sale?.total || subtotal) };
+};
+const buildReceiptHTML = ({ sale, items = [], store = {}, profile = {}, format = '80mm' }) => {
+  const isA4 = format === 'a4';
+  const is58 = format === '58mm';
+  const width = isA4 ? '190mm' : is58 ? '54mm' : '76mm';
+  const qr = qrUrl(receiptQrData(sale, store));
+  const totals = receiptTotals(sale, items);
+  const receiptTitle = sale?.payment_method === 'Crédito' ? 'COMPROBANTE DE CRÉDITO' : 'COMPROBANTE INTERNO';
+  const rows = items.map((it) => {
+    const qty = asNum(it.qty);
+    const price = asNum(it.price);
+    const subtotal = asNum(it.subtotal || qty * price);
+    return `<tr><td>${escapeHtml(it.product_name || it.name || 'Producto')}</td><td class="num">${qty}</td><td class="num">${money(price)}</td><td class="num">${money(subtotal)}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted">Sin productos registrados.</td></tr>';
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>${escapeHtml(receiptNumber(sale))}</title><style>
+  *{box-sizing:border-box} body{margin:0;background:#fff;color:#111827;font-family:Arial,Helvetica,sans-serif;font-size:${is58?'10px':'11px'}}
+  .receipt{width:${width};max-width:100%;margin:0 auto;padding:${isA4?'16mm':'4mm'};background:#fff}
+  .center{text-align:center}.logo{width:${isA4?'70px':'42px'};height:${isA4?'70px':'42px'};object-fit:contain;margin:0 auto 4px;display:block}.store{font-weight:900;font-size:${isA4?'24px':'14px'};letter-spacing:.02em}.muted{color:#64748b}.line{border-top:1px dashed #94a3b8;margin:8px 0}.meta{display:grid;gap:2px;margin:6px 0}.meta div{display:flex;justify-content:space-between;gap:8px}.title{font-weight:900;margin:7px 0;text-align:center}table{width:100%;border-collapse:collapse;margin-top:6px}th,td{padding:3px 0;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}th{font-size:9px;text-transform:uppercase;color:#64748b}.num{text-align:right;white-space:nowrap}.total{font-size:${isA4?'18px':'14px'};font-weight:900}.qr{width:${isA4?'90px':'58px'};height:${isA4?'90px':'58px'};object-fit:contain;margin:8px auto 3px;display:block}.thanks{font-weight:800;margin-top:8px}.a4-grid{display:${isA4?'grid':'block'};grid-template-columns:1fr 1fr;gap:14mm}.a4-box{border:${isA4?'1px solid #e5e7eb':'0'};border-radius:${isA4?'12px':'0'};padding:${isA4?'10mm':'0'}}
+  @media print{body{background:#fff}.receipt{margin:0}.no-print{display:none!important}@page{size:${isA4?'A4':'auto'};margin:${isA4?'10mm':'2mm'}}}
+</style></head><body><main class="receipt"><section class="${isA4?'a4-box':''}">
+  <div class="center"><img class="logo" src="${escapeHtml(publicAssetUrl(store?.logo_url || APP_ICON))}"/><div class="store">${escapeHtml(store?.name || 'Clomar Store')}</div><div class="muted">${escapeHtml(store?.ruc ? `RUC: ${store.ruc}` : '')}</div><div class="muted">${escapeHtml(store?.address || '')}</div><div class="muted">${escapeHtml(store?.phone ? `Tel: ${store.phone}` : '')}</div></div>
+  <div class="line"></div><div class="title">${receiptTitle}</div>
+  <div class="meta"><div><strong>N°</strong><span>${escapeHtml(receiptNumber(sale))}</span></div><div><strong>Fecha</strong><span>${escapeHtml(fmtDate(sale?.created_at || new Date()))}</span></div><div><strong>Cliente</strong><span>${escapeHtml(sale?.customer_name || 'Cliente')}</span></div><div><strong>Vendedor</strong><span>${escapeHtml(profile?.full_name || sale?.seller_email || profile?.email || 'Usuario')}</span></div><div><strong>Pago</strong><span>${escapeHtml(sale?.payment_method || 'Efectivo')}</span></div><div><strong>Estado</strong><span>${escapeHtml(sale?.status || 'Pagado')}</span></div></div>
+  <table><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">P.U.</th><th class="num">Importe</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="line"></div><div class="meta"><div><strong>Subtotal</strong><span>${money(totals.subtotal)}</span></div><div class="total"><strong>Total</strong><span>${money(totals.total)}</span></div>${sale?.payment_method === 'Crédito' ? `<div><strong>Saldo pendiente</strong><span>${money(totals.total)}</span></div>` : ''}</div>
+  <img class="qr" src="${qr}"/><div class="center muted">${escapeHtml(receiptNumber(sale))}</div><div class="center thanks">Gracias por su compra</div><div class="center muted">Comprobante interno. No reemplaza comprobante electrónico SUNAT.</div>
+</section></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
+};
+const printReceipt = ({ sale, items = [], store = {}, profile = {}, format = '80mm' }) => {
+  const html = buildReceiptHTML({ sale, items, store, profile, format });
+  const win = window.open('', '_blank', 'width=420,height=720');
+  if (!win) return alert('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para imprimir el comprobante.');
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+};
+
 const demoProducts = [
   { id: 'demo-1', code: '0001', name: 'Zapatillas deportivas Newton Nimble Leather', category: 'Calzado', price: 380, cost: 220, stock: 5, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
   { id: 'demo-2', code: '0002', name: 'Sombrero para el sol Bora Bora Booney', category: 'Accesorios', price: 80, cost: 40, stock: 2, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
@@ -165,6 +221,7 @@ const ROLE_HOME = {
 const MODULE_PERMISSIONS = {
   panel: ['dueno', 'admin', 'lectura'],
   ventas: ['dueno', 'admin', 'cajero'],
+  comprobantes: ['dueno', 'admin', 'cajero'],
   creditos: ['dueno', 'admin', 'cajero'],
   caja: ['dueno', 'admin', 'cajero'],
   reportes: ['dueno', 'admin', 'lectura'],
@@ -325,6 +382,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     { title: 'Gestionar negocio', items: [
       ['panel', '📊', 'Panel dueño'],
       ['ventas', '🧾', 'Ventas'],
+      ['comprobantes', '🧾', 'Comprobantes'],
       ['creditos', '💳', 'Créditos'],
       ['caja', '💰', 'Caja'],
       ['reportes', '📈', 'Reportes'],
@@ -371,7 +429,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header">
@@ -573,7 +631,7 @@ function Panel({ products, profile }) {
   );
 }
 
-function POS({ products, reloadProducts, customers, profile }) {
+function POS({ products, reloadProducts, customers, profile, store }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [method, setMethod] = useState('Efectivo');
@@ -812,8 +870,10 @@ function POS({ products, reloadProducts, customers, profile }) {
               <p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p>
               <p><strong>Total:</strong> {money(lastTicket.sale.total)}</p>
               <div className="ticket-actions">
-                <button className="secondary-btn" onClick={() => downloadText(`boleta-B${lastTicket.sale.receipt_number}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>Descargar ticket</button>
-                <button className="secondary-btn" onClick={() => window.print()}>Imprimir pantalla</button>
+                <button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button>
+                <button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button>
+                <button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button>
+                <button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button>
               </div>
             </div>
           )}
@@ -823,6 +883,116 @@ function POS({ products, reloadProducts, customers, profile }) {
   );
 }
 
+
+
+function ReceiptMiniPreview({ sale, items = [], store = {}, profile = {}, format = '80mm' }) {
+  const totals = receiptTotals(sale, items);
+  return (
+    <div className={`receipt-preview receipt-preview-${format}`}>
+      <div className="receipt-preview-head">
+        <img src={store?.logo_url || APP_ICON} alt="Logo" />
+        <strong>{store?.name || 'Clomar Store'}</strong>
+        {store?.ruc && <small>RUC: {store.ruc}</small>}
+        {store?.address && <small>{store.address}</small>}
+        {store?.phone && <small>Tel: {store.phone}</small>}
+      </div>
+      <div className="receipt-sep" />
+      <div className="receipt-title">{sale?.payment_method === 'Crédito' ? 'COMPROBANTE DE CRÉDITO' : 'COMPROBANTE INTERNO'}</div>
+      <div className="receipt-meta-row"><span>N°</span><b>{receiptNumber(sale)}</b></div>
+      <div className="receipt-meta-row"><span>Fecha</span><b>{fmtDate(sale?.created_at)}</b></div>
+      <div className="receipt-meta-row"><span>Cliente</span><b>{sale?.customer_name || 'Cliente'}</b></div>
+      <div className="receipt-meta-row"><span>Vendedor</span><b>{profile?.full_name || sale?.seller_email || profile?.email || 'Usuario'}</b></div>
+      <div className="receipt-sep" />
+      <div className="receipt-items-preview">
+        {items.map((it) => <div key={it.id || it.product_name} className="receipt-item-line"><span>{asNum(it.qty)} x {it.product_name}</span><b>{money(it.subtotal || asNum(it.qty) * asNum(it.price))}</b></div>)}
+        {!items.length && <p className="muted">Selecciona un comprobante para ver su detalle.</p>}
+      </div>
+      <div className="receipt-sep" />
+      <div className="receipt-total-line"><span>Total</span><strong>{money(totals.total)}</strong></div>
+      <img className="receipt-qr" src={qrUrl(receiptQrData(sale, store))} alt="QR comprobante" />
+      <small className="muted center-block">Comprobante interno. No reemplaza comprobante electrónico SUNAT.</small>
+    </div>
+  );
+}
+
+function ReceiptsPage({ profile, store }) {
+  const { sales, loading, reload } = useSales(profile);
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [items, setItems] = useState([]);
+  const [format, setFormat] = useState('80mm');
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Todos');
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const filteredSales = useMemo(() => sales.filter(s => {
+    const text = `${receiptNumber(s)} ${s.customer_name || ''} ${s.payment_method || ''} ${s.status || ''}`.toLowerCase();
+    const passText = !query.trim() || text.includes(query.trim().toLowerCase());
+    const passStatus = statusFilter === 'Todos' || s.status === statusFilter || s.payment_method === statusFilter;
+    return passText && passStatus;
+  }), [sales, query, statusFilter]);
+
+  async function selectSale(sale) {
+    setSelectedSale(sale);
+    setItems([]);
+    if (!hasSupabaseConfig || !sale?.id) return;
+    setLoadingItems(true);
+    const { data, error } = await supabase
+      .from('sale_items')
+      .select('*')
+      .eq('sale_id', sale.id)
+      .order('created_at', { ascending: true });
+    if (!error) setItems(data || []);
+    setLoadingItems(false);
+  }
+
+  useEffect(() => {
+    if (!selectedSale && filteredSales.length) selectSale(filteredSales[0]);
+  }, [filteredSales.length]);
+
+  const today = todayISO();
+  const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today);
+  const totalToday = salesToday.reduce((sum, sale) => sum + asNum(sale.total), 0);
+  const creditToday = salesToday.filter(s => s.payment_method === 'Crédito' || s.status === 'Crédito').reduce((sum, sale) => sum + asNum(sale.total), 0);
+
+  return (
+    <div className="page receipts-page">
+      <div className="hero compact-hero"><h1>🧾 Comprobantes</h1><p>Reimprime tickets internos, vouchers y PDF A4 con logo, tienda, vendedor, cliente y detalle de venta.</p></div>
+      <div className="kpi-grid">
+        <Kpi label="Comprobantes hoy" value={salesToday.length} helper="ventas registradas" />
+        <Kpi label="Total hoy" value={money(totalToday)} helper="monto vendido" />
+        <Kpi label="Crédito hoy" value={money(creditToday)} helper="por cobrar" />
+        <Kpi label="Historial cargado" value={sales.length} helper="últimas ventas" />
+      </div>
+      <div className="receipt-workspace">
+        <section className="card compact-card receipt-list-card">
+          <div className="card-head-line"><h3>Historial de comprobantes</h3><button className="secondary-btn" onClick={reload} disabled={loading}>{loading ? 'Cargando...' : 'Actualizar'}</button></div>
+          <div className="receipt-filters">
+            <label>Buscar<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="B123, cliente, método..." /></label>
+            <label>Estado<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>Todos</option><option>Pagado</option><option>Crédito</option><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label>
+          </div>
+          <div className="receipt-list">
+            {filteredSales.map(sale => (
+              <button key={sale.id} className={`receipt-row ${selectedSale?.id === sale.id ? 'active' : ''}`} onClick={()=>selectSale(sale)}>
+                <div><strong>{receiptNumber(sale)} · {sale.customer_name || 'Cliente'}</strong><small>{fmtDate(sale.created_at)} · {sale.payment_method || 'Efectivo'} · {sale.status || 'Pagado'}</small></div>
+                <b>{money(sale.total)}</b>
+              </button>
+            ))}
+            {!filteredSales.length && <p className="muted">No hay comprobantes con esos filtros.</p>}
+          </div>
+        </section>
+        <section className="card compact-card receipt-detail-card">
+          <div className="card-head-line"><h3>Vista e impresión</h3><span className="result-pill">{selectedSale ? receiptNumber(selectedSale) : 'Sin selección'}</span></div>
+          <div className="receipt-print-controls">
+            <label>Formato<select value={format} onChange={e=>setFormat(e.target.value)}><option value="80mm">Ticket 80mm</option><option value="58mm">Ticket 58mm</option><option value="a4">PDF A4</option></select></label>
+            <button className="primary-btn" disabled={!selectedSale || loadingItems} onClick={()=>printReceipt({ sale: selectedSale, items, store, profile, format })}>Imprimir / Guardar PDF</button>
+            <button className="secondary-btn" disabled={!selectedSale} onClick={()=>downloadText(`comprobante-${receiptNumber(selectedSale)}.txt`, ticketText(selectedSale, items))}>Descargar TXT</button>
+          </div>
+          {loadingItems ? <div className="loader">Cargando detalle...</div> : <ReceiptMiniPreview sale={selectedSale || { total: 0 }} items={items} store={store} profile={profile} format={format} />}
+        </section>
+      </div>
+    </div>
+  );
+}
 
 
 function CategoriesAdmin({ profile, categories = [], subcategories = [], products = [], reloadCategories }) {
@@ -2085,7 +2255,8 @@ function AppShell({ session }) {
 
   const contentMap = {
     panel: <Panel products={products} profile={profile}/>,
-    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile}/>,
+    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store}/>,
+    comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
     categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
