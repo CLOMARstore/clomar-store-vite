@@ -938,3 +938,47 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
     grid-template-columns: 1fr;
   }
 }
+
+/* V02.2 PRO TOTAL — Gestión comercial completa */
+.owner-hero { display:flex; justify-content:space-between; align-items:center; gap:18px; }
+.owner-today-card { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16); border-radius:22px; padding:16px 20px; min-width:260px; }
+.owner-today-card span,.owner-today-card small { display:block; color:#cbd5e1; }
+.owner-today-card strong { display:block; color:#fff; font-size:1.8rem; }
+.dashboard-kpis { grid-template-columns:repeat(6,minmax(140px,1fr)); }
+.dashboard-grid-pro { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:start; }
+.insight-row { display:flex; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid #edf1f7; }
+.insight-row.ok strong { color:#166534; }
+.featured-sale { display:grid; gap:8px; padding:18px; border-radius:20px; background:#f8fafc; border:1px solid #e5e7eb; }
+.featured-sale span { color:#64748b; font-weight:800; }
+.featured-sale strong { font-size:2rem; color:#111827; }
+.pos-pro-page .cart-row-pro { grid-template-columns:1fr 66px 90px 96px 34px; align-items:center; }
+.mini-discount { display:flex; flex-direction:column; gap:4px; font-size:.72rem; font-weight:800; color:#64748b; }
+.mini-discount input { width:100%; min-height:34px; border:1px solid #dbe3ef; border-radius:10px; padding:0 8px; }
+.sale-total-panel { display:grid; gap:8px; padding:14px; border-radius:18px; background:#f8fafc; border:1px solid #e5e7eb; margin:12px 0; }
+.sale-total-panel > div { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.sale-total-panel input { width:110px; min-height:38px; border:1px solid #dbe3ef; border-radius:12px; padding:0 10px; text-align:right; font-weight:900; }
+.sale-total-panel .final-total { border-top:1px dashed #cbd5e1; padding-top:10px; }
+.sale-total-panel .final-total strong { font-size:1.6rem; color:#111827; }
+.payment-fast-row { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:10px 0; }
+.payment-fast-row button,.mixed-row button,.provider-chip { border:1px solid #dbe3ef; background:#fff; border-radius:12px; padding:10px; font-weight:900; cursor:pointer; }
+.mixed-payment-box { display:grid; gap:9px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:18px; padding:14px; margin:10px 0; }
+.mixed-row { display:grid; grid-template-columns:1fr 110px 96px; gap:8px; align-items:center; }
+.mixed-row input { min-height:38px; border:1px solid #dbe3ef; border-radius:12px; padding:0 10px; font-weight:900; text-align:right; }
+.mixed-ok,.mixed-pending { padding:10px 12px; border-radius:12px; font-weight:900; }
+.mixed-ok { background:#dcfce7; color:#166534; }
+.mixed-pending { background:#fee2e2; color:#991b1b; }
+.confirm-sale-card { max-width:680px; }
+.confirm-sale-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0; }
+.confirm-sale-summary div { background:#f8fafc; border:1px solid #e5e7eb; border-radius:14px; padding:12px; }
+.confirm-sale-summary span { display:block; color:#64748b; font-size:.72rem; text-transform:uppercase; font-weight:900; }
+.confirm-sale-summary strong { display:block; margin-top:4px; }
+.close-cash-card .report-actions input { min-height:44px; border:1px solid #dbe3ef; border-radius:14px; padding:0 12px; font-weight:800; }
+.purchases-page .provider-chip { margin:4px; display:inline-block; }
+.purchase-form h3 { margin-top:0; }
+.backup-card { border:1px solid #dbeafe; background:linear-gradient(135deg,#ffffff,#f8fbff); }
+.backup-points { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0; }
+.backup-points div { border:1px solid #e5e7eb; border-radius:14px; padding:12px; text-align:center; background:#fff; }
+.backup-points strong { display:block; font-size:1.4rem; }
+.backup-points small { color:#64748b; font-weight:800; }
+@media(max-width:1200px){ .dashboard-kpis{grid-template-columns:repeat(3,1fr)} .dashboard-grid-pro{grid-template-columns:1fr} .owner-hero{flex-direction:column;align-items:stretch} }
+@media(max-width:760px){ .dashboard-kpis,.confirm-sale-summary,.backup-points{grid-template-columns:1fr} .pos-pro-page .cart-row-pro,.mixed-row{grid-template-columns:1fr} .payment-fast-row{grid-template-columns:repeat(2,1fr)} .owner-today-card{min-width:0} }

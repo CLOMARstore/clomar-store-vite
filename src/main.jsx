@@ -429,7 +429,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header">
@@ -595,37 +595,50 @@ function Panel({ products, profile }) {
   const { sales } = useSales(profile);
   const { movements } = useCashMovements(profile);
   const stockCritico = products.filter(p => asNum(p.stock) <= asNum(p.stock_min ?? 2));
+  const sinPrecio = products.filter(p => asNum(p.price) <= 0 || productPriceStatus(p) !== 'Validado');
   const today = todayISO();
   const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today);
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); })();
+  const salesYesterday = sales.filter(s => String(s.created_at || '').slice(0,10) === yesterday);
   const ingresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Ingreso','Apertura'].includes(m.type));
   const egresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
   const totalVentas = salesToday.reduce((s, v) => s + asNum(v.total), 0);
+  const totalYesterday = salesYesterday.reduce((s, v) => s + asNum(v.total), 0);
   const cajaNeta = ingresosToday.reduce((s, v) => s + asNum(v.amount), 0) - egresosToday.reduce((s, v) => s + asNum(v.amount), 0);
+  const creditosHoy = salesToday.filter(s => s.payment_method === 'Crédito' || s.status === 'Crédito').reduce((s,v)=>s+asNum(v.total),0);
+  const ventaMayor = salesToday.slice().sort((a,b)=>asNum(b.total)-asNum(a.total))[0];
+  const tendencia = totalYesterday > 0 ? ((totalVentas - totalYesterday) / totalYesterday) * 100 : 0;
+  const byMethod = salesToday.reduce((acc, s) => { acc[s.payment_method || 'Sin método'] = (acc[s.payment_method || 'Sin método'] || 0) + asNum(s.total); return acc; }, {});
+  const bestMethod = Object.entries(byMethod).sort((a,b)=>b[1]-a[1])[0];
+  const alerts = [
+    stockCritico.length ? `${stockCritico.length} producto(s) con stock crítico.` : '',
+    sinPrecio.length ? `${sinPrecio.length} producto(s) pendientes de precio.` : '',
+    creditosHoy > 0 ? `Créditos del día por ${money(creditosHoy)}.` : '',
+    cajaNeta < 0 ? 'Caja neta negativa: revisar egresos.' : '',
+  ].filter(Boolean);
   return (
-    <div className="page compact-page">
-      <div className="hero compact-hero">
-        <h1>📊 Panel dueño</h1>
-        <p>Resumen rápido del negocio. Carga ligera para evitar lag.</p>
+    <div className="page compact-page dashboard-owner-page">
+      <div className="hero compact-hero owner-hero">
+        <div>
+          <span className="eyebrow">Vista de dueño</span>
+          <h1>📊 Panel comercial</h1>
+          <p>Lectura rápida para decidir ventas, reposición, precios, caja y créditos.</p>
+        </div>
+        <div className="owner-today-card"><span>Ventas hoy</span><strong>{money(totalVentas)}</strong><small>{salesToday.length} comprobantes · {tendencia >= 0 ? '+' : ''}{tendencia.toFixed(1)}% vs ayer</small></div>
       </div>
-      <div className="kpi-grid">
+      <div className="kpi-grid dashboard-kpis">
         <Kpi label="Ventas hoy" value={money(totalVentas)} helper={`${salesToday.length} comprobantes`} />
         <Kpi label="Caja neta" value={money(cajaNeta)} helper="Ingresos menos egresos" />
+        <Kpi label="Crédito hoy" value={money(creditosHoy)} helper="Por cobrar" />
+        <Kpi label="Método dominante" value={bestMethod?.[0] || '—'} helper={bestMethod ? money(bestMethod[1]) : 'Sin ventas'} />
         <Kpi label="Productos" value={products.length} helper="Activos" />
         <Kpi label="Stock crítico" value={stockCritico.length} helper="Revisar reposición" />
       </div>
-      <div className="two-col">
-        <section className="card compact-card">
-          <h3>Últimas ventas</h3>
-          {sales.slice(0, 6).length ? sales.slice(0, 6).map(s => (
-            <div className="list-row" key={s.id}><span>B{s.receipt_number || '—'} · {s.customer_name || 'Cliente'}</span><strong>{money(s.total)}</strong></div>
-          )) : <p className="muted">Todavía no hay ventas registradas.</p>}
-        </section>
-        <section className="card compact-card">
-          <h3>Stock crítico</h3>
-          {stockCritico.length ? stockCritico.slice(0, 8).map(p => (
-            <div className="list-row" key={p.id}><span>{p.name}</span><strong>{asNum(p.stock)}</strong></div>
-          )) : <p className="muted">No hay productos críticos.</p>}
-        </section>
+      <div className="dashboard-grid-pro">
+        <section className="card compact-card"><h3>Acciones recomendadas</h3>{alerts.length ? alerts.map((a, i)=><div className="insight-row" key={i}><span>⚠️</span><strong>{a}</strong></div>) : <div className="insight-row ok"><span>✅</span><strong>Sin alertas críticas por ahora.</strong></div>}</section>
+        <section className="card compact-card"><h3>Mejor comprobante del día</h3>{ventaMayor ? <div className="featured-sale"><span>{receiptNumber(ventaMayor)}</span><strong>{money(ventaMayor.total)}</strong><small>{ventaMayor.customer_name || 'Cliente'} · {ventaMayor.payment_method}</small></div> : <p className="muted">Todavía no hay ventas hoy.</p>}</section>
+        <section className="card compact-card"><h3>Últimas ventas</h3>{sales.slice(0, 8).length ? sales.slice(0, 8).map(s => (<div className="list-row" key={s.id}><span>{receiptNumber(s)} · {s.customer_name || 'Cliente'}<small>{fmtDate(s.created_at)} · {s.payment_method}</small></span><strong>{money(s.total)}</strong></div>)) : <p className="muted">Todavía no hay ventas registradas.</p>}</section>
+        <section className="card compact-card"><h3>Stock crítico</h3>{stockCritico.length ? stockCritico.slice(0, 10).map(p => (<div className="list-row" key={p.id}><span>{p.name}<small>{p.category || 'General'} · mínimo {asNum(p.stock_min)}</small></span><strong className="danger-text">{asNum(p.stock)}</strong></div>)) : <p className="muted">No hay productos críticos.</p>}</section>
       </div>
     </div>
   );
@@ -643,6 +656,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [scanOpen, setScanOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState('');
   const [notice, setNotice] = useState(null);
+  const [globalDiscount, setGlobalDiscount] = useState('0');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mixedPayments, setMixedPayments] = useState({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -652,7 +668,17 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     const base = !normalized ? activeProducts.slice(0, 12) : activeProducts.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
   }, [activeProducts, normalized]);
-  const total = cart.reduce((sum, item) => sum + asNum(item.price) * asNum(item.qty), 0);
+  const lineBase = (item) => asNum(item.price) * asNum(item.qty);
+  const lineDiscount = (item) => Math.min(lineBase(item), Math.max(0, asNum(item.discount)));
+  const lineSubtotal = (item) => Math.max(0, lineBase(item) - lineDiscount(item));
+  const subtotal = cart.reduce((sum, item) => sum + lineBase(item), 0);
+  const itemDiscountTotal = cart.reduce((sum, item) => sum + lineDiscount(item), 0);
+  const afterItemDiscount = Math.max(0, subtotal - itemDiscountTotal);
+  const saleDiscount = Math.min(afterItemDiscount, Math.max(0, asNum(globalDiscount)));
+  const total = Math.max(0, afterItemDiscount - saleDiscount);
+  const mixedTotal = Object.values(mixedPayments).reduce((sum, v) => sum + asNum(v), 0);
+  const mixedBalance = total - mixedTotal;
+  const paymentOk = method !== 'Mixto' || Math.abs(mixedBalance) < 0.01;
 
   function clearLastTicketBackup() {
     try { sessionStorage.removeItem('clomar_last_completed_sale'); } catch (err) { /* no-op */ }
@@ -662,12 +688,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (!ticket?.sale) return;
     setLastTicket(ticket);
     setDismissedTicketId(null);
-    try {
-      sessionStorage.setItem('clomar_last_completed_sale', JSON.stringify({ ...ticket, saved_at: Date.now() }));
-    } catch (err) {
-      // El respaldo local es auxiliar; si falla, el comprobante igual queda registrado.
-    }
-    // Forzar una nueva apertura aunque React agrupe estados después del cobro.
+    try { sessionStorage.setItem('clomar_last_completed_sale', JSON.stringify({ ...ticket, saved_at: Date.now() })); } catch (err) {}
     setSaleModal(null);
     setTimeout(() => setSaleModal(ticket), 80);
   }
@@ -678,16 +699,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       if (!raw) return;
       const saved = JSON.parse(raw);
       const fresh = Date.now() - asNum(saved.saved_at) < 15 * 60 * 1000;
-      if (saved?.sale && fresh) {
-        setLastTicket(saved);
-        setDismissedTicketId(null);
-        setTimeout(() => setSaleModal(saved), 120);
-      } else {
-        sessionStorage.removeItem('clomar_last_completed_sale');
-      }
-    } catch (err) {
-      clearLastTicketBackup();
-    }
+      if (saved?.sale && fresh) { setLastTicket(saved); setDismissedTicketId(null); setTimeout(() => setSaleModal(saved), 120); }
+      else sessionStorage.removeItem('clomar_last_completed_sale');
+    } catch (err) { clearLastTicketBackup(); }
   }, []);
 
   useEffect(() => {
@@ -704,18 +718,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   }
 
   function addProduct(product) {
-    if (asNum(product.stock) <= 0) return setNotice({
-      type: 'warning', icon: '📦', title: 'Producto sin stock disponible',
-      message: `${product.name} no tiene stock para vender. Ingresa a Inventario o Ingreso de mercadería para actualizar existencias.`
-    });
-    if (asNum(product.price) <= 0) return setNotice({
-      type: 'warning', icon: '💰', title: 'Producto sin precio de venta',
-      message: `${product.name} tiene precio 0. Valida costo y precio antes de vender.`
-    });
-    if (productPriceStatus(product) !== 'Validado') return setNotice({
-      type: 'warning', icon: '🔎', title: 'Precio pendiente de validar',
-      message: `${product.name} todavía está marcado como ${productPriceStatus(product)}. Ingresa a Precios, confirma costo y precio, y marca el producto como Validado.`
-    });
+    if (asNum(product.stock) <= 0) return setNotice({ type: 'warning', icon: '📦', title: 'Producto sin stock disponible', message: `${product.name} no tiene stock para vender. Ingresa a Inventario o Ingreso de mercadería para actualizar existencias.` });
+    if (asNum(product.price) <= 0) return setNotice({ type: 'warning', icon: '💰', title: 'Producto sin precio de venta', message: `${product.name} tiene precio 0. Valida costo y precio antes de vender.` });
+    if (productPriceStatus(product) !== 'Validado') return setNotice({ type: 'warning', icon: '🔎', title: 'Precio pendiente de validar', message: `${product.name} todavía está marcado como ${productPriceStatus(product)}. Ingresa a Precios, confirma costo y precio, y marca el producto como Validado.` });
     setLastTicket(null);
     setCart(prev => {
       const found = prev.find(x => x.id === product.id);
@@ -723,7 +728,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
         if (asNum(found.qty) + 1 > asNum(product.stock)) return prev;
         return prev.map(x => x.id === product.id ? { ...x, qty: asNum(x.qty) + 1 } : x);
       }
-      return [...prev, { ...product, qty: 1 }];
+      return [...prev, { ...product, qty: 1, discount: 0 }];
     });
   }
 
@@ -731,13 +736,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     const clean = String(value || '').trim();
     if (!clean) return;
     const product = findProductByBarcode(clean);
-    if (product) {
-      addProduct(product);
-      setQuery('');
-      setScanStatus(`Agregado al carrito: ${product.name}`);
-      if (source === 'camera') setScanOpen(false);
-      return;
-    }
+    if (product) { addProduct(product); setQuery(''); setScanStatus(`Agregado al carrito: ${product.name}`); if (source === 'camera') setScanOpen(false); return; }
     setQuery(clean);
     setScanStatus(`Código no encontrado: ${clean}`);
     if (source !== 'camera') setNotice({ type: 'info', icon: '🔍', title: 'Código no encontrado', message: `No existe un producto con el código ${clean}. Puedes asignarlo desde Productos o importarlo desde Excel.` });
@@ -750,20 +749,12 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (!clean) return;
     const exact = findProductByBarcode(clean);
     if (exact) { processBarcode(clean, 'lector'); return; }
-    if (matches.length === 1) {
-      addProduct(matches[0]);
-      setQuery('');
-      setScanStatus(`Agregado al carrito: ${matches[0].name}`);
-      return;
-    }
+    if (matches.length === 1) { addProduct(matches[0]); setQuery(''); setScanStatus(`Agregado al carrito: ${matches[0].name}`); return; }
     setNotice({ type: 'info', icon: '🔍', title: 'Sin coincidencia exacta', message: 'No se encontró un producto exacto. Escanea el código de barras, escribe el código interno o busca por nombre.' });
   }
 
   function stopScanner() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
     setScanOpen(false);
   }
 
@@ -771,197 +762,147 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (!scanOpen) return;
     let cancelled = false;
     let raf = 0;
-
     async function startScanner() {
       try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setScanStatus('Este navegador no permite usar la cámara. Usa lector físico o escribe el código.');
-          return;
-        }
-        if (!('BarcodeDetector' in window)) {
-          setScanStatus('Tu navegador no tiene lector de código por cámara. Usa Chrome/Android, lector físico USB/Bluetooth o escribe el código manualmente.');
-          return;
-        }
-
+        if (!navigator.mediaDevices?.getUserMedia) { setScanStatus('Este navegador no permite usar la cámara. Usa lector físico o escribe el código.'); return; }
+        if (!('BarcodeDetector' in window)) { setScanStatus('Tu navegador no tiene lector de código por cámara. Usa Chrome/Android, lector físico USB/Bluetooth o escribe el código manualmente.'); return; }
         setScanStatus('Solicitando permiso de cámara...');
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
         if (cancelled) { stream.getTracks().forEach(track => track.stop()); return; }
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
         const supportedFormats = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : [];
         const preferred = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','qr_code'];
         const formats = supportedFormats.length ? preferred.filter(f => supportedFormats.includes(f)) : preferred;
         const detector = new window.BarcodeDetector({ formats: formats.length ? formats : undefined });
         setScanStatus('Apunta la cámara al código de barras.');
-
         async function loop() {
           if (cancelled || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes?.length) {
-              const raw = codes[0].rawValue || codes[0].rawData;
-              if (raw) { processBarcode(raw, 'camera'); return; }
-            }
-          } catch (err) {
-            // Continuar intentando mientras la cámara esté abierta.
-          }
+          try { const codes = await detector.detect(videoRef.current); if (codes?.length) { const raw = codes[0].rawValue || codes[0].rawData; if (raw) { processBarcode(raw, 'camera'); return; } } } catch (err) {}
           raf = requestAnimationFrame(loop);
         }
         loop();
-      } catch (err) {
-        setScanStatus(`No se pudo abrir la cámara: ${err.message || err}`);
-      }
+      } catch (err) { setScanStatus(`No se pudo abrir la cámara: ${err.message || err}`); }
     }
-
     startScanner();
-    return () => {
-      cancelled = true;
-      if (raf) cancelAnimationFrame(raf);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-    };
+    return () => { cancelled = true; if (raf) cancelAnimationFrame(raf); if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; } };
   }, [scanOpen]);
 
   function updateQty(id, qty) {
-    setCart(prev => prev.map(x => {
-      if (x.id !== id) return x;
-      const next = Math.max(1, Math.min(asNum(x.stock), asNum(qty || 1)));
-      return { ...x, qty: next };
-    }));
+    setCart(prev => prev.map(x => x.id === id ? { ...x, qty: Math.max(1, Math.min(asNum(x.stock), asNum(qty || 1))) } : x));
+  }
+  function updateItemDiscount(id, value) {
+    setCart(prev => prev.map(x => x.id === id ? { ...x, discount: Math.max(0, Math.min(lineBase(x), asNum(value))) } : x));
   }
   function removeItem(id) { setCart(prev => prev.filter(x => x.id !== id)); }
+  function setMixed(methodName, value) { setMixedPayments(prev => ({ ...prev, [methodName]: value })); }
+  function fillMixed(methodName) { setMixed(methodName, Math.max(0, total - (mixedTotal - asNum(mixedPayments[methodName]))).toFixed(2)); }
+
+  function validateSaleBeforeConfirm() {
+    if (!cart.length || saving) return false;
+    const invalidPrice = cart.find(item => asNum(item.price) <= 0 || productPriceStatus(item) !== 'Validado');
+    if (invalidPrice) { setNotice({ type: 'warning', icon: '💰', title: 'No se puede cobrar todavía', message: `Revisa y valida el precio de ${invalidPrice.name} antes de finalizar la venta.` }); return false; }
+    if (total <= 0) { setNotice({ type: 'warning', icon: '📉', title: 'Total inválido', message: 'El total de la venta debe ser mayor a cero.' }); return false; }
+    if (method === 'Mixto' && !paymentOk) { setNotice({ type: 'warning', icon: '💳', title: 'Pago mixto incompleto', message: `Falta cuadrar ${money(Math.abs(mixedBalance))}. El total de pagos debe coincidir con el total de la venta.` }); return false; }
+    return true;
+  }
 
   async function checkout() {
-    if (!cart.length || saving) return;
-    const invalidPrice = cart.find(item => asNum(item.price) <= 0 || productPriceStatus(item) !== 'Validado');
-    if (invalidPrice) return setNotice({ type: 'warning', icon: '💰', title: 'No se puede cobrar todavía', message: `Revisa y valida el precio de ${invalidPrice.name} antes de finalizar la venta.` });
+    if (!validateSaleBeforeConfirm()) return;
+    setConfirmOpen(false);
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
     const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
-    const salePayload = { customer_name: customer || 'Cliente', payment_method: method, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
+    const saleMethod = method === 'Mixto' ? 'Mixto' : method;
+    const salePayload = { customer_name: customer || 'Cliente', payment_method: saleMethod, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
     const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
     if (error) { alert(error.message); setSaving(false); return; }
     const items = cart.map(item => {
+      const qty = asNum(item.qty);
+      const base = lineBase(item);
+      const afterLine = lineSubtotal(item);
+      const globalShare = afterItemDiscount > 0 ? saleDiscount * (afterLine / afterItemDiscount) : 0;
+      const finalSubtotal = Math.max(0, afterLine - globalShare);
+      const finalPrice = qty > 0 ? finalSubtotal / qty : 0;
       const unitCost = asNum(item.cost);
-      const unitProfit = asNum(item.price) - unitCost;
-      const subtotal = asNum(item.qty) * asNum(item.price);
-      return { sale_id: sale.id, product_id: item.id, product_name: item.name, qty: item.qty, price: item.price, unit_cost: unitCost, subtotal, profit: unitProfit * asNum(item.qty), margin_percent: asNum(item.price) > 0 ? (unitProfit / asNum(item.price)) * 100 : 0, store_id: profile?.store_id || DEFAULT_STORE_ID };
+      const unitProfit = finalPrice - unitCost;
+      return { sale_id: sale.id, product_id: item.id, product_name: item.name, qty, price: finalPrice, unit_cost: unitCost, subtotal: finalSubtotal, profit: unitProfit * qty, margin_percent: finalPrice > 0 ? (unitProfit / finalPrice) * 100 : 0, store_id: profile?.store_id || DEFAULT_STORE_ID };
     });
     await supabase.from('sale_items').insert(items);
     for (const item of cart) {
       await supabase.from('products').update({ stock: asNum(item.stock) - asNum(item.qty) }).eq('id', item.id);
-      await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta B${sale.receipt_number || sale.id}`, ...meta });
+      await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta ${receiptNumber(sale)}${item.discount ? ` · Desc. ${money(item.discount)}` : ''}`, ...meta });
     }
-    await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta B${sale.receipt_number || sale.id}`, ...meta });
-    const completedSale = { sale, items };
+    const discountNote = (itemDiscountTotal || saleDiscount) ? ` · Descuentos: productos ${money(itemDiscountTotal)}, venta ${money(saleDiscount)}` : '';
+    if (method === 'Mixto') {
+      const parts = Object.entries(mixedPayments).filter(([,amount]) => asNum(amount) > 0);
+      for (const [payMethod, amount] of parts) await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: payMethod, amount: asNum(amount), note: `Venta mixta ${receiptNumber(sale)}${discountNote}`, ...meta });
+    } else {
+      await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
+    }
+    const completedSale = { sale: { ...sale, payment_method: saleMethod, total }, items };
     openCompletedSale(completedSale);
-    setNotice({
-      type: 'success',
-      icon: '✅',
-      title: `Venta ${receiptNumber(sale)} registrada`,
-      message: `Comprobante listo por ${money(sale.total)}. Puedes imprimir el ticket, guardar PDF o seguir vendiendo.`
-    });
-    setCart([]);
-    setCustomer('Cliente');
-    setMethod('Efectivo');
-    setSaving(false);
+    setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: `Comprobante listo por ${money(total)}. Puedes imprimir el ticket, guardar PDF o seguir vendiendo.` });
+    setCart([]); setCustomer('Cliente'); setMethod('Efectivo'); setGlobalDiscount('0'); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
     await reloadProducts();
     setTimeout(() => searchInputRef.current?.focus(), 250);
   }
 
   return (
-    <div className="page pos-page">
+    <div className="page pos-page pos-pro-page">
       <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
-      <SaleCompleteModal
-        ticket={saleModal}
-        store={store}
-        profile={profile}
-        onClose={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }}
-        onNewSale={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
-        onGoReceipts={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); onGoReceipts?.(); }}
-      />
-      <div className="hero compact-hero"><h1>🧾 Venta rápida</h1><p>Busca por nombre, escanea código con lector físico o usa la cámara del celular.</p></div>
-      {lastTicket && (
-        <LastReceiptBanner
-          ticket={lastTicket}
-          store={store}
-          profile={profile}
-          onOpen={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}
-          onGoReceipts={onGoReceipts}
-          onDismiss={() => { setDismissedTicketId(lastTicket?.sale?.id || null); clearLastTicketBackup(); setLastTicket(null); setSaleModal(null); }}
-        />
-      )}
+      <SaleConfirmModal open={confirmOpen} onClose={()=>setConfirmOpen(false)} onConfirm={checkout} saving={saving} subtotal={subtotal} itemDiscountTotal={itemDiscountTotal} saleDiscount={saleDiscount} total={total} method={method} mixedPayments={mixedPayments} mixedTotal={mixedTotal} customer={customer} cart={cart} />
+      <SaleCompleteModal ticket={saleModal} store={store} profile={profile} onClose={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }} onNewSale={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} onGoReceipts={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); onGoReceipts?.(); }} />
+      <div className="hero compact-hero"><h1>🧾 Ventas Pro</h1><p>Venta rápida con descuentos, confirmación y pagos mixtos.</p></div>
+      {lastTicket && <LastReceiptBanner ticket={lastTicket} store={store} profile={profile} onOpen={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }} onGoReceipts={onGoReceipts} onDismiss={() => { setDismissedTicketId(lastTicket?.sale?.id || null); clearLastTicketBackup(); setLastTicket(null); setSaleModal(null); }} />}
       <div className="pos-layout">
         <section className="card compact-card">
-          <div className="barcode-tools">
-            <div className="search-box barcode-search"><Search size={18}/><input ref={searchInputRef} value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div>
-            <button className="secondary-btn scan-btn" type="button" onClick={()=>setScanOpen(true)}>📷 Escanear con celular</button>
-          </div>
+          <div className="barcode-tools"><div className="search-box barcode-search"><Search size={18}/><input ref={searchInputRef} value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div><button className="secondary-btn scan-btn" type="button" onClick={()=>setScanOpen(true)}>📷 Escanear con celular</button></div>
           <div className="scanner-help">Lector físico: enfoca el buscador y escanea. Cámara: abre el escáner y apunta al código.</div>
           {scanStatus && <div className="scan-status">{scanStatus}</div>}
-          {scanOpen && (
-            <div className="scanner-panel">
-              <div className="scanner-head"><strong>Escáner con cámara</strong><button className="icon-btn" type="button" onClick={stopScanner}>×</button></div>
-              <div className="scanner-frame"><video ref={videoRef} muted playsInline /></div>
-              <p className="muted">Usa la cámara trasera del celular. Si no detecta, escribe el código manualmente en el buscador.</p>
-            </div>
-          )}
-          <div className="product-list">
-            {matches.map(product => (
-              <button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}>
-                <img className="product-thumb" src={productImageSrc(product)} alt={product.name} />
-                <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span></div>
-                <b>{money(product.price)}</b>
-              </button>
-            ))}
-            {!matches.length && <p className="muted">No se encontraron productos.</p>}
-          </div>
+          {scanOpen && <div className="scanner-panel"><div className="scanner-head"><strong>Escáner con cámara</strong><button className="icon-btn" type="button" onClick={stopScanner}>×</button></div><div className="scanner-frame"><video ref={videoRef} muted playsInline /></div><p className="muted">Usa la cámara trasera del celular. Si no detecta, escribe el código manualmente en el buscador.</p></div>}
+          <div className="product-list">{matches.map(product => (<button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}><img className="product-thumb" src={productImageSrc(product)} alt={product.name} /><div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span></div><b>{money(product.price)}</b></button>))}{!matches.length && <p className="muted">No se encontraron productos.</p>}</div>
         </section>
-        <aside className="card compact-card cart-card">
-          <h3><ShoppingCart size={20}/> Carrito</h3>
-          {cart.length === 0 ? <p className="muted">Agrega productos para vender.</p> : cart.map(item => (
-            <div className="cart-row" key={item.id}>
-              <div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div>
-              <input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} />
-              <strong>{money(asNum(item.qty)*asNum(item.price))}</strong>
-              <button className="icon-btn" onClick={()=>removeItem(item.id)}>×</button>
-            </div>
-          ))}
-          <div className="cart-total"><span>Total</span><strong>{money(total)}</strong></div>
-          <select value={customer} onChange={(e)=>setCustomer(e.target.value)}>
-            <option>Cliente</option>
-            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </select>
-          <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option></select>
-          <button className="primary-btn" disabled={!cart.length || saving} onClick={checkout}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : 'Cobrar'}</button>
-          {lastTicket && (
-            <div className="ticket-box">
-              <h4>✅ Venta registrada</h4>
-              <p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p>
-              <p><strong>Total:</strong> {money(lastTicket.sale.total)}</p>
-              <div className="ticket-actions">
-                <button className="primary-btn" onClick={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}>Abrir comprobante</button>
-                <button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button>
-                <button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button>
-                <button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button>
-                <button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button>
-              </div>
-            </div>
-          )}
+        <aside className="card compact-card cart-card pro-cart-card">
+          <h3><ShoppingCart size={20}/> Carrito Pro</h3>
+          {cart.length === 0 ? <p className="muted">Agrega productos para vender.</p> : cart.map(item => (<div className="cart-row cart-row-pro" key={item.id}><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><label className="mini-discount">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label><strong>{money(lineSubtotal(item))}</strong><button className="icon-btn" onClick={()=>removeItem(item.id)}>×</button></div>))}
+          <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div><div><span>Desc. venta</span><input value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div><div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
+          <select value={customer} onChange={(e)=>setCustomer(e.target.value)}><option>Cliente</option>{customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
+          <div className="payment-fast-row"><button type="button" onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" onClick={()=>setMethod('Yape')}>Yape</button><button type="button" onClick={()=>setMethod('Plin')}>Plin</button><button type="button" onClick={()=>setMethod('Mixto')}>Mixto</button></div>
+          <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option><option>Mixto</option></select>
+          {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
+          <button className="primary-btn" disabled={!cart.length || saving} onClick={()=>validateSaleBeforeConfirm() && setConfirmOpen(true)}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : 'Confirmar cobro'}</button>
+          {lastTicket && <div className="ticket-box"><h4>✅ Venta registrada</h4><p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p><p><strong>Total:</strong> {money(lastTicket.sale.total)}</p><div className="ticket-actions"><button className="primary-btn" onClick={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}>Abrir comprobante</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button><button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button></div></div>}
         </aside>
       </div>
     </div>
   );
 }
 
-
-
+function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDiscountTotal, saleDiscount, total, method, mixedPayments, mixedTotal, customer, cart }) {
+  if (!open) return null;
+  return (
+    <div className="notice-backdrop" role="dialog" aria-modal="true">
+      <div className="notice-card confirm-sale-card">
+        <div className="notice-icon">🧾</div>
+        <div className="notice-content">
+          <h3>Confirmar venta</h3>
+          <p>Revisa el total, descuentos y método de pago antes de registrar el comprobante.</p>
+          <div className="confirm-sale-summary">
+            <div><span>Cliente</span><strong>{customer || 'Cliente'}</strong></div>
+            <div><span>Productos</span><strong>{cart.length}</strong></div>
+            <div><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
+            <div><span>Descuentos</span><strong>{money(itemDiscountTotal + saleDiscount)}</strong></div>
+            <div><span>Método</span><strong>{method}</strong></div>
+            <div><span>Total final</span><strong>{money(total)}</strong></div>
+          </div>
+          {method === 'Mixto' && <div className="info-box">Pagos mixtos: {Object.entries(mixedPayments).filter(([,v])=>asNum(v)>0).map(([k,v])=>`${k} ${money(v)}`).join(' · ')} · Total pagos {money(mixedTotal)}</div>}
+          <div className="notice-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancelar</button><button type="button" className="primary-btn" disabled={saving} onClick={onConfirm}>{saving ? 'Guardando...' : 'Registrar venta'}</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LastReceiptBanner({ ticket, store = {}, profile = {}, onOpen, onGoReceipts, onDismiss }) {
   if (!ticket?.sale) return null;
@@ -1517,15 +1458,19 @@ function Inventory({ products }) {
 }
 
 function StockEntry({ products, reloadProducts, profile }) {
-  const [form, setForm] = useState({ product_id:'', provider:'', qty:'1', cost:'0', method:'Efectivo', paid:'0', note:'' });
+  const { movements, reload: reloadMovements } = useStockMovements(profile);
+  const [form, setForm] = useState({ product_id:'', provider:'', qty:'1', cost:'0', method:'Efectivo', paid:'0', invoice:'', note:'' });
+  const [query, setQuery] = useState('');
   const selected = products.find(p => p.id === form.product_id) || products[0];
   const total = asNum(form.qty) * asNum(form.cost);
-  useEffect(() => {
-    if (!form.product_id && products[0]) setForm(f => ({ ...f, product_id: products[0].id, cost: String(products[0].cost || 0) }));
-  }, [products]);
-  useEffect(() => {
-    if (form.method !== 'Crédito') setForm(f => ({ ...f, paid: String(total || 0) }));
-  }, [form.qty, form.cost, form.method]);
+  const entries = movements.filter(m => m.type === 'Entrada');
+  const filteredEntries = entries.filter(m => `${m.products?.name || ''} ${m.products?.code || ''} ${m.note || ''}`.toLowerCase().includes(query.toLowerCase())).slice(0, 20);
+  const today = todayISO();
+  const entriesToday = entries.filter(m => String(m.created_at || '').slice(0,10) === today);
+  const unitsToday = entriesToday.reduce((s,m)=>s+asNum(m.qty),0);
+  const lastProviders = Array.from(new Set(entries.map(m => String(m.note || '').match(/Proveedor:\s*([^·]+)/)?.[1]?.trim()).filter(Boolean))).slice(0, 8);
+  useEffect(() => { if (!form.product_id && products[0]) setForm(f => ({ ...f, product_id: products[0].id, cost: String(products[0].cost || 0) })); }, [products]);
+  useEffect(() => { if (form.method !== 'Crédito') setForm(f => ({ ...f, paid: String(total || 0) })); }, [form.qty, form.cost, form.method]);
   async function save(e) {
     e.preventDefault();
     if (!selected) return alert('Selecciona un producto.');
@@ -1533,37 +1478,32 @@ function StockEntry({ products, reloadProducts, profile }) {
     const newStock = asNum(selected.stock) + asNum(form.qty);
     const { error: prodError } = await supabase.from('products').update({ stock: newStock, cost: asNum(form.cost) }).eq('id', selected.id);
     if (prodError) return alert(prodError.message);
-    const note = `Proveedor: ${form.provider || 'Sin proveedor'} · Método: ${form.method} · ${form.note || ''}`;
+    const note = `Proveedor: ${form.provider || 'Sin proveedor'} · Doc: ${form.invoice || 'Sin documento'} · Método: ${form.method} · ${form.note || ''}`;
     await supabase.from('stock_movements').insert({ product_id: selected.id, type: 'Entrada', qty: asNum(form.qty), note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    await supabase.from('cash_movements').insert({ type: form.method === 'Crédito' ? 'Compra crédito' : 'Compra', payment_method: form.method, amount: asNum(form.paid || total), note: `Ingreso mercadería: ${selected.name}. ${note}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    alert(`Ingreso registrado. Nuevo stock: ${newStock}`);
-    setForm({ product_id: selected.id, provider:'', qty:'1', cost:String(form.cost || selected.cost || 0), method:'Efectivo', paid:'0', note:'' });
-    reloadProducts();
+    await supabase.from('cash_movements').insert({ type: form.method === 'Crédito' ? 'Compra crédito' : 'Compra', payment_method: form.method, amount: asNum(form.paid || total), note: `Compra mercadería: ${selected.name}. ${note}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
+    alert(`Compra registrada. Nuevo stock: ${newStock}`);
+    setForm({ product_id: selected.id, provider:'', qty:'1', cost:String(form.cost || selected.cost || 0), method:'Efectivo', paid:'0', invoice:'', note:'' });
+    await reloadProducts();
+    await reloadMovements();
   }
   return (
-    <div className="page">
-      <div className="hero compact-hero"><h1>📥 Ingreso de mercadería</h1><p>Repone stock, registra proveedor, costo y movimiento de caja.</p></div>
+    <div className="page purchases-page">
+      <div className="hero compact-hero"><h1>📥 Compras y proveedores</h1><p>Registra ingresos de mercadería, proveedor, documento, costo y salida de caja.</p></div>
+      <div className="kpi-grid"><Kpi label="Ingresos hoy" value={entriesToday.length} helper="compras registradas" /><Kpi label="Unidades hoy" value={unitsToday} helper="stock agregado" /><Kpi label="Proveedores recientes" value={lastProviders.length} helper="según historial" /><Kpi label="Producto seleccionado" value={selected ? asNum(selected.stock) : 0} helper="stock actual" /></div>
       <div className="two-col">
-        <form className="card form-grid" onSubmit={save}>
+        <form className="card form-grid purchase-form" onSubmit={save}>
+          <h3>Nueva compra / ingreso</h3>
           <label>Producto<select value={form.product_id} onChange={e=>{const p=products.find(x=>x.id===e.target.value); setForm({...form,product_id:e.target.value,cost:String(p?.cost || 0)})}}>{products.map(p=><option key={p.id} value={p.id}>{p.code} · {p.name} · Stock {asNum(p.stock)}</option>)}</select></label>
-          <label>Proveedor<input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="Nombre del proveedor" /></label>
-          <label>Cantidad ingresada<input value={form.qty} onChange={e=>setForm({...form,qty:e.target.value})} inputMode="decimal" /></label>
-          <label>Costo unitario<input value={form.cost} onChange={e=>setForm({...form,cost:e.target.value})} inputMode="decimal" /></label>
-          <label>Método de pago<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option></select></label>
-          {form.method === 'Crédito' && <label>Monto pagado / adelanto<input value={form.paid} onChange={e=>setForm({...form,paid:e.target.value})} inputMode="decimal" /></label>}
-          <label>Observación<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Factura, guía, nota de compra..." /></label>
-          <div className="total-box"><span>Total ingreso</span><strong>{money(total)}</strong><small>Se actualizará el stock al guardar.</small></div>
-          <button className="primary-btn">Registrar ingreso de mercadería</button>
+          <div className="form-split"><label>Proveedor<input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="Nombre del proveedor" /></label><label>Documento<input value={form.invoice} onChange={e=>setForm({...form,invoice:e.target.value})} placeholder="Factura, boleta, guía" /></label></div>
+          <div className="form-split"><label>Cantidad ingresada<input value={form.qty} onChange={e=>setForm({...form,qty:e.target.value})} inputMode="decimal" /></label><label>Costo unitario<input value={form.cost} onChange={e=>setForm({...form,cost:e.target.value})} inputMode="decimal" /></label></div>
+          <div className="form-split"><label>Método de pago<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option></select></label><label>Monto pagado<input value={form.paid} onChange={e=>setForm({...form,paid:e.target.value})} inputMode="decimal" /></label></div>
+          <label>Observación<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Detalle de compra, cambio de costo, referencia..." /></label>
+          <div className="total-box"><span>Total compra</span><strong>{money(total)}</strong><small>Stock después: {selected ? asNum(selected.stock) + asNum(form.qty) : 0}</small></div>
+          <button className="primary-btn">Registrar compra e ingreso</button>
         </form>
-        <section className="card compact-card">
-          <h3>Producto seleccionado</h3>
-          {selected ? <>
-            <div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category}{selected.subcategory ? ` / ${selected.subcategory}` : ''} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div>
-            <div className="list-row"><span>Stock actual</span><strong>{asNum(selected.stock)}</strong></div>
-            <div className="list-row"><span>Stock después</span><strong>{asNum(selected.stock) + asNum(form.qty)}</strong></div>
-          </> : <p className="muted">No hay productos.</p>}
-        </section>
+        <section className="card compact-card"><h3>Producto seleccionado</h3>{selected ? <><div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category}{selected.subcategory ? ` / ${selected.subcategory}` : ''} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div><div className="list-row"><span>Stock actual</span><strong>{asNum(selected.stock)}</strong></div><div className="list-row"><span>Stock después</span><strong>{asNum(selected.stock) + asNum(form.qty)}</strong></div><div className="list-row"><span>Costo anterior</span><strong>{money(selected.cost)}</strong></div><div className="list-row"><span>Nuevo costo</span><strong>{money(form.cost)}</strong></div></> : <p className="muted">No hay productos.</p>}<h4>Proveedores recientes</h4>{lastProviders.map(p => <button key={p} type="button" className="provider-chip" onClick={()=>setForm({...form, provider:p})}>{p}</button>)}</section>
       </div>
+      <section className="card compact-card extra-row"><div className="report-filter-head"><div><h3>Historial de compras</h3><p className="muted">Busca por producto, código, proveedor o documento.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar compra..." /></div>{filteredEntries.map(m=><div className="list-row" key={m.id}><span>{m.products?.name || 'Producto'}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>+{asNum(m.qty)}</strong></div>)}{!filteredEntries.length && <p className="muted">No hay compras registradas.</p>}</section>
     </div>
   );
 }
@@ -1571,51 +1511,46 @@ function StockEntry({ products, reloadProducts, profile }) {
 function CashPage({ profile }) {
   const { movements, reload } = useCashMovements(profile);
   const [form, setForm] = useState({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' });
-  const today = todayISO();
-  const todayMovs = movements.filter(m => String(m.created_at || '').slice(0,10) === today);
-  const ingresos = todayMovs.filter(m => ['Ingreso','Apertura'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
-  const egresosList = todayMovs.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
+  const [closeDate, setCloseDate] = useState(todayISO());
+  const dayMovs = movements.filter(m => String(m.created_at || '').slice(0,10) === closeDate);
+  const ingresosList = dayMovs.filter(m => ['Ingreso','Apertura'].includes(m.type));
+  const egresosList = dayMovs.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
+  const creditosList = dayMovs.filter(m => String(m.type).includes('Crédito'));
+  const ingresos = ingresosList.reduce((s,m)=>s+asNum(m.amount),0);
   const egresos = egresosList.reduce((s,m)=>s+asNum(m.amount),0);
-  const creditos = todayMovs.filter(m => String(m.type).includes('Crédito')).reduce((s,m)=>s+asNum(m.amount),0);
-  const abonos = todayMovs.filter(m => String(m.note || '').toLowerCase().includes('abono')).reduce((s,m)=>s+asNum(m.amount),0);
+  const creditos = creditosList.reduce((s,m)=>s+asNum(m.amount),0);
+  const abonos = dayMovs.filter(m => String(m.note || '').toLowerCase().includes('abono')).reduce((s,m)=>s+asNum(m.amount),0);
+  const cajaNeta = ingresos - egresos;
+  const byMethod = dayMovs.reduce((acc,m)=>{ const k=m.payment_method || 'Sin método'; acc[k]=(acc[k]||0)+asNum(m.amount); return acc; },{});
+  const groupByType = dayMovs.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + asNum(m.amount); return acc; }, {});
   async function save(e) {
     e.preventDefault();
     if (asNum(form.amount) <= 0) return alert('El monto debe ser mayor a cero.');
     const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
     if (error) alert(error.message); else { setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' }); reload(); }
   }
-  const groupByType = todayMovs.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + asNum(m.amount); return acc; }, {});
+  function printClose() {
+    const rows = dayMovs.map(m=>`<tr><td>${escapeHtml(fmtDate(m.created_at))}</td><td>${escapeHtml(m.type)}</td><td>${escapeHtml(m.payment_method || '')}</td><td>${escapeHtml(m.note || '')}</td><td>${money(m.amount)}</td></tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cierre de caja ${closeDate}</title><style>body{font-family:Arial;padding:24px;color:#111827}h1{margin:0}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.kpi{border:1px solid #ddd;border-radius:12px;padding:12px}.kpi span{display:block;color:#64748b;font-size:11px;text-transform:uppercase}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #eee;padding:7px;text-align:left;font-size:12px}</style></head><body><h1>Cierre de caja — Clomar Store</h1><p>Fecha: ${closeDate}</p><section class="kpis"><div class="kpi"><span>Ingresos</span><strong>${money(ingresos)}</strong></div><div class="kpi"><span>Egresos</span><strong>${money(egresos)}</strong></div><div class="kpi"><span>Créditos</span><strong>${money(creditos)}</strong></div><div class="kpi"><span>Caja neta</span><strong>${money(cajaNeta)}</strong></div></section><h2>Movimientos</h2><table><thead><tr><th>Hora</th><th>Tipo</th><th>Método</th><th>Nota</th><th>Monto</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
+    const win = window.open('', '_blank', 'width=1000,height=800');
+    if (!win) return alert('Permite ventanas emergentes para imprimir el cierre.');
+    win.document.open(); win.document.write(html); win.document.close();
+  }
+  function exportCloseTxt() {
+    const lines = [`CIERRE DE CAJA CLOMAR STORE`, `Fecha: ${closeDate}`, `Ingresos: ${money(ingresos)}`, `Egresos: ${money(egresos)}`, `Créditos: ${money(creditos)}`, `Abonos: ${money(abonos)}`, `Caja neta: ${money(cajaNeta)}`, '', 'MOVIMIENTOS:'];
+    dayMovs.forEach(m=>lines.push(`${fmtDate(m.created_at)} | ${m.type} | ${m.payment_method} | ${money(m.amount)} | ${m.note || ''}`));
+    downloadText(`cierre-caja-${closeDate}.txt`, lines.join('\n'));
+  }
   return (
-    <div className="page">
-      <div className="hero compact-hero"><h1>💰 Caja diaria</h1><p>Ingresos, egresos, compras, créditos y abonos del día.</p></div>
-      <div className="kpi-grid">
-        <Kpi label="Ingresos hoy" value={money(ingresos)} helper="Ventas, abonos y entradas" />
-        <Kpi label="Egresos hoy" value={money(egresos)} helper="Compras, retiros y salidas" />
-        <Kpi label="Créditos hoy" value={money(creditos)} helper="Ventas por cobrar" />
-        <Kpi label="Caja neta" value={money(ingresos-egresos)} helper="Ingresos - egresos" />
-      </div>
-      <div className="two-col">
-        <form className="card form-grid" onSubmit={save}>
-          <label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Ingreso</option><option>Egreso</option><option>Apertura</option><option>Retiro</option><option>Compra</option></select></label>
-          <label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label>
-          <label>Monto<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" /></label>
-          <label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Concepto del movimiento" /></label>
-          <button className="primary-btn">Registrar movimiento</button>
-        </form>
-        <section className="card compact-card">
-          <h3>Últimos movimientos</h3>
-          {movements.slice(0,12).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}
-          {!movements.length && <p className="muted">Aún no hay movimientos de caja.</p>}
-        </section>
-      </div>
-      <div className="two-col extra-row">
-        <section className="card compact-card"><h3>Resumen por tipo</h3>{Object.entries(groupByType).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!todayMovs.length && <p className="muted">Sin movimientos hoy.</p>}</section>
-        <section className="card compact-card"><h3>Egresos y compras</h3>{egresosList.slice(0,10).map(m=><div className="list-row" key={m.id}><span>{m.type}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}{!egresosList.length && <p className="muted">No hay egresos registrados hoy.</p>}</section>
-      </div>
+    <div className="page cash-pro-page">
+      <div className="hero compact-hero"><h1>💰 Caja y cierre diario</h1><p>Ingresos, egresos, compras, créditos, abonos y cierre imprimible del día.</p></div>
+      <section className="card compact-card close-cash-card"><div className="report-filter-head"><div><h3>Cierre de caja</h3><p className="muted">Selecciona fecha, revisa totales y guarda PDF o TXT.</p></div><div className="report-actions"><input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} /><button className="secondary-btn" type="button" onClick={exportCloseTxt}>TXT</button><button className="primary-btn" type="button" onClick={printClose}>PDF / Imprimir</button></div></div></section>
+      <div className="kpi-grid"><Kpi label="Ingresos" value={money(ingresos)} helper="Ventas, abonos y entradas" /><Kpi label="Egresos" value={money(egresos)} helper="Compras, retiros y salidas" /><Kpi label="Créditos" value={money(creditos)} helper="Ventas por cobrar" /><Kpi label="Caja neta" value={money(cajaNeta)} helper="Ingresos - egresos" /></div>
+      <div className="two-col"><form className="card form-grid" onSubmit={save}><h3>Movimiento manual</h3><label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Ingreso</option><option>Egreso</option><option>Apertura</option><option>Retiro</option><option>Compra</option></select></label><label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label><label>Monto<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" /></label><label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Concepto del movimiento" /></label><button className="primary-btn">Registrar movimiento</button></form><section className="card compact-card"><h3>Resumen por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos en la fecha.</p>}</section></div>
+      <div className="two-col extra-row"><section className="card compact-card"><h3>Resumen por tipo</h3>{Object.entries(groupByType).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos.</p>}</section><section className="card compact-card"><h3>Movimientos de la fecha</h3>{dayMovs.slice(0,18).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}{!dayMovs.length && <p className="muted">No hay movimientos registrados.</p>}</section></div>
     </div>
   );
 }
-
 
 function Credits({ profile }) {
   const [sales, setSales] = useState([]);
@@ -2427,24 +2362,14 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
   const [rawRows, setRawRows] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
-  const categoryByName = useMemo(() => {
-    const map = new Map();
-    categories.forEach(c => map.set(normalizeText(c.name), c));
-    return map;
-  }, [categories]);
-  const subcategoryByParentAndName = useMemo(() => {
-    const map = new Map();
-    subcategories.forEach(sc => map.set(`${sc.parent_id}|${normalizeText(sc.name)}`, sc));
-    return map;
-  }, [subcategories]);
+  const categoryByName = useMemo(() => { const map = new Map(); categories.forEach(c => map.set(normalizeText(c.name), c)); return map; }, [categories]);
+  const subcategoryByParentAndName = useMemo(() => { const map = new Map(); subcategories.forEach(sc => map.set(`${sc.parent_id}|${normalizeText(sc.name)}`, sc)); return map; }, [subcategories]);
 
   function normalizeImportedRow(row, idx) {
     const normalized = {};
-    Object.entries(row || {}).forEach(([key, value]) => {
-      const field = canonicalProductField(normalizeHeader(key));
-      normalized[field] = typeof value === 'string' ? value.trim() : value;
-    });
+    Object.entries(row || {}).forEach(([key, value]) => { const field = canonicalProductField(normalizeHeader(key)); normalized[field] = typeof value === 'string' ? value.trim() : value; });
     const categoryName = String(normalized.category || '').trim();
     const subcategoryName = String(normalized.subcategory || '').trim();
     const category = categoryByName.get(normalizeText(categoryName));
@@ -2462,51 +2387,12 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
     if (subcategoryName && category && !subcategory) errors.push(`Subcategoría no existe: ${subcategoryName}`);
     if (priceStatusImported === 'Validado' && parseMoneyLike(normalized.price) <= 0) errors.push('Precio validado debe ser mayor a 0');
     if (priceStatusImported === 'Validado' && minPrice > 0 && parseMoneyLike(normalized.price) < minPrice) errors.push('Precio validado menor al mínimo permitido');
-    return {
-      rowNumber: idx + 2,
-      code,
-      barcode,
-      name: String(normalized.name || '').trim(),
-      category: category?.name || categoryName || 'General',
-      subcategory: subcategory?.name || subcategoryName || '',
-      category_id: category?.id || null,
-      subcategory_id: subcategory?.id || null,
-      brand: String(normalized.brand || '').trim(),
-      size: String(normalized.size || '').trim(),
-      color: String(normalized.color || '').trim(),
-      description: String(normalized.description || '').trim(),
-      cost: parseMoneyLike(normalized.cost),
-      price: parseMoneyLike(normalized.price),
-      price_status: priceStatusImported,
-      margin_target: marginTarget || 50,
-      min_price: minPrice,
-      price_notes: String(normalized.price_notes || '').trim(),
-      stock: parseMoneyLike(normalized.stock),
-      stock_min: parseMoneyLike(normalized.stock_min || 1),
-      image_url: String(normalized.image_url || '').trim(),
-      active: boolActive(normalized.active ?? true),
-      errors,
-    };
+    return { rowNumber: idx + 2, code, barcode, name: String(normalized.name || '').trim(), category: category?.name || categoryName || 'General', subcategory: subcategory?.name || subcategoryName || '', category_id: category?.id || null, subcategory_id: subcategory?.id || null, brand: String(normalized.brand || '').trim(), size: String(normalized.size || '').trim(), color: String(normalized.color || '').trim(), description: String(normalized.description || '').trim(), cost: parseMoneyLike(normalized.cost), price: parseMoneyLike(normalized.price), price_status: priceStatusImported, margin_target: marginTarget || 50, min_price: minPrice, price_notes: String(normalized.price_notes || '').trim(), stock: parseMoneyLike(normalized.stock), stock_min: parseMoneyLike(normalized.stock_min || 1), image_url: String(normalized.image_url || '').trim(), active: boolActive(normalized.active ?? true), errors };
   }
 
   async function parseFile(e) {
-    const file = e.target.files?.[0];
-    setImportResult(null);
-    setPreviewRows([]);
-    setRawRows([]);
-    if (!file) return;
-    setFileName(file.name);
-    try {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx));
-      setRawRows(normalized);
-      setPreviewRows(normalized.slice(0, 30));
-    } catch (error) {
-      alert(error.message || 'No se pudo leer el archivo Excel.');
-    }
+    const file = e.target.files?.[0]; setImportResult(null); setPreviewRows([]); setRawRows([]); if (!file) return; setFileName(file.name);
+    try { const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }); const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx)); setRawRows(normalized); setPreviewRows(normalized.slice(0, 30)); } catch (error) { alert(error.message || 'No se pudo leer el archivo Excel.'); }
   }
 
   async function importProducts() {
@@ -2515,129 +2401,47 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
     if (invalid.length) return alert(`Hay ${invalid.length} filas con errores. Corrige el Excel antes de importar.`);
     setImporting(true);
     try {
-      const payloads = rawRows.map(r => ({
-        code: r.code,
-        barcode: r.barcode,
-        name: r.name,
-        category: r.category,
-        subcategory: r.subcategory,
-        category_id: r.category_id,
-        subcategory_id: r.subcategory_id,
-        brand: r.brand,
-        size: r.size,
-        color: r.color,
-        description: r.description,
-        cost: r.cost,
-        price: r.price,
-        price_status: r.price_status,
-        margin_target: r.margin_target,
-        min_price: r.min_price,
-        price_notes: r.price_notes,
-        price_updated_at: new Date().toISOString(),
-        price_updated_by: profile?.id || null,
-        stock: r.stock,
-        stock_min: r.stock_min,
-        image_url: r.image_url,
-        image_path: '',
-        active: r.active,
-        status: r.active ? 'Activo' : 'Inactivo',
-        store_id: profile?.store_id || DEFAULT_STORE_ID,
-        created_by: profile?.id || null,
-        updated_at: new Date().toISOString(),
-      }));
-      const chunks = [];
-      for (let i = 0; i < payloads.length; i += 200) chunks.push(payloads.slice(i, i + 200));
+      const payloads = rawRows.map(r => ({ code: r.code, barcode: r.barcode, name: r.name, category: r.category, subcategory: r.subcategory, category_id: r.category_id, subcategory_id: r.subcategory_id, brand: r.brand, size: r.size, color: r.color, description: r.description, cost: r.cost, price: r.price, price_status: r.price_status, margin_target: r.margin_target, min_price: r.min_price, price_notes: r.price_notes, price_updated_at: new Date().toISOString(), price_updated_by: profile?.id || null, stock: r.stock, stock_min: r.stock_min, image_url: r.image_url, image_path: '', active: r.active, status: r.active ? 'Activo' : 'Inactivo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null, updated_at: new Date().toISOString() }));
+      const chunks = []; for (let i = 0; i < payloads.length; i += 200) chunks.push(payloads.slice(i, i + 200));
       let count = 0;
-      for (const chunk of chunks) {
-        const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' });
-        if (error) throw error;
-        count += chunk.length;
-      }
-      await supabase.from('product_import_batches').insert({
-        store_id: profile?.store_id || DEFAULT_STORE_ID,
-        user_id: profile?.id || null,
-        file_name: fileName,
-        total_rows: rawRows.length,
-        imported_rows: count,
-        status: 'Importado',
-        notes: 'Importación desde V01.12 con control de precios',
-      }).then(()=>{});
-      setImportResult({ count });
-      setPreviewRows([]);
-      setRawRows([]);
-      setFileName('');
-      await reloadProducts?.();
-      alert(`Importación completada: ${count} productos.`);
-    } catch (error) {
-      alert(error.message || 'No se pudo importar productos.');
-    } finally {
-      setImporting(false);
-    }
+      for (const chunk of chunks) { const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' }); if (error) throw error; count += chunk.length; }
+      await supabase.from('product_import_batches').insert({ store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null, file_name: fileName, total_rows: rawRows.length, imported_rows: count, status: 'Importado', notes: 'Importación desde V02.2 PRO TOTAL' }).then(()=>{});
+      setImportResult({ count }); setPreviewRows([]); setRawRows([]); setFileName(''); await reloadProducts?.(); alert(`Importación completada: ${count} productos.`);
+    } catch (error) { alert(error.message || 'No se pudo importar productos.'); } finally { setImporting(false); }
   }
 
-  async function deleteProductImagesFromStorage() {
+  async function exportGeneralBackup() {
+    if (!hasSupabaseConfig) return alert('Configura Supabase para exportar datos reales.');
+    setExporting(true);
     try {
-      const { data } = await supabase.storage.from('product-images').list('', { limit: 1000 });
-      const files = (data || []).map(f => f.name).filter(Boolean);
-      if (files.length) await supabase.storage.from('product-images').remove(files);
-    } catch (_) {}
+      const storeId = profile?.store_id || DEFAULT_STORE_ID;
+      const tables = ['sales','sale_items','cash_movements','credit_payments','stock_movements','customers','product_price_history'];
+      const data = { exported_at: new Date().toISOString(), store_id: storeId, products, categories, subcategories };
+      for (const table of tables) { const { data: rows } = await supabase.from(table).select('*').eq('store_id', storeId).limit(10000); data[table] = rows || []; }
+      const json = JSON.stringify(data, null, 2);
+      downloadText(`backup-clomar-${todayISO()}.json`, json);
+      const wb = XLSX.utils.book_new();
+      Object.entries(data).forEach(([key, value]) => { if (Array.isArray(value)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(value), key.slice(0,31)); });
+      XLSX.writeFile(wb, `backup-clomar-${todayISO()}.xlsx`);
+    } catch (error) { alert(error.message || 'No se pudo exportar backup.'); } finally { setExporting(false); }
   }
 
+  async function deleteProductImagesFromStorage() { try { const { data } = await supabase.storage.from('product-images').list('', { limit: 1000 }); const files = (data || []).map(f => f.name).filter(Boolean); if (files.length) await supabase.storage.from('product-images').remove(files); } catch (_) {} }
   async function controlledReset() {
     if (profile?.role !== 'dueno') return alert('Solo el dueño puede reiniciar datos.');
     if (confirmText !== 'REINICIAR CLOMAR') return alert('Debes escribir exactamente: REINICIAR CLOMAR');
     if (!confirm('Esto borrará productos, clientes, ventas, caja, créditos y movimientos de prueba. Se conservan usuarios, tienda y categorías. ¿Continuar?')) return;
     setResetting(true);
-    try {
-      const { error } = await supabase.rpc('clomar_reset_operational_data', { confirm_text: confirmText, store_uuid: profile?.store_id || DEFAULT_STORE_ID });
-      if (error) throw error;
-      if (deleteImages) await deleteProductImagesFromStorage();
-      setConfirmText('');
-      await reloadProducts?.();
-      await reloadCustomers?.();
-      alert('Reinicio controlado completado. El sistema quedó listo para cargar productos reales.');
-    } catch (error) {
-      alert(error.message || 'No se pudo reiniciar. Verifica que ejecutaste el SQL V01.10.');
-    } finally {
-      setResetting(false);
-    }
+    try { const { error } = await supabase.rpc('clomar_reset_operational_data', { confirm_text: confirmText, store_uuid: profile?.store_id || DEFAULT_STORE_ID }); if (error) throw error; if (deleteImages) await deleteProductImagesFromStorage(); setConfirmText(''); await reloadProducts?.(); await reloadCustomers?.(); alert('Reinicio controlado completado.'); } catch (error) { alert(error.message || 'No se pudo reiniciar. Verifica que ejecutaste el SQL V01.10.'); } finally { setResetting(false); }
   }
 
   return (
-    <div className="page">
-      <div className="hero compact-hero"><h1>🛠️ Herramientas</h1><p>Reinicio controlado, importación desde Excel y preparación para productos reales.</p></div>
+    <div className="page tools-pro-page">
+      <div className="hero compact-hero"><h1>🛠️ Herramientas y backup</h1><p>Importación, exportación general, respaldo y reinicio controlado.</p></div>
       <div className="tool-grid">
-        <section className="card compact-card danger-zone-card">
-          <h3>Reinicio controlado</h3>
-          <p className="muted">Borra datos operativos de prueba y conserva usuarios, roles, tienda, logo, categorías y subcategorías.</p>
-          <div className="reset-keep-delete">
-            <div><strong>Conserva</strong><small>Usuarios · Roles · Tienda · Logo · Categorías</small></div>
-            <div><strong>Borra</strong><small>Productos · Ventas · Caja · Créditos · Clientes · Movimientos</small></div>
-          </div>
-          <label className="check-row"><input type="checkbox" checked={deleteImages} onChange={e=>setDeleteImages(e.target.checked)} /> Borrar también imágenes del bucket product-images</label>
-          <label>Confirmación obligatoria<input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder="Escribe REINICIAR CLOMAR" /></label>
-          <button className="danger-btn" disabled={resetting} onClick={controlledReset}>{resetting ? 'Reiniciando...' : 'Reiniciar datos de prueba'}</button>
-        </section>
-
-        <section className="card compact-card">
-          <h3>Importar productos desde Excel</h3>
-          <p className="muted">Carga una plantilla .xlsx con productos reales. Si falta código o barcode, la app genera uno interno.</p>
-          <a className="secondary-btn" href="/plantilla_productos_clomar_v0112.xlsx" download>Descargar plantilla Excel</a>
-          <label>Seleccionar archivo Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={parseFile} /></label>
-          {fileName && <div className="info-box">Archivo cargado: <strong>{fileName}</strong> · Filas leídas: {rawRows.length}</div>}
-          {rawRows.length > 0 && <div className="import-summary">
-            <Kpi label="Filas" value={rawRows.length} helper="productos detectados" />
-            <Kpi label="Errores" value={rawRows.filter(r=>r.errors.length).length} helper="deben corregirse" />
-            <Kpi label="Listos" value={rawRows.filter(r=>!r.errors.length).length} helper="para importar" />
-          </div>}
-          {previewRows.length > 0 && <div className="preview-table-wrap">
-            <table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Estado precio</th><th>Stock</th><th>Errores</th></tr></thead><tbody>
-              {previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.price_status}</td><td>{r.stock}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}
-            </tbody></table>
-          </div>}
-          <button className="primary-btn" disabled={!rawRows.length || importing || rawRows.some(r=>r.errors.length)} onClick={importProducts}>{importing ? 'Importando...' : 'Importar productos'}</button>
-          {importResult && <div className="success-box">Importación completada: {importResult.count} productos.</div>}
-        </section>
+        <section className="card compact-card backup-card"><h3>Backup / exportación general</h3><p className="muted">Descarga un respaldo JSON y Excel con productos, ventas, caja, créditos, clientes, movimientos y precios.</p><div className="backup-points"><div><strong>{products.length}</strong><small>productos</small></div><div><strong>{categories.length}</strong><small>categorías</small></div><div><strong>{subcategories.length}</strong><small>subcategorías</small></div></div><button className="primary-btn" disabled={exporting} onClick={exportGeneralBackup}>{exporting ? 'Exportando...' : 'Exportar backup JSON + Excel'}</button><p className="muted">Recomendación: hacer backup antes de cada actualización grande.</p></section>
+        <section className="card compact-card danger-zone-card"><h3>Reinicio controlado</h3><p className="muted">Borra datos operativos de prueba y conserva usuarios, roles, tienda, logo, categorías y subcategorías.</p><div className="reset-keep-delete"><div><strong>Conserva</strong><small>Usuarios · Roles · Tienda · Logo · Categorías</small></div><div><strong>Borra</strong><small>Productos · Ventas · Caja · Créditos · Clientes · Movimientos</small></div></div><label className="check-row"><input type="checkbox" checked={deleteImages} onChange={e=>setDeleteImages(e.target.checked)} /> Borrar también imágenes del bucket product-images</label><label>Confirmación obligatoria<input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder="Escribe REINICIAR CLOMAR" /></label><button className="danger-btn" disabled={resetting} onClick={controlledReset}>{resetting ? 'Reiniciando...' : 'Reiniciar datos de prueba'}</button></section>
+        <section className="card compact-card"><h3>Importar productos desde Excel</h3><p className="muted">Carga una plantilla .xlsx con productos reales. Si falta código o barcode, la app genera uno interno.</p><a className="secondary-btn" href="/plantilla_productos_clomar_v0112.xlsx" download>Descargar plantilla Excel</a><label>Seleccionar archivo Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={parseFile} /></label>{fileName && <div className="info-box">Archivo cargado: <strong>{fileName}</strong> · Filas leídas: {rawRows.length}</div>}{rawRows.length > 0 && <div className="import-summary"><Kpi label="Filas" value={rawRows.length} helper="productos detectados" /><Kpi label="Errores" value={rawRows.filter(r=>r.errors.length).length} helper="deben corregirse" /><Kpi label="Listos" value={rawRows.filter(r=>!r.errors.length).length} helper="para importar" /></div>}{previewRows.length > 0 && <div className="preview-table-wrap"><table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Estado precio</th><th>Stock</th><th>Errores</th></tr></thead><tbody>{previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.price_status}</td><td>{r.stock}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}</tbody></table></div>}<button className="primary-btn" disabled={!rawRows.length || importing || rawRows.some(r=>r.errors.length)} onClick={importProducts}>{importing ? 'Importando...' : 'Importar productos'}</button>{importResult && <div className="success-box">Importación completada: {importResult.count} productos.</div>}</section>
       </div>
     </div>
   );
