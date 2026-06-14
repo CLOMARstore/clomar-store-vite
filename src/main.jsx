@@ -44,9 +44,9 @@ const downloadText = (filename, content) => {
 };
 
 const demoProducts = [
-  { id: 'demo-1', code: '0001', name: 'Zapatillas deportivas Newton Nimble Leather', category: 'Calzado', price: 380, cost: 220, stock: 5, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true },
-  { id: 'demo-2', code: '0002', name: 'Sombrero para el sol Bora Bora Booney', category: 'Accesorios', price: 80, cost: 40, stock: 2, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true },
-  { id: 'demo-3', code: '0003', name: 'Camisa de popelina de manga larga para hombre', category: 'Ropa', price: 120, cost: 55, stock: 1, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true },
+  { id: 'demo-1', code: '0001', name: 'Zapatillas deportivas Newton Nimble Leather', category: 'Calzado', price: 380, cost: 220, stock: 5, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
+  { id: 'demo-2', code: '0002', name: 'Sombrero para el sol Bora Bora Booney', category: 'Accesorios', price: 80, cost: 40, stock: 2, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
+  { id: 'demo-3', code: '0003', name: 'Camisa de popelina de manga larga para hombre', category: 'Ropa', price: 120, cost: 55, stock: 1, stock_min: 2, image_url: '', image_path: '', brand: '', size: '', color: '', description: '', barcode: '', active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
 ];
 
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
@@ -87,6 +87,19 @@ function BarcodeSVG({ value, height = 46 }) {
 }
 const qrUrl = (value) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(String(value || ''))}`;
 const productScanCode = (product) => String(product?.barcode || product?.code || product?.id || '').trim();
+const PRICE_STATUS_OPTIONS = ['Pendiente', 'Validado', 'Revisar'];
+const normalizePriceStatus = (value) => {
+  const n = normalizeText(value);
+  if (['validado', 'validada', 'ok', 'si', 'sí', 'aprobado', 'aprobada'].includes(n)) return 'Validado';
+  if (['revisar', 'revision', 'revisión', 'observado', 'observada'].includes(n)) return 'Revisar';
+  return 'Pendiente';
+};
+const productPriceStatus = (product) => product?.price_status || 'Pendiente';
+const productProfit = (product) => asNum(product?.price) - asNum(product?.cost);
+const productMarkupPercent = (product) => asNum(product?.cost) > 0 ? (productProfit(product) / asNum(product.cost)) * 100 : 0;
+const productMarginPercent = (product) => asNum(product?.price) > 0 ? (productProfit(product) / asNum(product.price)) * 100 : 0;
+const suggestedPrice = (cost, marginTarget = 50) => asNum(cost) > 0 ? Math.round((asNum(cost) * (1 + asNum(marginTarget) / 100)) * 10) / 10 : 0;
+const priceBadgeClass = (status) => `price-badge price-${normalizeText(status || 'Pendiente').replace(/[^a-z0-9]+/g, '-')}`;
 const cleanFileName = (name = 'producto') => String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').toLowerCase();
 
 const normalizeText = (value = '') => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -115,6 +128,10 @@ const canonicalProductField = (key) => ({
   descripcion: 'description', description: 'description', detalles: 'description',
   costo: 'cost', cost: 'cost', costo_compra: 'cost', compra: 'cost',
   precio: 'price', price: 'price', precio_venta: 'price', venta: 'price',
+  estado_precio: 'price_status', price_status: 'price_status', precio_estado: 'price_status', validar_precio: 'price_status',
+  margen_objetivo: 'margin_target', margin_target: 'margin_target', margen: 'margin_target',
+  precio_minimo: 'min_price', min_price: 'min_price', precio_min: 'min_price',
+  notas_precio: 'price_notes', price_notes: 'price_notes', observacion_precio: 'price_notes',
   stock: 'stock', cantidad: 'stock', unidades: 'stock',
   stock_min: 'stock_min', stock_minimo: 'stock_min', minimo: 'stock_min',
   imagen_url: 'image_url', image_url: 'image_url', url_imagen: 'image_url', imagen: 'image_url',
@@ -152,6 +169,7 @@ const MODULE_PERMISSIONS = {
   caja: ['dueno', 'admin', 'cajero'],
   reportes: ['dueno', 'admin', 'lectura'],
   productos: ['dueno', 'admin', 'almacen'],
+  precios: ['dueno', 'admin'],
   categorias: ['dueno', 'admin', 'almacen'],
   etiquetas: ['dueno', 'admin', 'almacen'],
   inventario: ['dueno', 'admin', 'almacen', 'lectura'],
@@ -313,6 +331,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     ]},
     { title: 'Productos e inventario', items: [
       ['productos', '📦', 'Productos'],
+      ['precios', '💰', 'Precios'],
       ['categorias', '🏷️', 'Categorías'],
       ['etiquetas', '🏷️', 'Etiquetas'],
       ['inventario', '📘', 'Inventario'],
@@ -352,7 +371,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header">
@@ -378,7 +397,7 @@ function useProducts(profile) {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active')
+      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active,price_status,margin_target,min_price,price_notes,price_updated_at,price_updated_by')
       .eq('status', 'Activo')
       .eq('active', true)
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
@@ -424,9 +443,9 @@ function useCategories(profile) {
   async function loadCategories() {
     if (!hasSupabaseConfig) {
       setCategories([
-        { id: 'cat-demo-1', name: 'Ropa hombre', parent_id: null, sort_order: 1, active: true },
-        { id: 'cat-demo-2', name: 'Ropa mujer', parent_id: null, sort_order: 2, active: true },
-        { id: 'cat-demo-3', name: 'Calzado', parent_id: null, sort_order: 3, active: true },
+        { id: 'cat-demo-1', name: 'Ropa hombre', parent_id: null, sort_order: 1, active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
+        { id: 'cat-demo-2', name: 'Ropa mujer', parent_id: null, sort_order: 2, active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
+        { id: 'cat-demo-3', name: 'Calzado', parent_id: null, sort_order: 3, active: true, price_status: 'Pendiente', margin_target: 50, min_price: 0, price_notes: '' },
       ]);
       setLoading(false);
       return;
@@ -581,6 +600,8 @@ function POS({ products, reloadProducts, customers, profile }) {
 
   function addProduct(product) {
     if (asNum(product.stock) <= 0) return alert('Producto sin stock disponible.');
+    if (asNum(product.price) <= 0) return alert('Producto sin precio de venta. Valida el precio antes de vender.');
+    if (productPriceStatus(product) !== 'Validado') return alert(`Precio pendiente de validar para: ${product.name}. Ingresa a Precios y marca el producto como Validado.`);
     setLastTicket(null);
     setCart(prev => {
       const found = prev.find(x => x.id === product.id);
@@ -704,13 +725,20 @@ function POS({ products, reloadProducts, customers, profile }) {
 
   async function checkout() {
     if (!cart.length || saving) return;
+    const invalidPrice = cart.find(item => asNum(item.price) <= 0 || productPriceStatus(item) !== 'Validado');
+    if (invalidPrice) return alert(`No se puede cobrar. Revisa y valida el precio de: ${invalidPrice.name}`);
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
     const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
     const salePayload = { customer_name: customer || 'Cliente', payment_method: method, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
     const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
     if (error) { alert(error.message); setSaving(false); return; }
-    const items = cart.map(item => ({ sale_id: sale.id, product_id: item.id, product_name: item.name, qty: item.qty, price: item.price, subtotal: asNum(item.qty) * asNum(item.price), store_id: profile?.store_id || DEFAULT_STORE_ID }));
+    const items = cart.map(item => {
+      const unitCost = asNum(item.cost);
+      const unitProfit = asNum(item.price) - unitCost;
+      const subtotal = asNum(item.qty) * asNum(item.price);
+      return { sale_id: sale.id, product_id: item.id, product_name: item.name, qty: item.qty, price: item.price, unit_cost: unitCost, subtotal, profit: unitProfit * asNum(item.qty), margin_percent: asNum(item.price) > 0 ? (unitProfit / asNum(item.price)) * 100 : 0, store_id: profile?.store_id || DEFAULT_STORE_ID };
+    });
     await supabase.from('sale_items').insert(items);
     for (const item of cart) {
       await supabase.from('products').update({ stock: asNum(item.stock) - asNum(item.qty) }).eq('id', item.id);
@@ -743,7 +771,7 @@ function POS({ products, reloadProducts, customers, profile }) {
             {matches.map(product => (
               <button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}>
                 <img className="product-thumb" src={productImageSrc(product)} alt={product.name} />
-                <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small></div>
+                <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span></div>
                 <b>{money(product.price)}</b>
               </button>
             ))}
@@ -931,7 +959,7 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
 }
 
 function Products({ products, reload, profile, categories = [], subcategories = [], reloadCategories }) {
-  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'' };
+  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'', price_status:'Pendiente', margin_target:'50', min_price:'0', price_notes:'' };
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -974,7 +1002,8 @@ function Products({ products, reload, profile, categories = [], subcategories = 
     e.preventDefault();
     if (!hasSupabaseConfig) return alert('Configura Supabase para guardar productos.');
     if (!form.name.trim()) return alert('Coloca el nombre del producto.');
-    if (asNum(form.price) <= 0) return alert('Coloca un precio de venta válido.');
+    if (form.price_status === 'Validado' && asNum(form.price) <= 0) return alert('No puedes validar un producto con precio 0.');
+    if (form.price_status === 'Validado' && asNum(form.min_price) > 0 && asNum(form.price) < asNum(form.min_price)) return alert('El precio validado no puede ser menor al precio mínimo.');
     setSaving(true);
     try {
       const imageData = await uploadProductImage();
@@ -992,6 +1021,12 @@ function Products({ products, reload, profile, categories = [], subcategories = 
         description: form.description.trim(),
         price: asNum(form.price),
         cost: asNum(form.cost),
+        price_status: form.price_status || 'Pendiente',
+        margin_target: asNum(form.margin_target || 50),
+        min_price: asNum(form.min_price || 0),
+        price_notes: form.price_notes || '',
+        price_updated_at: new Date().toISOString(),
+        price_updated_by: profile?.id || null,
         stock: asNum(form.stock),
         stock_min: asNum(form.stock_min),
         status: 'Activo',
@@ -1065,6 +1100,15 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             <label>Costo de compra<input value={form.cost} inputMode="decimal" onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0.00" /></label>
           </div>
           <div className="form-split">
+            <label>Estado del precio<select value={form.price_status} onChange={e=>setForm({...form,price_status:e.target.value})}>{PRICE_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></label>
+            <label>Margen objetivo sobre costo %<input value={form.margin_target} inputMode="decimal" onChange={e=>setForm({...form,margin_target:e.target.value})} placeholder="50" /></label>
+          </div>
+          <div className="form-split">
+            <label>Precio mínimo permitido<input value={form.min_price} inputMode="decimal" onChange={e=>setForm({...form,min_price:e.target.value})} placeholder="0.00" /></label>
+            <label>Precio sugerido<input value={money(suggestedPrice(form.cost, form.margin_target))} readOnly /></label>
+          </div>
+          <label>Nota de precio<input value={form.price_notes} onChange={e=>setForm({...form,price_notes:e.target.value})} placeholder="Ej.: falta confirmar precio real con proveedor" /></label>
+          <div className="form-split">
             <label>Stock inicial<input value={form.stock} inputMode="decimal" onChange={e=>setForm({...form,stock:e.target.value})} /></label>
             <label>Stock mínimo<input value={form.stock_min} inputMode="decimal" onChange={e=>setForm({...form,stock_min:e.target.value})} /></label>
           </div>
@@ -1081,7 +1125,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
                   <strong>{p.name}</strong>
                   <small>{p.code || 'Sin código'} · {p.barcode || 'Sin barcode'} · {p.category || 'General'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small>
                   <small>{p.brand || 'Sin marca'} · {p.size || 'Sin talla'} · {p.color || 'Sin color'}</small>
-                  {p.description && <small>{p.description}</small>}
+                  <small><span className={priceBadgeClass(productPriceStatus(p))}>{productPriceStatus(p)}</span> · Ganancia {money(productProfit(p))} · Margen precio {productMarginPercent(p).toFixed(1)}%</small>{p.description && <small>{p.description}</small>}
                 </div>
                 <div className="product-card-actions">
                   <b>{money(p.price)}</b>
@@ -1391,6 +1435,134 @@ function UsersAdmin({ profile }) {
 }
 
 
+
+function PricesAdmin({ products = [], reload, profile }) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('pendientes');
+  const [drafts, setDrafts] = useState({});
+  const [savingId, setSavingId] = useState('');
+
+  const rows = useMemo(() => products.filter(p => {
+    const q = normalizeText(query);
+    const match = !q || [p.name, p.code, p.barcode, p.brand, p.category, p.subcategory, p.color].some(v => normalizeText(v).includes(q));
+    const status = productPriceStatus(p);
+    const margin = productMarginPercent(p);
+    const byFilter = filter === 'todos'
+      || (filter === 'pendientes' && status !== 'Validado')
+      || (filter === 'sin_costo' && asNum(p.cost) <= 0)
+      || (filter === 'sin_precio' && asNum(p.price) <= 0)
+      || (filter === 'margen_bajo' && status === 'Validado' && asNum(p.price) > 0 && margin < 25);
+    return match && byFilter;
+  }), [products, query, filter]);
+
+  const summary = useMemo(() => {
+    const pending = products.filter(p => productPriceStatus(p) !== 'Validado').length;
+    const noCost = products.filter(p => asNum(p.cost) <= 0).length;
+    const noPrice = products.filter(p => asNum(p.price) <= 0).length;
+    const lowMargin = products.filter(p => productPriceStatus(p) === 'Validado' && asNum(p.price) > 0 && productMarginPercent(p) < 25).length;
+    return { pending, noCost, noPrice, lowMargin };
+  }, [products]);
+
+  function draft(product) {
+    return drafts[product.id] || {
+      cost: String(product.cost ?? 0),
+      price: String(product.price ?? 0),
+      margin_target: String(product.margin_target ?? 50),
+      min_price: String(product.min_price ?? 0),
+      price_status: productPriceStatus(product),
+      price_notes: product.price_notes || '',
+    };
+  }
+  function setDraft(product, key, value) {
+    setDrafts(prev => ({ ...prev, [product.id]: { ...draft(product), [key]: value } }));
+  }
+  function useSuggested(product) {
+    const d = draft(product);
+    setDraft(product, 'price', String(suggestedPrice(d.cost, d.margin_target)));
+  }
+
+  async function savePrice(product) {
+    const d = draft(product);
+    const payload = {
+      cost: asNum(d.cost),
+      price: asNum(d.price),
+      margin_target: asNum(d.margin_target || 50),
+      min_price: asNum(d.min_price || 0),
+      price_status: d.price_status || 'Pendiente',
+      price_notes: d.price_notes || '',
+      price_updated_at: new Date().toISOString(),
+      price_updated_by: profile?.id || null,
+    };
+    if (payload.price_status === 'Validado' && payload.price <= 0) return alert('No puedes validar un producto con precio 0.');
+    if (payload.price_status === 'Validado' && payload.min_price > 0 && payload.price < payload.min_price) return alert('El precio validado no puede ser menor al precio mínimo permitido.');
+    setSavingId(product.id);
+    try {
+      const { error } = await supabase.from('products').update(payload).eq('id', product.id);
+      if (error) throw error;
+      await supabase.from('product_price_history').insert({
+        store_id: profile?.store_id || DEFAULT_STORE_ID,
+        product_id: product.id,
+        user_id: profile?.id || null,
+        old_cost: asNum(product.cost),
+        new_cost: payload.cost,
+        old_price: asNum(product.price),
+        new_price: payload.price,
+        old_status: productPriceStatus(product),
+        new_status: payload.price_status,
+        note: payload.price_notes,
+      }).then(()=>{});
+      setDrafts(prev => { const next = { ...prev }; delete next[product.id]; return next; });
+      await reload?.();
+    } catch (error) {
+      alert(error.message || 'No se pudo actualizar el precio. Verifica que ejecutaste el SQL V01.12.');
+    } finally {
+      setSavingId('');
+    }
+  }
+
+  return <div className="page prices-page">
+    <div className="hero compact-hero"><h1>💰 Control de precios</h1><p>Valida costos, precios y márgenes antes de vender, imprimir etiquetas o generar comprobantes.</p></div>
+    <div className="kpi-grid">
+      <Kpi label="Pendientes" value={summary.pending} helper="requieren validación" />
+      <Kpi label="Sin costo" value={summary.noCost} helper="afecta ganancia" />
+      <Kpi label="Sin precio" value={summary.noPrice} helper="no vender" />
+      <Kpi label="Margen bajo" value={summary.lowMargin} helper="menor a 25%" />
+    </div>
+    <section className="card compact-card">
+      <h3>Filtros de control</h3>
+      <div className="form-split">
+        <label>Buscar producto<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nombre, código, marca, barcode..." /></label>
+        <label>Estado<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="pendientes">Pendientes/Revisar</option><option value="sin_costo">Sin costo</option><option value="sin_precio">Sin precio</option><option value="margen_bajo">Margen bajo</option><option value="todos">Todos</option></select></label>
+      </div>
+      <p className="muted">No se asume que un precio es correcto. Todo producto nuevo o importado queda como Pendiente hasta que lo valides.</p>
+    </section>
+    <section className="card compact-card prices-table-card">
+      <h3>Productos</h3>
+      <div className="prices-list">
+        {rows.map(product => {
+          const d = draft(product);
+          const profit = asNum(d.price) - asNum(d.cost);
+          const margin = asNum(d.price) > 0 ? (profit / asNum(d.price)) * 100 : 0;
+          const markup = asNum(d.cost) > 0 ? (profit / asNum(d.cost)) * 100 : 0;
+          return <div className="price-row" key={product.id}>
+            <img src={productImageSrc(product)} alt={product.name} />
+            <div className="price-product-info"><strong>{product.name}</strong><small>{product.code} · {product.barcode || 'Sin barcode'} · {product.category || 'General'}{product.subcategory ? ` / ${product.subcategory}` : ''}</small><span className={priceBadgeClass(d.price_status)}>{d.price_status}</span></div>
+            <label>Costo<input value={d.cost} inputMode="decimal" onChange={e=>setDraft(product, 'cost', e.target.value)} /></label>
+            <label>Precio<input value={d.price} inputMode="decimal" onChange={e=>setDraft(product, 'price', e.target.value)} /></label>
+            <label>Margen obj. %<input value={d.margin_target} inputMode="decimal" onChange={e=>setDraft(product, 'margin_target', e.target.value)} /></label>
+            <label>Mínimo<input value={d.min_price} inputMode="decimal" onChange={e=>setDraft(product, 'min_price', e.target.value)} /></label>
+            <label>Estado<select value={d.price_status} onChange={e=>setDraft(product, 'price_status', e.target.value)}>{PRICE_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></label>
+            <div className="price-metrics"><small>Sugerido: <strong>{money(suggestedPrice(d.cost, d.margin_target))}</strong></small><small>Ganancia: <strong>{money(profit)}</strong></small><small>Margen precio: <strong>{margin.toFixed(1)}%</strong></small><small>Sobre costo: <strong>{markup.toFixed(1)}%</strong></small></div>
+            <label className="price-notes">Nota<input value={d.price_notes} onChange={e=>setDraft(product, 'price_notes', e.target.value)} placeholder="Motivo del cambio o pendiente" /></label>
+            <div className="price-actions"><button type="button" className="secondary-btn" onClick={()=>useSuggested(product)}>Usar sugerido</button><button type="button" className="primary-btn" disabled={savingId===product.id} onClick={()=>savePrice(product)}>{savingId===product.id ? 'Guardando...' : 'Guardar'}</button></div>
+          </div>;
+        })}
+        {!rows.length && <p className="muted">No hay productos para este filtro.</p>}
+      </div>
+    </section>
+  </div>;
+}
+
 function LabelsAdmin({ products = [], categories = [], subcategories = [], store }) {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('all');
@@ -1509,7 +1681,7 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
 
       <section className="card compact-card no-print">
         <h3>Vista previa</h3>
-        <p className="muted">Se imprimirán <strong>{printableItems.length}</strong> etiquetas. Si no seleccionas productos, se imprimen todos los filtrados con sus cantidades.</p>
+        <p className="muted">Se imprimirán <strong>{printableItems.length}</strong> etiquetas. Si el precio está pendiente, la etiqueta mostrará “Precio pendiente” en lugar del monto.</p>
       </section>
 
       <div className={`print-label-sheet label-size-${labelSize} sheet-${sheetLayout}`}>
@@ -1518,7 +1690,8 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
           return <div className="print-label" key={key}>
             {showLogo && <div className="label-brand"><img src={APP_ICON} alt="Clomar"/><span>{store?.name || 'Clomar Store'}</span></div>}
             <div className="label-name">{product.name}</div>
-            {showPrice && Number(product.price || 0) > 0 && <div className="label-price">{money(product.price)}</div>}
+            {showPrice && Number(product.price || 0) > 0 && productPriceStatus(product) === 'Validado' && <div className="label-price">{money(product.price)}</div>}
+            {showPrice && productPriceStatus(product) !== 'Validado' && <div className="label-pending">Precio pendiente</div>}
             <div className={`label-codes mode-${mode}`}>{(mode === 'qr' || mode === 'both') && <img className="label-qr" src={qrUrl(code)} alt={`QR ${code}`} />}{(mode === 'barcode' || mode === 'both') && <BarcodeSVG value={code} />}</div>
             {showCodeText && <div className="label-code-text">{code}</div>}
           </div>;
@@ -1562,12 +1735,16 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
     const generatedCode = `${categoryPrefix(categoryName)}-${String(products.length + idx + 1).padStart(6, '0')}`;
     const code = String(normalized.code || '').trim() || generatedCode;
     const barcode = String(normalized.barcode || '').trim() || code;
+    const priceStatusImported = normalizePriceStatus(normalized.price_status);
+    const marginTarget = parseMoneyLike(normalized.margin_target || 50);
+    const minPrice = parseMoneyLike(normalized.min_price || 0);
     const errors = [];
     if (!String(normalized.name || '').trim()) errors.push('Falta nombre');
     if (!categoryName) errors.push('Falta categoría');
     if (categoryName && !category) errors.push(`Categoría no existe: ${categoryName}`);
     if (subcategoryName && category && !subcategory) errors.push(`Subcategoría no existe: ${subcategoryName}`);
-    if (parseMoneyLike(normalized.price) <= 0) errors.push('Precio debe ser mayor a 0');
+    if (priceStatusImported === 'Validado' && parseMoneyLike(normalized.price) <= 0) errors.push('Precio validado debe ser mayor a 0');
+    if (priceStatusImported === 'Validado' && minPrice > 0 && parseMoneyLike(normalized.price) < minPrice) errors.push('Precio validado menor al mínimo permitido');
     return {
       rowNumber: idx + 2,
       code,
@@ -1583,6 +1760,10 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
       description: String(normalized.description || '').trim(),
       cost: parseMoneyLike(normalized.cost),
       price: parseMoneyLike(normalized.price),
+      price_status: priceStatusImported,
+      margin_target: marginTarget || 50,
+      min_price: minPrice,
+      price_notes: String(normalized.price_notes || '').trim(),
       stock: parseMoneyLike(normalized.stock),
       stock_min: parseMoneyLike(normalized.stock_min || 1),
       image_url: String(normalized.image_url || '').trim(),
@@ -1631,6 +1812,12 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
         description: r.description,
         cost: r.cost,
         price: r.price,
+        price_status: r.price_status,
+        margin_target: r.margin_target,
+        min_price: r.min_price,
+        price_notes: r.price_notes,
+        price_updated_at: new Date().toISOString(),
+        price_updated_by: profile?.id || null,
         stock: r.stock,
         stock_min: r.stock_min,
         image_url: r.image_url,
@@ -1656,7 +1843,7 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
         total_rows: rawRows.length,
         imported_rows: count,
         status: 'Importado',
-        notes: 'Importación desde V01.10',
+        notes: 'Importación desde V01.12 con control de precios',
       }).then(()=>{});
       setImportResult({ count });
       setPreviewRows([]);
@@ -1718,7 +1905,7 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
         <section className="card compact-card">
           <h3>Importar productos desde Excel</h3>
           <p className="muted">Carga una plantilla .xlsx con productos reales. Si falta código o barcode, la app genera uno interno.</p>
-          <a className="secondary-btn" href="/plantilla_productos_clomar_v0110.xlsx" download>Descargar plantilla Excel</a>
+          <a className="secondary-btn" href="/plantilla_productos_clomar_v0112.xlsx" download>Descargar plantilla Excel</a>
           <label>Seleccionar archivo Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={parseFile} /></label>
           {fileName && <div className="info-box">Archivo cargado: <strong>{fileName}</strong> · Filas leídas: {rawRows.length}</div>}
           {rawRows.length > 0 && <div className="import-summary">
@@ -1727,8 +1914,8 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
             <Kpi label="Listos" value={rawRows.filter(r=>!r.errors.length).length} helper="para importar" />
           </div>}
           {previewRows.length > 0 && <div className="preview-table-wrap">
-            <table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Stock</th><th>Estado</th></tr></thead><tbody>
-              {previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.stock}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}
+            <table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Estado precio</th><th>Stock</th><th>Errores</th></tr></thead><tbody>
+              {previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.price_status}</td><td>{r.stock}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}
             </tbody></table>
           </div>}
           <button className="primary-btn" disabled={!rawRows.length || importing || rawRows.some(r=>r.errors.length)} onClick={importProducts}>{importing ? 'Importando...' : 'Importar productos'}</button>
@@ -1803,6 +1990,7 @@ function AppShell({ session }) {
     panel: <Panel products={products} profile={profile}/>,
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
+    precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
     categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
     etiquetas: <LabelsAdmin products={products} categories={categories} subcategories={subcategories} store={store}/>,
     inventario: <Inventory products={products}/>,

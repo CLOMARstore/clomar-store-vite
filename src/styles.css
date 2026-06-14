@@ -179,3 +179,56 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
   .label-size-large .print-label { width: 60mm !important; height: 40mm !important; }
   .print-label { padding: 2mm !important; overflow: hidden !important; }
 }
+
+/* V01.12 - Control de precios, costos y márgenes */
+.price-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  border: 1px solid transparent;
+  margin-top: 4px;
+}
+.price-pendiente { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.price-validado { background: #ecfdf5; color: #047857; border-color: #bbf7d0; }
+.price-revisar { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.price-row {
+  display: grid;
+  grid-template-columns: 58px minmax(220px, 1.5fr) repeat(5, minmax(110px, .7fr)) minmax(180px, 1fr) minmax(190px, 1fr) minmax(180px, auto);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 12px;
+  background: #fff;
+  margin-bottom: 10px;
+}
+.price-row img {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: #fff3f1;
+  border: 1px solid var(--border);
+}
+.price-row label { margin: 0; font-size: 11px; color: var(--muted); }
+.price-row input, .price-row select { padding: 10px 9px; font-size: 13px; }
+.price-product-info strong { display:block; font-size: 14px; color: var(--ink); }
+.price-product-info small { display:block; color: var(--muted); margin-top: 3px; }
+.price-metrics { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.price-notes { min-width: 170px; }
+.price-actions { display:flex; gap:8px; flex-wrap: wrap; justify-content: flex-end; }
+.label-pending { font-size: 10px; font-weight: 900; color: #c2410c; margin: 2px 0; }
+@media (max-width: 1280px) {
+  .price-row { grid-template-columns: 52px 1fr 1fr 1fr; }
+  .price-metrics, .price-notes, .price-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 780px) {
+  .price-row { grid-template-columns: 48px 1fr; }
+  .price-row label, .price-metrics, .price-notes, .price-actions { grid-column: 1 / -1; }
+}
