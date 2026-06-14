@@ -54,6 +54,39 @@ const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
 const logoSrc = (store) => store?.logo_url || APP_ICON;
 const productImageSrc = (product) => product?.image_url || APP_ICON;
+
+const CODE128_PATTERNS = [
+  '212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'
+];
+const code128Sequence = (value = '') => {
+  const text = String(value || '').trim();
+  if (!text) return [104, 16, 106];
+  const chars = Array.from(text).map((ch) => {
+    const code = ch.charCodeAt(0);
+    return code >= 32 && code <= 127 ? code - 32 : 16;
+  });
+  let checksum = 104;
+  chars.forEach((code, idx) => { checksum += code * (idx + 1); });
+  return [104, ...chars, checksum % 103, 106];
+};
+function BarcodeSVG({ value, height = 46 }) {
+  const sequence = code128Sequence(value);
+  let x = 0;
+  const bars = [];
+  sequence.forEach((code, codeIndex) => {
+    const pattern = CODE128_PATTERNS[code] || CODE128_PATTERNS[16];
+    let black = true;
+    for (const widthChar of pattern) {
+      const w = Number(widthChar || 1);
+      if (black) bars.push(<rect key={`${codeIndex}-${x}`} x={x} y="0" width={w} height={height} />);
+      x += w;
+      black = !black;
+    }
+  });
+  return <svg className="barcode-svg" viewBox={`0 0 ${x} ${height}`} preserveAspectRatio="none" role="img" aria-label={`Código de barras ${value}`}>{bars}</svg>;
+}
+const qrUrl = (value) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(String(value || ''))}`;
+const productScanCode = (product) => String(product?.barcode || product?.code || product?.id || '').trim();
 const cleanFileName = (name = 'producto') => String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').toLowerCase();
 
 const normalizeText = (value = '') => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -120,6 +153,7 @@ const MODULE_PERMISSIONS = {
   reportes: ['dueno', 'admin', 'lectura'],
   productos: ['dueno', 'admin', 'almacen'],
   categorias: ['dueno', 'admin', 'almacen'],
+  etiquetas: ['dueno', 'admin', 'almacen'],
   inventario: ['dueno', 'admin', 'almacen', 'lectura'],
   ingreso: ['dueno', 'admin', 'almacen'],
   clientes: ['dueno', 'admin', 'cajero'],
@@ -280,6 +314,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     { title: 'Productos e inventario', items: [
       ['productos', '📦', 'Productos'],
       ['categorias', '🏷️', 'Categorías'],
+      ['etiquetas', '🏷️', 'Etiquetas'],
       ['inventario', '📘', 'Inventario'],
       ['ingreso', '📥', 'Ingreso mercadería'],
     ]},
@@ -317,7 +352,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', categorias: 'Categorías', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header">
@@ -1356,6 +1391,96 @@ function UsersAdmin({ profile }) {
 }
 
 
+function LabelsAdmin({ products = [], categories = [], subcategories = [], store }) {
+  const [search, setSearch] = useState('');
+  const [categoryId, setCategoryId] = useState('all');
+  const [subcategoryId, setSubcategoryId] = useState('all');
+  const [mode, setMode] = useState('both');
+  const [labelSize, setLabelSize] = useState('medium');
+  const [showPrice, setShowPrice] = useState(true);
+  const [showLogo, setShowLogo] = useState(true);
+  const [selected, setSelected] = useState(new Set());
+
+  const activeProducts = useMemo(() => products.filter(p => p.active !== false && p.status !== 'Inactivo'), [products]);
+  const filtered = useMemo(() => activeProducts.filter(p => {
+    const q = normalizeText(search);
+    const matchText = !q || [p.name, p.code, p.barcode, p.brand, p.color, p.category, p.subcategory].some(v => normalizeText(v).includes(q));
+    const matchCat = categoryId === 'all' || p.category_id === categoryId || normalizeText(p.category) === normalizeText(categories.find(c=>c.id===categoryId)?.name);
+    const matchSub = subcategoryId === 'all' || p.subcategory_id === subcategoryId || normalizeText(p.subcategory) === normalizeText(subcategories.find(c=>c.id===subcategoryId)?.name);
+    return matchText && matchCat && matchSub;
+  }), [activeProducts, search, categoryId, subcategoryId, categories, subcategories]);
+
+  const chosen = useMemo(() => activeProducts.filter(p => selected.has(p.id)), [activeProducts, selected]);
+  const printable = chosen.length ? chosen : filtered;
+  const visibleSubcategories = useMemo(() => categoryId === 'all' ? subcategories : subcategories.filter(s => s.parent_id === categoryId), [categoryId, subcategories]);
+
+  function toggleProduct(id) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function selectFiltered() { setSelected(new Set(filtered.map(p => p.id))); }
+  function clearSelection() { setSelected(new Set()); }
+  function printLabels() {
+    if (!printable.length) return alert('No hay productos para imprimir.');
+    setTimeout(() => window.print(), 100);
+  }
+
+  return (
+    <div className="page labels-page">
+      <div className="hero compact-hero"><h1>🏷️ Etiquetas QR y código de barras</h1><p>Genera etiquetas en PDF para imprimir, recortar y pegar en productos.</p></div>
+      <div className="tool-grid labels-tools">
+        <section className="card compact-card">
+          <h3>Filtros</h3>
+          <label>Buscar producto<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, código, barcode, marca o color" /></label>
+          <label>Categoría<select value={categoryId} onChange={e=>{ setCategoryId(e.target.value); setSubcategoryId('all'); }}><option value="all">Todas</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <label>Subcategoría<select value={subcategoryId} onChange={e=>setSubcategoryId(e.target.value)}><option value="all">Todas</option>{visibleSubcategories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <div className="import-summary label-summary"><Kpi label="Filtrados" value={filtered.length} helper="productos" /><Kpi label="Seleccionados" value={chosen.length || filtered.length} helper={chosen.length ? 'manual' : 'por filtro'} /></div>
+          <div className="button-row"><button className="secondary-btn" onClick={selectFiltered}>Seleccionar filtrados</button><button className="secondary-btn" onClick={clearSelection}>Limpiar selección</button></div>
+        </section>
+
+        <section className="card compact-card">
+          <h3>Diseño de etiqueta</h3>
+          <label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="both">QR + barras</option><option value="qr">Solo QR</option><option value="barcode">Solo código de barras</option></select></label>
+          <label>Tamaño<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Pequeña 40 x 30 mm</option><option value="medium">Mediana 50 x 30 mm</option><option value="large">Ropa 60 x 40 mm</option></select></label>
+          <label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Mostrar precio</label>
+          <label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Mostrar marca Clomar Store</label>
+          <button className="primary-btn" onClick={printLabels}>Imprimir / Guardar PDF</button>
+          <p className="muted">En la ventana de impresión elige <strong>Guardar como PDF</strong> o tu impresora de etiquetas.</p>
+        </section>
+      </div>
+
+      <section className="card compact-card">
+        <h3>Productos para etiquetas</h3>
+        <div className="product-pick-list">
+          {filtered.map(p => <label key={p.id} className="product-pick-row"><input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleProduct(p.id)} /><img src={productImageSrc(p)} alt={p.name}/><span><strong>{p.name}</strong><small>{p.code} · {p.barcode || 'Sin barcode'} · {p.category || 'Sin categoría'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small></span><b>{money(p.price)}</b></label>)}
+          {!filtered.length && <p className="muted">No hay productos con esos filtros.</p>}
+        </div>
+      </section>
+
+      <section className="card compact-card no-print">
+        <h3>Vista previa</h3>
+        <p className="muted">Se imprimen {printable.length} etiquetas. Si no seleccionas productos, se imprimen todos los filtrados.</p>
+      </section>
+
+      <div className={`print-label-sheet label-size-${labelSize}`}>
+        {printable.map(product => {
+          const code = productScanCode(product);
+          return <div className="print-label" key={product.id}>
+            {showLogo && <div className="label-brand"><img src={APP_ICON} alt="Clomar"/><span>{store?.name || 'Clomar Store'}</span></div>}
+            <div className="label-name">{product.name}</div>
+            {showPrice && <div className="label-price">{money(product.price)}</div>}
+            <div className={`label-codes mode-${mode}`}>{(mode === 'qr' || mode === 'both') && <img className="label-qr" src={qrUrl(code)} alt={`QR ${code}`} />}{(mode === 'barcode' || mode === 'both') && <BarcodeSVG value={code} />}</div>
+            <div className="label-code-text">{code}</div>
+          </div>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ToolsAdmin({ profile, products = [], categories = [], subcategories = [], reloadProducts, reloadCustomers }) {
   const [confirmText, setConfirmText] = useState('');
   const [resetting, setResetting] = useState(false);
@@ -1632,6 +1757,7 @@ function AppShell({ session }) {
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
+    etiquetas: <LabelsAdmin products={products} categories={categories} subcategories={subcategories} store={store}/>,
     inventario: <Inventory products={products}/>,
     reportes: <Reports products={products} profile={profile}/>,
     creditos: <Credits profile={profile}/>,

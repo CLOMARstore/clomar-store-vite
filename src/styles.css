@@ -115,3 +115,36 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
   .import-summary { grid-template-columns: 1fr; }
   .reset-keep-delete { grid-template-columns: 1fr; }
 }
+
+/* V01.11 - Etiquetas QR y códigos de barras */
+.labels-tools { align-items: start; }
+.button-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.label-summary { margin: 12px 0; }
+.product-pick-list { display: grid; gap: 10px; max-height: 420px; overflow: auto; padding-right: 6px; }
+.product-pick-row { display: grid; grid-template-columns: auto 54px 1fr auto; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 18px; padding: 10px; background: #fff; }
+.product-pick-row img { width: 54px; height: 54px; object-fit: cover; border-radius: 14px; background: #fff3f1; border: 1px solid var(--border); }
+.product-pick-row small { display: block; color: var(--muted); margin-top: 4px; }
+.print-label-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 18px; }
+.print-label { background: #fff; border: 1px dashed #c9ced8; border-radius: 10px; padding: 8px; text-align: center; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+.label-brand { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; font-weight: 800; color: var(--ink); margin-bottom: 3px; }
+.label-brand img { width: 16px; height: 16px; object-fit: contain; }
+.label-name { font-weight: 900; font-size: 10px; line-height: 1.15; min-height: 22px; display: flex; align-items: center; justify-content: center; }
+.label-price { font-size: 13px; font-weight: 950; margin: 2px 0; }
+.label-codes { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 2px 0; }
+.label-codes.mode-qr, .label-codes.mode-barcode { display: block; }
+.label-qr { width: 46px; height: 46px; object-fit: contain; }
+.barcode-svg { width: 105px; height: 38px; fill: #101522; background: #fff; display: block; }
+.label-codes.mode-barcode .barcode-svg { width: 145px; height: 48px; margin: 4px auto; }
+.label-codes.mode-qr .label-qr { width: 70px; height: 70px; }
+.label-code-text { font-size: 9px; font-weight: 800; letter-spacing: .3px; overflow-wrap: anywhere; }
+.label-size-small .print-label { width: 40mm; min-height: 30mm; }
+.label-size-medium .print-label { width: 50mm; min-height: 30mm; }
+.label-size-large .print-label { width: 60mm; min-height: 40mm; }
+@media print {
+  body { background: #fff !important; }
+  .sidebar, .app-header, .hero, .labels-tools, .product-pick-list, .no-print, .card:not(:has(.print-label-sheet)) { display: none !important; }
+  .app, .main, .page { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .print-label-sheet { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(40mm, 1fr)); gap: 2mm; margin: 0; padding: 0; }
+  .print-label { border: 1px solid #ccc; box-shadow: none; border-radius: 2mm; color: #000; }
+  .label-name, .label-price, .label-code-text, .label-brand { color: #000 !important; }
+}
