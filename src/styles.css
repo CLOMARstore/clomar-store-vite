@@ -17,3 +17,101 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
 
 /* V01.9 código de barras, lector físico y cámara celular */
 .barcode-tools{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:10px;align-items:center;margin-bottom:8px}.barcode-search{margin-bottom:0}.scan-btn{height:52px;white-space:nowrap}.scanner-help{font-size:12px;color:var(--muted);font-weight:700;margin:0 0 10px 4px}.scan-status{border:1px solid #dbeafe;background:#eff6ff;color:#1e3a8a;border-radius:14px;padding:10px 12px;margin:8px 0 12px;font-weight:800}.scanner-panel{border:1px solid #d8dde7;background:#0b0f1a;border-radius:20px;padding:12px;margin:10px 0 14px;color:#fff;box-shadow:0 14px 34px rgba(17,24,39,.18)}.scanner-panel .muted{color:#cbd5e1}.scanner-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.scanner-frame{position:relative;overflow:hidden;border-radius:18px;background:#111827;min-height:260px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.12)}.scanner-frame::after{content:"";position:absolute;inset:18%;border:2px solid rgba(231,166,161,.95);border-radius:18px;box-shadow:0 0 0 999px rgba(0,0,0,.18)}.scanner-frame video{width:100%;max-height:360px;object-fit:cover;display:block}.scanner-panel .icon-btn{background:#fff;color:#111827}.product-row-media b{white-space:nowrap}@media(max-width:900px){.barcode-tools{grid-template-columns:1fr}.scan-btn{height:auto}.scanner-frame{min-height:220px}.scanner-frame video{max-height:300px}}
+
+/* V01.10 - Herramientas, reinicio e importación */
+.tool-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(420px, 1.15fr);
+  gap: 24px;
+  align-items: start;
+}
+.danger-zone-card {
+  border: 1px solid #fee2e2;
+  background: linear-gradient(180deg, #fff, #fff7f7);
+}
+.reset-keep-delete {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+.reset-keep-delete > div {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px;
+  background: #fff;
+}
+.reset-keep-delete strong { display:block; color:#111827; margin-bottom:4px; }
+.reset-keep-delete small { color:#6b7280; line-height:1.35; }
+.check-row {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:700;
+  color:#374151;
+  margin: 12px 0;
+}
+.check-row input { width:auto; }
+.danger-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: #b91c1c;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 16px 36px rgba(185, 28, 28, .18);
+}
+.danger-btn:disabled { opacity: .6; cursor:not-allowed; }
+.import-summary {
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:12px;
+  margin: 14px 0;
+}
+.info-box, .success-box {
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+.success-box { background:#ecfdf5; color:#047857; }
+.preview-table-wrap {
+  overflow: auto;
+  max-height: 360px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  margin: 14px 0;
+}
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+  font-size: 13px;
+}
+.preview-table th,
+.preview-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  vertical-align: top;
+}
+.preview-table th {
+  position: sticky;
+  top: 0;
+  background: #111827;
+  color: #fff;
+  z-index: 1;
+}
+.preview-table tr.row-error td {
+  background: #fff1f2;
+  color: #991b1b;
+}
+@media (max-width: 980px) {
+  .tool-grid { grid-template-columns: 1fr; }
+  .import-summary { grid-template-columns: 1fr; }
+  .reset-keep-delete { grid-template-columns: 1fr; }
+}

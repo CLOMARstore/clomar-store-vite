@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
+import * as XLSX from 'xlsx';
 import { LogOut, Menu, Search, ShoppingCart, X } from 'lucide-react';
 import './styles.css';
 
@@ -54,6 +55,49 @@ const APP_LOGO_FULL = '/logo-clomar-full.png';
 const logoSrc = (store) => store?.logo_url || APP_ICON;
 const productImageSrc = (product) => product?.image_url || APP_ICON;
 const cleanFileName = (name = 'producto') => String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').toLowerCase();
+
+const normalizeText = (value = '') => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const normalizeHeader = (value = '') => normalizeText(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+const categoryPrefix = (categoryName = '') => {
+  const n = normalizeText(categoryName);
+  if (n.includes('ropa hombre')) return 'RH';
+  if (n.includes('ropa mujer')) return 'RM';
+  if (n.includes('calzado')) return 'CAL';
+  if (n.includes('accesorios')) return 'ACC';
+  if (n.includes('belleza') || n.includes('cuidado')) return 'BEL';
+  if (n.includes('hogar')) return 'HOG';
+  if (n.includes('fiesta') || n.includes('pinateria')) return 'FIE';
+  if (n.includes('bazar')) return 'BAZ';
+  return 'GEN';
+};
+const canonicalProductField = (key) => ({
+  codigo: 'code', code: 'code', cod: 'code', codigo_interno: 'code', sku: 'code',
+  barcode: 'barcode', codigo_barras: 'barcode', codigo_de_barras: 'barcode', barra: 'barcode', ean: 'barcode', upc: 'barcode',
+  nombre: 'name', producto: 'name', name: 'name', descripcion_producto: 'name',
+  categoria: 'category', category: 'category',
+  subcategoria: 'subcategory', sub_category: 'subcategory', subcategory: 'subcategory',
+  marca: 'brand', brand: 'brand',
+  talla: 'size', size: 'size', medida: 'size',
+  color: 'color',
+  descripcion: 'description', description: 'description', detalles: 'description',
+  costo: 'cost', cost: 'cost', costo_compra: 'cost', compra: 'cost',
+  precio: 'price', price: 'price', precio_venta: 'price', venta: 'price',
+  stock: 'stock', cantidad: 'stock', unidades: 'stock',
+  stock_min: 'stock_min', stock_minimo: 'stock_min', minimo: 'stock_min',
+  imagen_url: 'image_url', image_url: 'image_url', url_imagen: 'image_url', imagen: 'image_url',
+  activo: 'active', active: 'active', estado: 'active',
+}[key] || key);
+const parseMoneyLike = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return value;
+  const cleaned = String(value).replace(/S\/?/gi, '').replace(/,/g, '.').replace(/[^0-9.-]/g, '');
+  return Number(cleaned || 0);
+};
+const boolActive = (value) => {
+  if (value === false) return false;
+  const n = normalizeText(value);
+  return !['no', 'false', 'inactivo', '0', 'desactivado'].includes(n);
+};
 const ROLE_LABELS = {
   dueno: 'Dueño',
   admin: 'Administrador',
@@ -81,6 +125,7 @@ const MODULE_PERMISSIONS = {
   clientes: ['dueno', 'admin', 'cajero'],
   usuarios: ['dueno', 'admin'],
   tienda: ['dueno', 'admin'],
+  herramientas: ['dueno'],
 };
 const canAccess = (role, moduleKey) => MODULE_PERMISSIONS[moduleKey]?.includes(role || 'cajero');
 const firstAllowedModule = (role) => ROLE_HOME[role] || 'ventas';
@@ -242,6 +287,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     { title: 'Administración', items: [
       ['usuarios', '🧑‍💼', 'Usuarios'],
       ['tienda', '🏪', 'Tienda'],
+      ['herramientas', '🛠️', 'Herramientas'],
     ]},
   ].map(section => ({ ...section, items: section.items.filter(([key]) => canAccess(role, key)) })).filter(section => section.items.length);
   return (
@@ -271,7 +317,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', categorias: 'Categorías', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda'
+    panel: 'Panel dueño', ventas: 'Venta rápida', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', categorias: 'Categorías', inventario: 'Inventario', ingreso: 'Ingreso de mercadería', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header">
@@ -1309,6 +1355,218 @@ function UsersAdmin({ profile }) {
   );
 }
 
+
+function ToolsAdmin({ profile, products = [], categories = [], subcategories = [], reloadProducts, reloadCustomers }) {
+  const [confirmText, setConfirmText] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [deleteImages, setDeleteImages] = useState(false);
+  const [fileName, setFileName] = useState('');
+  const [previewRows, setPreviewRows] = useState([]);
+  const [rawRows, setRawRows] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
+  const categoryByName = useMemo(() => {
+    const map = new Map();
+    categories.forEach(c => map.set(normalizeText(c.name), c));
+    return map;
+  }, [categories]);
+  const subcategoryByParentAndName = useMemo(() => {
+    const map = new Map();
+    subcategories.forEach(sc => map.set(`${sc.parent_id}|${normalizeText(sc.name)}`, sc));
+    return map;
+  }, [subcategories]);
+
+  function normalizeImportedRow(row, idx) {
+    const normalized = {};
+    Object.entries(row || {}).forEach(([key, value]) => {
+      const field = canonicalProductField(normalizeHeader(key));
+      normalized[field] = typeof value === 'string' ? value.trim() : value;
+    });
+    const categoryName = String(normalized.category || '').trim();
+    const subcategoryName = String(normalized.subcategory || '').trim();
+    const category = categoryByName.get(normalizeText(categoryName));
+    const subcategory = category ? subcategoryByParentAndName.get(`${category.id}|${normalizeText(subcategoryName)}`) : null;
+    const generatedCode = `${categoryPrefix(categoryName)}-${String(products.length + idx + 1).padStart(6, '0')}`;
+    const code = String(normalized.code || '').trim() || generatedCode;
+    const barcode = String(normalized.barcode || '').trim() || code;
+    const errors = [];
+    if (!String(normalized.name || '').trim()) errors.push('Falta nombre');
+    if (!categoryName) errors.push('Falta categoría');
+    if (categoryName && !category) errors.push(`Categoría no existe: ${categoryName}`);
+    if (subcategoryName && category && !subcategory) errors.push(`Subcategoría no existe: ${subcategoryName}`);
+    if (parseMoneyLike(normalized.price) <= 0) errors.push('Precio debe ser mayor a 0');
+    return {
+      rowNumber: idx + 2,
+      code,
+      barcode,
+      name: String(normalized.name || '').trim(),
+      category: category?.name || categoryName || 'General',
+      subcategory: subcategory?.name || subcategoryName || '',
+      category_id: category?.id || null,
+      subcategory_id: subcategory?.id || null,
+      brand: String(normalized.brand || '').trim(),
+      size: String(normalized.size || '').trim(),
+      color: String(normalized.color || '').trim(),
+      description: String(normalized.description || '').trim(),
+      cost: parseMoneyLike(normalized.cost),
+      price: parseMoneyLike(normalized.price),
+      stock: parseMoneyLike(normalized.stock),
+      stock_min: parseMoneyLike(normalized.stock_min || 1),
+      image_url: String(normalized.image_url || '').trim(),
+      active: boolActive(normalized.active ?? true),
+      errors,
+    };
+  }
+
+  async function parseFile(e) {
+    const file = e.target.files?.[0];
+    setImportResult(null);
+    setPreviewRows([]);
+    setRawRows([]);
+    if (!file) return;
+    setFileName(file.name);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx));
+      setRawRows(normalized);
+      setPreviewRows(normalized.slice(0, 30));
+    } catch (error) {
+      alert(error.message || 'No se pudo leer el archivo Excel.');
+    }
+  }
+
+  async function importProducts() {
+    if (!rawRows.length) return alert('Primero carga un Excel.');
+    const invalid = rawRows.filter(r => r.errors.length);
+    if (invalid.length) return alert(`Hay ${invalid.length} filas con errores. Corrige el Excel antes de importar.`);
+    setImporting(true);
+    try {
+      const payloads = rawRows.map(r => ({
+        code: r.code,
+        barcode: r.barcode,
+        name: r.name,
+        category: r.category,
+        subcategory: r.subcategory,
+        category_id: r.category_id,
+        subcategory_id: r.subcategory_id,
+        brand: r.brand,
+        size: r.size,
+        color: r.color,
+        description: r.description,
+        cost: r.cost,
+        price: r.price,
+        stock: r.stock,
+        stock_min: r.stock_min,
+        image_url: r.image_url,
+        image_path: '',
+        active: r.active,
+        status: r.active ? 'Activo' : 'Inactivo',
+        store_id: profile?.store_id || DEFAULT_STORE_ID,
+        created_by: profile?.id || null,
+        updated_at: new Date().toISOString(),
+      }));
+      const chunks = [];
+      for (let i = 0; i < payloads.length; i += 200) chunks.push(payloads.slice(i, i + 200));
+      let count = 0;
+      for (const chunk of chunks) {
+        const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' });
+        if (error) throw error;
+        count += chunk.length;
+      }
+      await supabase.from('product_import_batches').insert({
+        store_id: profile?.store_id || DEFAULT_STORE_ID,
+        user_id: profile?.id || null,
+        file_name: fileName,
+        total_rows: rawRows.length,
+        imported_rows: count,
+        status: 'Importado',
+        notes: 'Importación desde V01.10',
+      }).then(()=>{});
+      setImportResult({ count });
+      setPreviewRows([]);
+      setRawRows([]);
+      setFileName('');
+      await reloadProducts?.();
+      alert(`Importación completada: ${count} productos.`);
+    } catch (error) {
+      alert(error.message || 'No se pudo importar productos.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function deleteProductImagesFromStorage() {
+    try {
+      const { data } = await supabase.storage.from('product-images').list('', { limit: 1000 });
+      const files = (data || []).map(f => f.name).filter(Boolean);
+      if (files.length) await supabase.storage.from('product-images').remove(files);
+    } catch (_) {}
+  }
+
+  async function controlledReset() {
+    if (profile?.role !== 'dueno') return alert('Solo el dueño puede reiniciar datos.');
+    if (confirmText !== 'REINICIAR CLOMAR') return alert('Debes escribir exactamente: REINICIAR CLOMAR');
+    if (!confirm('Esto borrará productos, clientes, ventas, caja, créditos y movimientos de prueba. Se conservan usuarios, tienda y categorías. ¿Continuar?')) return;
+    setResetting(true);
+    try {
+      const { error } = await supabase.rpc('clomar_reset_operational_data', { confirm_text: confirmText, store_uuid: profile?.store_id || DEFAULT_STORE_ID });
+      if (error) throw error;
+      if (deleteImages) await deleteProductImagesFromStorage();
+      setConfirmText('');
+      await reloadProducts?.();
+      await reloadCustomers?.();
+      alert('Reinicio controlado completado. El sistema quedó listo para cargar productos reales.');
+    } catch (error) {
+      alert(error.message || 'No se pudo reiniciar. Verifica que ejecutaste el SQL V01.10.');
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div className="page">
+      <div className="hero compact-hero"><h1>🛠️ Herramientas</h1><p>Reinicio controlado, importación desde Excel y preparación para productos reales.</p></div>
+      <div className="tool-grid">
+        <section className="card compact-card danger-zone-card">
+          <h3>Reinicio controlado</h3>
+          <p className="muted">Borra datos operativos de prueba y conserva usuarios, roles, tienda, logo, categorías y subcategorías.</p>
+          <div className="reset-keep-delete">
+            <div><strong>Conserva</strong><small>Usuarios · Roles · Tienda · Logo · Categorías</small></div>
+            <div><strong>Borra</strong><small>Productos · Ventas · Caja · Créditos · Clientes · Movimientos</small></div>
+          </div>
+          <label className="check-row"><input type="checkbox" checked={deleteImages} onChange={e=>setDeleteImages(e.target.checked)} /> Borrar también imágenes del bucket product-images</label>
+          <label>Confirmación obligatoria<input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder="Escribe REINICIAR CLOMAR" /></label>
+          <button className="danger-btn" disabled={resetting} onClick={controlledReset}>{resetting ? 'Reiniciando...' : 'Reiniciar datos de prueba'}</button>
+        </section>
+
+        <section className="card compact-card">
+          <h3>Importar productos desde Excel</h3>
+          <p className="muted">Carga una plantilla .xlsx con productos reales. Si falta código o barcode, la app genera uno interno.</p>
+          <a className="secondary-btn" href="/plantilla_productos_clomar_v0110.xlsx" download>Descargar plantilla Excel</a>
+          <label>Seleccionar archivo Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={parseFile} /></label>
+          {fileName && <div className="info-box">Archivo cargado: <strong>{fileName}</strong> · Filas leídas: {rawRows.length}</div>}
+          {rawRows.length > 0 && <div className="import-summary">
+            <Kpi label="Filas" value={rawRows.length} helper="productos detectados" />
+            <Kpi label="Errores" value={rawRows.filter(r=>r.errors.length).length} helper="deben corregirse" />
+            <Kpi label="Listos" value={rawRows.filter(r=>!r.errors.length).length} helper="para importar" />
+          </div>}
+          {previewRows.length > 0 && <div className="preview-table-wrap">
+            <table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Stock</th><th>Estado</th></tr></thead><tbody>
+              {previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.stock}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}
+            </tbody></table>
+          </div>}
+          <button className="primary-btn" disabled={!rawRows.length || importing || rawRows.some(r=>r.errors.length)} onClick={importProducts}>{importing ? 'Importando...' : 'Importar productos'}</button>
+          {importResult && <div className="success-box">Importación completada: {importResult.count} productos.</div>}
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function StoreSettings({ store, reloadProfile }) {
   const [form, setForm] = useState(store || {});
   const [saving, setSaving] = useState(false);
@@ -1382,6 +1640,7 @@ function AppShell({ session }) {
     clientes: <Customers customers={customers} reload={reloadCustomers} profile={profile}/>,
     usuarios: <UsersAdmin profile={profile}/>,
     tienda: <StoreSettings store={store} reloadProfile={reloadProfile}/>,
+    herramientas: <ToolsAdmin profile={profile} products={products} categories={categories} subcategories={subcategories} reloadProducts={reload} reloadCustomers={reloadCustomers}/>,
   };
   const content = canAccess(profile?.role, current) ? contentMap[current] : <AccessDenied profile={profile} setCurrent={setCurrent} />;
   return <div className="app"><Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session} profile={profile} store={store}/><main className="main"><Header setOpen={setOpen} current={current} profile={profile} store={store}/>{loading ? <div className="loader">Cargando...</div> : content}</main></div>;
