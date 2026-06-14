@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
 import { LogOut, Menu, Search, ShoppingCart, X } from 'lucide-react';
@@ -480,12 +480,23 @@ function POS({ products, reloadProducts, customers, profile }) {
   const [customer, setCustomer] = useState('Cliente');
   const [saving, setSaving] = useState(false);
   const [lastTicket, setLastTicket] = useState(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanStatus, setScanStatus] = useState('');
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
   const normalized = query.trim().toLowerCase();
+  const activeProducts = useMemo(() => products.filter(p => p.active !== false), [products]);
   const matches = useMemo(() => {
-    const base = !normalized ? products.slice(0, 12) : products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
+    const base = !normalized ? activeProducts.slice(0, 12) : activeProducts.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
-  }, [products, normalized]);
+  }, [activeProducts, normalized]);
   const total = cart.reduce((sum, item) => sum + asNum(item.price) * asNum(item.qty), 0);
+
+  function findProductByBarcode(value) {
+    const clean = String(value || '').trim().toLowerCase();
+    if (!clean) return null;
+    return activeProducts.find(p => String(p.barcode || '').trim().toLowerCase() === clean || String(p.code || '').trim().toLowerCase() === clean) || null;
+  }
 
   function addProduct(product) {
     if (asNum(product.stock) <= 0) return alert('Producto sin stock disponible.');
@@ -499,6 +510,108 @@ function POS({ products, reloadProducts, customers, profile }) {
       return [...prev, { ...product, qty: 1 }];
     });
   }
+
+  function processBarcode(value, source = 'manual') {
+    const clean = String(value || '').trim();
+    if (!clean) return;
+    const product = findProductByBarcode(clean);
+    if (product) {
+      addProduct(product);
+      setQuery('');
+      setScanStatus(`Agregado al carrito: ${product.name}`);
+      if (source === 'camera') setScanOpen(false);
+      return;
+    }
+    setQuery(clean);
+    setScanStatus(`Código no encontrado: ${clean}`);
+    if (source !== 'camera') alert(`Código no encontrado: ${clean}`);
+  }
+
+  function handleSearchKeyDown(e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const clean = query.trim();
+    if (!clean) return;
+    const exact = findProductByBarcode(clean);
+    if (exact) { processBarcode(clean, 'lector'); return; }
+    if (matches.length === 1) {
+      addProduct(matches[0]);
+      setQuery('');
+      setScanStatus(`Agregado al carrito: ${matches[0].name}`);
+      return;
+    }
+    alert('No se encontró un producto exacto. Escanea el código de barras o busca por nombre.');
+  }
+
+  function stopScanner() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setScanOpen(false);
+  }
+
+  useEffect(() => {
+    if (!scanOpen) return;
+    let cancelled = false;
+    let raf = 0;
+
+    async function startScanner() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setScanStatus('Este navegador no permite usar la cámara. Usa lector físico o escribe el código.');
+          return;
+        }
+        if (!('BarcodeDetector' in window)) {
+          setScanStatus('Tu navegador no tiene lector de código por cámara. Usa Chrome/Android, lector físico USB/Bluetooth o escribe el código manualmente.');
+          return;
+        }
+
+        setScanStatus('Solicitando permiso de cámara...');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        if (cancelled) { stream.getTracks().forEach(track => track.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        const supportedFormats = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : [];
+        const preferred = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','qr_code'];
+        const formats = supportedFormats.length ? preferred.filter(f => supportedFormats.includes(f)) : preferred;
+        const detector = new window.BarcodeDetector({ formats: formats.length ? formats : undefined });
+        setScanStatus('Apunta la cámara al código de barras.');
+
+        async function loop() {
+          if (cancelled || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes?.length) {
+              const raw = codes[0].rawValue || codes[0].rawData;
+              if (raw) { processBarcode(raw, 'camera'); return; }
+            }
+          } catch (err) {
+            // Continuar intentando mientras la cámara esté abierta.
+          }
+          raf = requestAnimationFrame(loop);
+        }
+        loop();
+      } catch (err) {
+        setScanStatus(`No se pudo abrir la cámara: ${err.message || err}`);
+      }
+    }
+
+    startScanner();
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [scanOpen]);
+
   function updateQty(id, qty) {
     setCart(prev => prev.map(x => {
       if (x.id !== id) return x;
@@ -529,10 +642,22 @@ function POS({ products, reloadProducts, customers, profile }) {
 
   return (
     <div className="page pos-page">
-      <div className="hero compact-hero"><h1>🧾 Venta rápida</h1><p>Buscador instantáneo, carrito fijo, cliente, crédito y comprobante.</p></div>
+      <div className="hero compact-hero"><h1>🧾 Venta rápida</h1><p>Busca por nombre, escanea código con lector físico o usa la cámara del celular.</p></div>
       <div className="pos-layout">
         <section className="card compact-card">
-          <div className="search-box"><Search size={18}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Buscar por nombre, código o categoría..." autoFocus /></div>
+          <div className="barcode-tools">
+            <div className="search-box barcode-search"><Search size={18}/><input value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div>
+            <button className="secondary-btn scan-btn" type="button" onClick={()=>setScanOpen(true)}>📷 Escanear con celular</button>
+          </div>
+          <div className="scanner-help">Lector físico: enfoca el buscador y escanea. Cámara: abre el escáner y apunta al código.</div>
+          {scanStatus && <div className="scan-status">{scanStatus}</div>}
+          {scanOpen && (
+            <div className="scanner-panel">
+              <div className="scanner-head"><strong>Escáner con cámara</strong><button className="icon-btn" type="button" onClick={stopScanner}>×</button></div>
+              <div className="scanner-frame"><video ref={videoRef} muted playsInline /></div>
+              <p className="muted">Usa la cámara trasera del celular. Si no detecta, escribe el código manualmente en el buscador.</p>
+            </div>
+          )}
           <div className="product-list">
             {matches.map(product => (
               <button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}>
