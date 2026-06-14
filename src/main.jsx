@@ -631,18 +631,20 @@ function Panel({ products, profile }) {
   );
 }
 
-function POS({ products, reloadProducts, customers, profile, store }) {
+function POS({ products, reloadProducts, customers, profile, store, onGoReceipts }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [method, setMethod] = useState('Efectivo');
   const [customer, setCustomer] = useState('Cliente');
   const [saving, setSaving] = useState(false);
   const [lastTicket, setLastTicket] = useState(null);
+  const [saleModal, setSaleModal] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState('');
   const [notice, setNotice] = useState(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const searchInputRef = useRef(null);
   const normalized = query.trim().toLowerCase();
   const activeProducts = useMemo(() => products.filter(p => p.active !== false), [products]);
   const matches = useMemo(() => {
@@ -813,18 +815,33 @@ function POS({ products, reloadProducts, customers, profile, store }) {
       await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta B${sale.receipt_number || sale.id}`, ...meta });
     }
     await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta B${sale.receipt_number || sale.id}`, ...meta });
-    setLastTicket({ sale, items });
-    setCart([]); setSaving(false); reloadProducts();
+    const completedSale = { sale, items };
+    setLastTicket(completedSale);
+    setSaleModal(completedSale);
+    setCart([]);
+    setCustomer('Cliente');
+    setMethod('Efectivo');
+    setSaving(false);
+    reloadProducts();
+    setTimeout(() => searchInputRef.current?.focus(), 200);
   }
 
   return (
     <div className="page pos-page">
       <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
+      <SaleCompleteModal
+        ticket={saleModal}
+        store={store}
+        profile={profile}
+        onClose={() => { setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+        onNewSale={() => { setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+        onGoReceipts={() => { setSaleModal(null); onGoReceipts?.(); }}
+      />
       <div className="hero compact-hero"><h1>🧾 Venta rápida</h1><p>Busca por nombre, escanea código con lector físico o usa la cámara del celular.</p></div>
       <div className="pos-layout">
         <section className="card compact-card">
           <div className="barcode-tools">
-            <div className="search-box barcode-search"><Search size={18}/><input value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div>
+            <div className="search-box barcode-search"><Search size={18}/><input ref={searchInputRef} value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div>
             <button className="secondary-btn scan-btn" type="button" onClick={()=>setScanOpen(true)}>📷 Escanear con celular</button>
           </div>
           <div className="scanner-help">Lector físico: enfoca el buscador y escanea. Cámara: abre el escáner y apunta al código.</div>
@@ -884,6 +901,54 @@ function POS({ products, reloadProducts, customers, profile, store }) {
 }
 
 
+
+
+function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSale, onGoReceipts }) {
+  if (!ticket?.sale) return null;
+  const sale = ticket.sale;
+  const items = ticket.items || [];
+  const totalItems = items.reduce((sum, item) => sum + asNum(item.qty), 0);
+  const formatPrint = (format) => printReceipt({ sale, items, store, profile, format });
+  return (
+    <div className="sale-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="sale-modal-card">
+        <div className="sale-modal-head">
+          <div className="sale-success-icon">✓</div>
+          <div>
+            <span className="eyebrow">Comprobante generado</span>
+            <h2>Venta registrada correctamente</h2>
+            <p>El comprobante interno quedó listo para imprimir, guardar o reimprimir desde el módulo Comprobantes.</p>
+          </div>
+          <button className="icon-btn sale-modal-close" type="button" onClick={onClose}>×</button>
+        </div>
+        <div className="sale-summary-grid">
+          <div><span>N°</span><strong>{receiptNumber(sale)}</strong></div>
+          <div><span>Total</span><strong>{money(sale.total)}</strong></div>
+          <div><span>Método</span><strong>{sale.payment_method || 'Efectivo'}</strong></div>
+          <div><span>Productos</span><strong>{totalItems}</strong></div>
+        </div>
+        <div className="sale-modal-body">
+          <section className="sale-modal-actions-card">
+            <h3>Acción rápida</h3>
+            <div className="receipt-action-grid">
+              <button className="primary-btn" type="button" onClick={() => formatPrint('80mm')}>Imprimir ticket 80mm</button>
+              <button className="secondary-btn" type="button" onClick={() => formatPrint('58mm')}>Ticket 58mm</button>
+              <button className="secondary-btn" type="button" onClick={() => formatPrint('a4')}>Guardar PDF A4</button>
+              <button className="secondary-btn" type="button" onClick={() => downloadText(`comprobante-${receiptNumber(sale)}.txt`, ticketText(sale, items))}>Descargar TXT</button>
+            </div>
+            <div className="sale-modal-next-actions">
+              <button className="secondary-btn" type="button" onClick={onGoReceipts}>Ver en Comprobantes</button>
+              <button className="primary-btn" type="button" onClick={onNewSale}>Nueva venta</button>
+            </div>
+          </section>
+          <section className="sale-modal-preview-card">
+            <ReceiptMiniPreview sale={sale} items={items} store={store} profile={profile} format="80mm" />
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ReceiptMiniPreview({ sale, items = [], store = {}, profile = {}, format = '80mm' }) {
   const totals = receiptTotals(sale, items);
@@ -2255,7 +2320,7 @@ function AppShell({ session }) {
 
   const contentMap = {
     panel: <Panel products={products} profile={profile}/>,
-    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store}/>,
+    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} onGoReceipts={() => setCurrent('comprobantes')}/>,
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
