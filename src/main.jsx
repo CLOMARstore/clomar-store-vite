@@ -1681,22 +1681,318 @@ function Credits({ profile }) {
 
 
 function Reports({ products, profile }) {
-  const { sales } = useSales(profile);
-  const { movements } = useCashMovements(profile);
+  const [sales, setSales] = useState([]);
+  const [items, setItems] = useState([]);
+  const [movements, setMovements] = useState([]);
   const [payments, setPayments] = useState([]);
-  useEffect(() => { if (hasSupabaseConfig) supabase.from('credit_payments').select('*').eq('store_id', profile?.store_id || DEFAULT_STORE_ID).then(({data}) => setPayments(data || [])); }, [profile?.store_id]);
-  const totalSales = sales.reduce((s,v)=>s+asNum(v.total),0);
-  const creditSales = sales.filter(s => s.status === 'Crédito' || s.payment_method === 'Crédito');
-  const totalCredits = creditSales.reduce((s,v)=>s+asNum(v.total),0);
-  const totalPaidCredits = payments.reduce((s,p)=>s+asNum(p.amount),0);
-  const avg = sales.length ? totalSales / sales.length : 0;
-  const byMethod = sales.reduce((acc, s) => { acc[s.payment_method || 'Sin método'] = (acc[s.payment_method || 'Sin método'] || 0) + asNum(s.total); return acc; }, {});
-  const byCat = products.reduce((acc, p) => { acc[p.category || 'General'] = (acc[p.category || 'General'] || 0) + asNum(p.stock); return acc; }, {});
-  const egresos = movements.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
-  return <div className="page"><div className="hero compact-hero"><h1>📈 Reportes</h1><p>Ventas, caja, créditos, abonos e inventario en vista rápida.</p></div><div className="kpi-grid"><Kpi label="Total vendido" value={money(totalSales)} helper={`${sales.length} ventas`} /><Kpi label="Ticket promedio" value={money(avg)} helper="Promedio de venta" /><Kpi label="Crédito pendiente" value={money(Math.max(0,totalCredits-totalPaidCredits))} helper="Por cobrar" /><Kpi label="Egresos" value={money(egresos)} helper="Compras y salidas" /></div><div className="two-col"><section className="card compact-card"><h3>Ventas por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!sales.length && <p className="muted">No hay ventas todavía.</p>}</section><section className="card compact-card"><h3>Stock por categoría</h3>{Object.entries(byCat).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{v}</strong></div>)}</section></div><div className="two-col extra-row"><section className="card compact-card"><h3>Abonos recibidos</h3>{payments.slice(0,8).map(p=><div className="list-row" key={p.id}><span>{p.customer_name}<small>{fmtDate(p.created_at)} · {p.method}</small></span><strong>{money(p.amount)}</strong></div>)}{!payments.length && <p className="muted">No hay abonos registrados.</p>}</section><section className="card compact-card"><h3>Movimientos de caja</h3>{movements.slice(0,8).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}</section></div></div>;
+  const [profiles, setProfiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [startDate, setStartDate] = useState(todayISO());
+  const [endDate, setEndDate] = useState(todayISO());
+  const [methodFilter, setMethodFilter] = useState('todos');
+  const [sellerFilter, setSellerFilter] = useState('todos');
+  const [query, setQuery] = useState('');
+
+  const storeId = profile?.store_id || DEFAULT_STORE_ID;
+  const endDatePlusOne = (value) => {
+    const d = new Date(`${value || todayISO()}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  };
+
+  async function loadReport() {
+    if (!hasSupabaseConfig) return;
+    setLoading(true);
+    const from = startDate || todayISO();
+    const to = endDatePlusOne(endDate || from);
+
+    const salesQuery = supabase
+      .from('sales')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('created_at', from)
+      .lt('created_at', to)
+      .order('created_at', { ascending: false })
+      .limit(2000);
+
+    const itemsQuery = supabase
+      .from('sale_items')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('created_at', from)
+      .lt('created_at', to)
+      .limit(5000);
+
+    const movementsQuery = supabase
+      .from('cash_movements')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('created_at', from)
+      .lt('created_at', to)
+      .order('created_at', { ascending: false })
+      .limit(3000);
+
+    const paymentsQuery = supabase
+      .from('credit_payments')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('created_at', from)
+      .lt('created_at', to)
+      .order('created_at', { ascending: false })
+      .limit(2000);
+
+    const profilesQuery = supabase
+      .from('profiles')
+      .select('id,email,full_name,role,status,store_id')
+      .eq('store_id', storeId);
+
+    const [salesRes, itemsRes, movementsRes, paymentsRes, profilesRes] = await Promise.all([
+      salesQuery,
+      itemsQuery,
+      movementsQuery,
+      paymentsQuery,
+      profilesQuery,
+    ]);
+
+    setSales(salesRes.data || []);
+    setItems(itemsRes.data || []);
+    setMovements(movementsRes.data || []);
+    setPayments(paymentsRes.data || []);
+    setProfiles(profilesRes.data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadReport(); }, [profile?.store_id, startDate, endDate]);
+
+  const sellerName = (idOrEmail) => {
+    if (!idOrEmail) return 'Sin vendedor';
+    const found = profiles.find(p => p.id === idOrEmail || p.email === idOrEmail);
+    return found?.full_name || found?.email || String(idOrEmail);
+  };
+
+  const saleById = useMemo(() => {
+    const map = {};
+    sales.forEach(s => { map[s.id] = s; });
+    return map;
+  }, [sales]);
+
+  const productById = useMemo(() => {
+    const map = {};
+    products.forEach(p => { map[p.id] = p; });
+    return map;
+  }, [products]);
+
+  const methods = useMemo(() => ['todos', ...Array.from(new Set(sales.map(s => s.payment_method || 'Sin método')))], [sales]);
+  const sellers = useMemo(() => {
+    const ids = Array.from(new Set(sales.map(s => s.user_id || s.seller_email || 'sin-vendedor')));
+    return ['todos', ...ids];
+  }, [sales]);
+
+  const filteredSales = useMemo(() => sales.filter(s => {
+    const methodOk = methodFilter === 'todos' || (s.payment_method || 'Sin método') === methodFilter;
+    const sellerKey = s.user_id || s.seller_email || 'sin-vendedor';
+    const sellerOk = sellerFilter === 'todos' || sellerKey === sellerFilter;
+    const q = normalizeText(query);
+    const textOk = !q || [
+      s.receipt_number,
+      s.customer_name,
+      s.payment_method,
+      s.status,
+      sellerName(s.user_id || s.seller_email),
+    ].some(v => normalizeText(v).includes(q));
+    return methodOk && sellerOk && textOk;
+  }), [sales, methodFilter, sellerFilter, query, profiles]);
+
+  const filteredSaleIds = useMemo(() => new Set(filteredSales.map(s => s.id)), [filteredSales]);
+
+  const filteredItems = useMemo(() => items.filter(it => filteredSaleIds.has(it.sale_id)), [items, filteredSaleIds]);
+
+  const creditSales = filteredSales.filter(s => s.status === 'Crédito' || s.payment_method === 'Crédito');
+  const totalSales = filteredSales.reduce((sum, s) => sum + asNum(s.total), 0);
+  const totalCost = filteredItems.reduce((sum, it) => {
+    const cost = asNum(it.unit_cost ?? productById[it.product_id]?.cost);
+    return sum + cost * asNum(it.qty);
+  }, 0);
+  const totalProfit = filteredItems.reduce((sum, it) => {
+    if (it.profit !== null && it.profit !== undefined) return sum + asNum(it.profit);
+    const cost = asNum(it.unit_cost ?? productById[it.product_id]?.cost);
+    return sum + ((asNum(it.price) - cost) * asNum(it.qty));
+  }, 0);
+  const totalQty = filteredItems.reduce((sum, it) => sum + asNum(it.qty), 0);
+  const ticketAvg = filteredSales.length ? totalSales / filteredSales.length : 0;
+  const marginPct = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
+  const totalCredit = creditSales.reduce((sum, s) => sum + asNum(s.total), 0);
+  const totalCreditPaid = payments.reduce((sum, p) => sum + asNum(p.amount), 0);
+  const pendingCredit = Math.max(0, totalCredit - totalCreditPaid);
+
+  const groupRows = (rows, keyFn, valueFn) => {
+    const acc = {};
+    rows.forEach(row => {
+      const key = keyFn(row) || 'Sin dato';
+      acc[key] = (acc[key] || 0) + asNum(valueFn(row));
+    });
+    return Object.entries(acc).sort((a,b) => b[1] - a[1]);
+  };
+
+  const byMethod = groupRows(filteredSales, s => s.payment_method || 'Sin método', s => s.total);
+  const bySeller = groupRows(filteredSales, s => sellerName(s.user_id || s.seller_email || 'sin-vendedor'), s => s.total);
+  const byCategory = groupRows(filteredItems, it => productById[it.product_id]?.category || it.category || 'Sin categoría', it => it.subtotal || asNum(it.qty) * asNum(it.price));
+  const byProduct = Object.values(filteredItems.reduce((acc, it) => {
+    const product = productById[it.product_id] || {};
+    const name = it.product_name || product.name || 'Producto';
+    const key = `${it.product_id || name}`;
+    const cost = asNum(it.unit_cost ?? product.cost);
+    const subtotal = asNum(it.subtotal || asNum(it.qty) * asNum(it.price));
+    const profit = it.profit !== null && it.profit !== undefined ? asNum(it.profit) : (asNum(it.price) - cost) * asNum(it.qty);
+    if (!acc[key]) acc[key] = { name, code: product.code || '', qty: 0, total: 0, profit: 0 };
+    acc[key].qty += asNum(it.qty);
+    acc[key].total += subtotal;
+    acc[key].profit += profit;
+    return acc;
+  }, {})).sort((a,b) => b.total - a.total);
+
+  const cashIn = movements.filter(m => ['Ingreso','Apertura'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
+  const cashOut = movements.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type)).reduce((s,m)=>s+asNum(m.amount),0);
+  const cashNet = cashIn - cashOut;
+
+  const reportRows = filteredSales.map(s => ({
+    Comprobante: receiptNumber(s),
+    Fecha: fmtDate(s.created_at),
+    Cliente: s.customer_name || 'Cliente',
+    Vendedor: sellerName(s.user_id || s.seller_email),
+    Metodo: s.payment_method || 'Sin método',
+    Estado: s.status || '',
+    Total: asNum(s.total),
+  }));
+
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reportRows), 'Ventas');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byProduct.map(p => ({
+      Producto: p.name,
+      Codigo: p.code,
+      Cantidad: p.qty,
+      Vendido: p.total,
+      Ganancia: p.profit,
+    }))), 'Productos');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(bySeller.map(([seller, total]) => ({ Vendedor: seller, Total: total }))), 'Vendedores');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byMethod.map(([method, total]) => ({ Metodo: method, Total: total }))), 'Metodos');
+    XLSX.writeFile(wb, `reporte-clomar-${startDate}-a-${endDate}.xlsx`);
+  }
+
+  function printReport() {
+    const rowsHtml = reportRows.map(r => `<tr><td>${escapeHtml(r.Comprobante)}</td><td>${escapeHtml(r.Fecha)}</td><td>${escapeHtml(r.Cliente)}</td><td>${escapeHtml(r.Vendedor)}</td><td>${escapeHtml(r.Metodo)}</td><td>${money(r.Total)}</td></tr>`).join('');
+    const topProductsHtml = byProduct.slice(0, 10).map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${p.qty}</td><td>${money(p.total)}</td><td>${money(p.profit)}</td></tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte Clomar Store</title><style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#111827;padding:24px}
+      h1{margin:0 0 4px;font-size:24px} .muted{color:#64748b}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.kpi{border:1px solid #e5e7eb;border-radius:12px;padding:12px}.kpi span{font-size:10px;text-transform:uppercase;color:#64748b;font-weight:800}.kpi strong{display:block;font-size:20px;margin-top:5px}
+      table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border-bottom:1px solid #e5e7eb;padding:7px;text-align:left;font-size:12px}th{text-transform:uppercase;color:#64748b;font-size:10px}
+      @media print{@page{size:A4;margin:12mm}}
+    </style></head><body>
+      <h1>Clomar Store — Reporte profesional</h1>
+      <p class="muted">Periodo: ${escapeHtml(startDate)} a ${escapeHtml(endDate)} · Generado: ${escapeHtml(fmtDate(new Date()))}</p>
+      <section class="kpis"><div class="kpi"><span>Ventas</span><strong>${money(totalSales)}</strong></div><div class="kpi"><span>Ganancia</span><strong>${money(totalProfit)}</strong></div><div class="kpi"><span>Tickets</span><strong>${filteredSales.length}</strong></div><div class="kpi"><span>Caja neta</span><strong>${money(cashNet)}</strong></div></section>
+      <h2>Productos más vendidos</h2><table><thead><tr><th>Producto</th><th>Cant.</th><th>Vendido</th><th>Ganancia</th></tr></thead><tbody>${topProductsHtml}</tbody></table>
+      <h2>Ventas</h2><table><thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Método</th><th>Total</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      <script>window.onload=()=>setTimeout(()=>window.print(),250)</script>
+    </body></html>`;
+    const win = window.open('', '_blank', 'width=1000,height=800');
+    if (!win) return alert('Permite ventanas emergentes para imprimir o guardar el reporte.');
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
+
+  const maxMethod = Math.max(1, ...byMethod.map(([,v]) => v));
+  const maxSeller = Math.max(1, ...bySeller.map(([,v]) => v));
+  const maxCategory = Math.max(1, ...byCategory.map(([,v]) => v));
+
+  return (
+    <div className="page reports-pro-page">
+      <div className="hero compact-hero">
+        <h1>📈 Reportes profesionales</h1>
+        <p>Ventas, ganancias, vendedores, productos, categorías, caja y créditos con filtros comerciales.</p>
+      </div>
+
+      <section className="card compact-card report-filters">
+        <div className="report-filter-head">
+          <div>
+            <h3>Filtros del reporte</h3>
+            <p className="muted">Usa fechas, vendedor, método de pago o búsqueda para analizar resultados reales.</p>
+          </div>
+          <div className="report-actions">
+            <button className="secondary-btn" type="button" onClick={loadReport}>{loading ? 'Cargando...' : 'Actualizar'}</button>
+            <button className="secondary-btn" type="button" onClick={exportExcel}>Exportar Excel</button>
+            <button className="primary-btn" type="button" onClick={printReport}>PDF / Imprimir</button>
+          </div>
+        </div>
+        <div className="report-filter-grid">
+          <label>Desde<input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} /></label>
+          <label>Hasta<input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} /></label>
+          <label>Método<select value={methodFilter} onChange={e=>setMethodFilter(e.target.value)}>{methods.map(m => <option key={m} value={m}>{m === 'todos' ? 'Todos' : m}</option>)}</select></label>
+          <label>Vendedor<select value={sellerFilter} onChange={e=>setSellerFilter(e.target.value)}>{sellers.map(s => <option key={s} value={s}>{s === 'todos' ? 'Todos' : sellerName(s)}</option>)}</select></label>
+          <label className="report-query">Buscar<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cliente, comprobante, vendedor..." /></label>
+        </div>
+      </section>
+
+      <div className="report-kpi-grid">
+        <Kpi label="Total vendido" value={money(totalSales)} helper={`${filteredSales.length} comprobantes`} />
+        <Kpi label="Ganancia bruta" value={money(totalProfit)} helper={`Margen ${marginPct.toFixed(1)}%`} />
+        <Kpi label="Ticket promedio" value={money(ticketAvg)} helper={`${totalQty} unidades vendidas`} />
+        <Kpi label="Caja neta" value={money(cashNet)} helper={`Ingresos ${money(cashIn)} · Egresos ${money(cashOut)}`} />
+        <Kpi label="Crédito pendiente" value={money(pendingCredit)} helper={`${creditSales.length} ventas a crédito`} />
+        <Kpi label="Costo vendido" value={money(totalCost)} helper="Base para ganancia" />
+      </div>
+
+      <div className="report-dashboard-grid">
+        <section className="card compact-card">
+          <h3>Ventas por método</h3>
+          <div className="bar-list">
+            {byMethod.map(([method, methodTotal]) => <div className="bar-row" key={method}><div><strong>{method}</strong><small>{((methodTotal / maxMethod) * 100).toFixed(0)}% del mayor</small></div><div className="bar-track"><span style={{ width: `${Math.max(5, (methodTotal / maxMethod) * 100)}%` }} /></div><b>{money(methodTotal)}</b></div>)}
+            {!byMethod.length && <p className="muted">Sin ventas en el periodo.</p>}
+          </div>
+        </section>
+
+        <section className="card compact-card">
+          <h3>Ventas por vendedor</h3>
+          <div className="bar-list">
+            {bySeller.map(([seller, sellerTotal]) => <div className="bar-row" key={seller}><div><strong>{seller}</strong><small>Rendimiento comercial</small></div><div className="bar-track"><span style={{ width: `${Math.max(5, (sellerTotal / maxSeller) * 100)}%` }} /></div><b>{money(sellerTotal)}</b></div>)}
+            {!bySeller.length && <p className="muted">Sin vendedores con ventas.</p>}
+          </div>
+        </section>
+
+        <section className="card compact-card">
+          <h3>Ventas por categoría</h3>
+          <div className="bar-list">
+            {byCategory.map(([cat, catTotal]) => <div className="bar-row" key={cat}><div><strong>{cat}</strong><small>Según productos vendidos</small></div><div className="bar-track"><span style={{ width: `${Math.max(5, (catTotal / maxCategory) * 100)}%` }} /></div><b>{money(catTotal)}</b></div>)}
+            {!byCategory.length && <p className="muted">Sin categorías vendidas.</p>}
+          </div>
+        </section>
+
+        <section className="card compact-card">
+          <h3>Productos más vendidos</h3>
+          <div className="mini-table">
+            <div className="mini-table-head"><span>Producto</span><span>Cant.</span><span>Vendido</span><span>Ganancia</span></div>
+            {byProduct.slice(0, 10).map(p => <div className="mini-table-row" key={p.name}><span><strong>{p.name}</strong><small>{p.code || 'Sin código'}</small></span><b>{p.qty}</b><b>{money(p.total)}</b><b className={p.profit < 0 ? 'danger-text' : ''}>{money(p.profit)}</b></div>)}
+            {!byProduct.length && <p className="muted">Sin productos vendidos en el periodo.</p>}
+          </div>
+        </section>
+      </div>
+
+      <section className="card compact-card report-sales-table">
+        <div className="report-filter-head">
+          <div><h3>Detalle de ventas</h3><p className="muted">Historial filtrado por fecha, vendedor y método.</p></div>
+          <span className="result-pill">{filteredSales.length} ventas</span>
+        </div>
+        <div className="mini-table sales-detail-table">
+          <div className="mini-table-head"><span>N°</span><span>Fecha</span><span>Cliente</span><span>Vendedor</span><span>Método</span><span>Total</span></div>
+          {filteredSales.map(s => <div className="mini-table-row" key={s.id}><span>{receiptNumber(s)}</span><span>{fmtDate(s.created_at)}</span><span>{s.customer_name || 'Cliente'}</span><span>{sellerName(s.user_id || s.seller_email)}</span><span>{s.payment_method || 'Sin método'}</span><b>{money(s.total)}</b></div>)}
+          {!filteredSales.length && <p className="muted">No hay ventas con los filtros actuales.</p>}
+        </div>
+      </section>
+    </div>
+  );
 }
-
-
 
 function UsersAdmin({ profile }) {
   const [profiles, setProfiles] = useState([]);
