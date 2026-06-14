@@ -232,3 +232,204 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
   .price-row { grid-template-columns: 48px 1fr; }
   .price-row label, .price-metrics, .price-notes, .price-actions { grid-column: 1 / -1; }
 }
+
+/* V01.12B - Interfaz profesional de precios */
+.notice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(15, 23, 42, .42);
+  backdrop-filter: blur(5px);
+}
+.notice-card {
+  width: min(560px, 94vw);
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 16px;
+  align-items: start;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .25);
+}
+.notice-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #fff7ed;
+  font-size: 28px;
+}
+.notice-success .notice-icon { background:#ecfdf5; }
+.notice-info .notice-icon { background:#eff6ff; }
+.notice-content h3 { margin: 0 0 8px; color: var(--ink); font-size: 22px; }
+.notice-content p { margin: 0; color: var(--muted); line-height: 1.45; }
+.notice-details { margin-top: 12px; padding: 12px; border-radius: 14px; background: #f8fafc; color: #334155; font-weight: 700; }
+.notice-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+.prices-page-pro .compact-hero { margin-bottom: 18px; }
+.price-command-center {
+  display: grid;
+  grid-template-columns: minmax(280px, .9fr) minmax(520px, 1.35fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.price-command-copy {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 22px;
+  background: linear-gradient(135deg, #111827, #1f2937);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.price-command-copy .eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(231, 166, 161, .16);
+  color: #fecaca;
+  border: 1px solid rgba(255,255,255,.12);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .09em;
+  font-weight: 900;
+}
+.price-command-copy h3 { margin: 14px 0 8px; font-size: 24px; line-height: 1.1; }
+.price-command-copy p { margin: 0; color: #cbd5e1; line-height: 1.45; }
+.price-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 12px;
+}
+.price-filter-card { margin-bottom: 18px; }
+.price-filter-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.price-filter-head h3 { margin: 0; }
+.result-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  font-weight: 900;
+  color: var(--ink);
+}
+.price-card-list { display: grid; gap: 14px; }
+.price-product-card {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.price-card-main {
+  display: grid;
+  grid-template-columns: 70px minmax(240px, 1fr) 170px auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+}
+.price-card-main > img {
+  width: 70px;
+  height: 70px;
+  border-radius: 18px;
+  object-fit: cover;
+  background: #fff3f1;
+  border: 1px solid var(--border);
+}
+.price-title-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.price-title-line strong { color: var(--ink); font-size: 16px; }
+.price-card-title small { display:block; color: var(--muted); margin-top: 5px; }
+.health-chip {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+.health-ok { background:#ecfdf5; color:#047857; }
+.health-warn { background:#fff7ed; color:#c2410c; }
+.health-bad { background:#fef2f2; color:#b91c1c; }
+.price-card-total {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  text-align: right;
+}
+.price-card-total span,
+.price-card-total small { display:block; color: var(--muted); font-size: 12px; font-weight: 800; }
+.price-card-total strong { display:block; font-size: 22px; color: var(--ink); margin: 2px 0; }
+.price-expand-btn { white-space: nowrap; }
+.price-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fbfdff;
+}
+.price-metric-strip div {
+  padding: 12px 16px;
+  border-right: 1px solid #f1f5f9;
+}
+.price-metric-strip div:last-child { border-right: 0; }
+.price-metric-strip span { display:block; color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+.price-metric-strip strong { display:block; color: var(--ink); font-size: 16px; margin-top: 3px; }
+.warn-text { color:#c2410c !important; }
+.danger-text { color:#b91c1c !important; }
+.price-edit-panel {
+  padding: 16px;
+  background: linear-gradient(180deg, #fff, #fbfbfc);
+}
+.price-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 12px;
+}
+.price-edit-grid label,
+.price-note-full { margin: 0; color: var(--muted); font-size: 12px; }
+.price-edit-grid input,
+.price-edit-grid select,
+.price-note-full input { margin-top: 6px; }
+.price-note-full { display:block; margin-top: 12px; }
+.price-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+@media (max-width: 1180px) {
+  .price-command-center { grid-template-columns: 1fr; }
+  .price-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .price-card-main { grid-template-columns: 62px 1fr; }
+  .price-card-total, .price-expand-btn { grid-column: 1 / -1; }
+  .price-card-total { text-align: left; }
+  .price-metric-strip { grid-template-columns: repeat(2, 1fr); }
+  .price-edit-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .notice-card { grid-template-columns: 1fr; }
+  .price-kpi-row, .price-metric-strip, .price-edit-grid { grid-template-columns: 1fr; }
+  .price-card-main { grid-template-columns: 54px 1fr; padding: 12px; }
+  .price-card-main > img { width: 54px; height: 54px; border-radius: 14px; }
+  .price-edit-actions { justify-content: stretch; }
+  .price-edit-actions button, .price-expand-btn { width: 100%; }
+}

@@ -582,6 +582,7 @@ function POS({ products, reloadProducts, customers, profile }) {
   const [lastTicket, setLastTicket] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState('');
+  const [notice, setNotice] = useState(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const normalized = query.trim().toLowerCase();
@@ -599,9 +600,18 @@ function POS({ products, reloadProducts, customers, profile }) {
   }
 
   function addProduct(product) {
-    if (asNum(product.stock) <= 0) return alert('Producto sin stock disponible.');
-    if (asNum(product.price) <= 0) return alert('Producto sin precio de venta. Valida el precio antes de vender.');
-    if (productPriceStatus(product) !== 'Validado') return alert(`Precio pendiente de validar para: ${product.name}. Ingresa a Precios y marca el producto como Validado.`);
+    if (asNum(product.stock) <= 0) return setNotice({
+      type: 'warning', icon: '📦', title: 'Producto sin stock disponible',
+      message: `${product.name} no tiene stock para vender. Ingresa a Inventario o Ingreso de mercadería para actualizar existencias.`
+    });
+    if (asNum(product.price) <= 0) return setNotice({
+      type: 'warning', icon: '💰', title: 'Producto sin precio de venta',
+      message: `${product.name} tiene precio 0. Valida costo y precio antes de vender.`
+    });
+    if (productPriceStatus(product) !== 'Validado') return setNotice({
+      type: 'warning', icon: '🔎', title: 'Precio pendiente de validar',
+      message: `${product.name} todavía está marcado como ${productPriceStatus(product)}. Ingresa a Precios, confirma costo y precio, y marca el producto como Validado.`
+    });
     setLastTicket(null);
     setCart(prev => {
       const found = prev.find(x => x.id === product.id);
@@ -626,7 +636,7 @@ function POS({ products, reloadProducts, customers, profile }) {
     }
     setQuery(clean);
     setScanStatus(`Código no encontrado: ${clean}`);
-    if (source !== 'camera') alert(`Código no encontrado: ${clean}`);
+    if (source !== 'camera') setNotice({ type: 'info', icon: '🔍', title: 'Código no encontrado', message: `No existe un producto con el código ${clean}. Puedes asignarlo desde Productos o importarlo desde Excel.` });
   }
 
   function handleSearchKeyDown(e) {
@@ -642,7 +652,7 @@ function POS({ products, reloadProducts, customers, profile }) {
       setScanStatus(`Agregado al carrito: ${matches[0].name}`);
       return;
     }
-    alert('No se encontró un producto exacto. Escanea el código de barras o busca por nombre.');
+    setNotice({ type: 'info', icon: '🔍', title: 'Sin coincidencia exacta', message: 'No se encontró un producto exacto. Escanea el código de barras, escribe el código interno o busca por nombre.' });
   }
 
   function stopScanner() {
@@ -726,7 +736,7 @@ function POS({ products, reloadProducts, customers, profile }) {
   async function checkout() {
     if (!cart.length || saving) return;
     const invalidPrice = cart.find(item => asNum(item.price) <= 0 || productPriceStatus(item) !== 'Validado');
-    if (invalidPrice) return alert(`No se puede cobrar. Revisa y valida el precio de: ${invalidPrice.name}`);
+    if (invalidPrice) return setNotice({ type: 'warning', icon: '💰', title: 'No se puede cobrar todavía', message: `Revisa y valida el precio de ${invalidPrice.name} antes de finalizar la venta.` });
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
     const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
@@ -751,6 +761,7 @@ function POS({ products, reloadProducts, customers, profile }) {
 
   return (
     <div className="page pos-page">
+      <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
       <div className="hero compact-hero"><h1>🧾 Venta rápida</h1><p>Busca por nombre, escanea código con lector físico o usa la cámara del celular.</p></div>
       <div className="pos-layout">
         <section className="card compact-card">
@@ -1432,15 +1443,36 @@ function UsersAdmin({ profile }) {
       </section>
     </div>
   );
+
 }
 
-
+function FriendlyNotice({ notice, onClose, primaryText = 'Entendido', secondaryText, onSecondary }) {
+  if (!notice) return null;
+  return (
+    <div className="notice-backdrop" role="dialog" aria-modal="true">
+      <div className={`notice-card ${notice.type ? `notice-${notice.type}` : ''}`}>
+        <div className="notice-icon">{notice.icon || '⚠️'}</div>
+        <div className="notice-content">
+          <h3>{notice.title || 'Aviso'}</h3>
+          {notice.message && <p>{notice.message}</p>}
+          {notice.details && <div className="notice-details">{notice.details}</div>}
+          <div className="notice-actions">
+            {secondaryText && <button type="button" className="secondary-btn" onClick={onSecondary}>{secondaryText}</button>}
+            <button type="button" className="primary-btn" onClick={onClose}>{primaryText}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PricesAdmin({ products = [], reload, profile }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('pendientes');
   const [drafts, setDrafts] = useState({});
   const [savingId, setSavingId] = useState('');
+  const [notice, setNotice] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   const rows = useMemo(() => products.filter(p => {
     const q = normalizeText(query);
@@ -1457,10 +1489,12 @@ function PricesAdmin({ products = [], reload, profile }) {
 
   const summary = useMemo(() => {
     const pending = products.filter(p => productPriceStatus(p) !== 'Validado').length;
+    const validated = products.filter(p => productPriceStatus(p) === 'Validado').length;
+    const review = products.filter(p => productPriceStatus(p) === 'Revisar').length;
     const noCost = products.filter(p => asNum(p.cost) <= 0).length;
     const noPrice = products.filter(p => asNum(p.price) <= 0).length;
     const lowMargin = products.filter(p => productPriceStatus(p) === 'Validado' && asNum(p.price) > 0 && productMarginPercent(p) < 25).length;
-    return { pending, noCost, noPrice, lowMargin };
+    return { pending, validated, review, noCost, noPrice, lowMargin };
   }, [products]);
 
   function draft(product) {
@@ -1479,6 +1513,26 @@ function PricesAdmin({ products = [], reload, profile }) {
   function useSuggested(product) {
     const d = draft(product);
     setDraft(product, 'price', String(suggestedPrice(d.cost, d.margin_target)));
+    setDraft(product, 'price_status', 'Revisar');
+  }
+  function markValidated(product) {
+    const d = draft(product);
+    setDrafts(prev => ({ ...prev, [product.id]: { ...d, price_status: 'Validado', price_notes: d.price_notes || 'Precio validado desde panel de control.' } }));
+  }
+  function resetDraft(product) {
+    setDrafts(prev => { const next = { ...prev }; delete next[product.id]; return next; });
+  }
+  function priceHealth(d) {
+    const cost = asNum(d.cost);
+    const price = asNum(d.price);
+    const min = asNum(d.min_price);
+    if (price <= 0) return { kind: 'bad', text: 'Sin precio de venta' };
+    if (cost <= 0) return { kind: 'warn', text: 'Costo pendiente' };
+    if (min > 0 && price < min) return { kind: 'bad', text: 'Debajo del mínimo' };
+    const margin = ((price - cost) / price) * 100;
+    if (margin < 0) return { kind: 'bad', text: 'Vende con pérdida' };
+    if (margin < 25) return { kind: 'warn', text: 'Margen bajo' };
+    return { kind: 'ok', text: 'Precio saludable' };
   }
 
   async function savePrice(product) {
@@ -1493,8 +1547,8 @@ function PricesAdmin({ products = [], reload, profile }) {
       price_updated_at: new Date().toISOString(),
       price_updated_by: profile?.id || null,
     };
-    if (payload.price_status === 'Validado' && payload.price <= 0) return alert('No puedes validar un producto con precio 0.');
-    if (payload.price_status === 'Validado' && payload.min_price > 0 && payload.price < payload.min_price) return alert('El precio validado no puede ser menor al precio mínimo permitido.');
+    if (payload.price_status === 'Validado' && payload.price <= 0) return setNotice({ type: 'warning', icon: '💰', title: 'No se puede validar con precio 0', message: 'Coloca un precio de venta mayor a 0 antes de marcar el producto como Validado.' });
+    if (payload.price_status === 'Validado' && payload.min_price > 0 && payload.price < payload.min_price) return setNotice({ type: 'warning', icon: '📉', title: 'Precio menor al mínimo permitido', message: 'El precio validado no puede ser menor al precio mínimo definido para este producto.' });
     setSavingId(product.id);
     try {
       const { error } = await supabase.from('products').update(payload).eq('id', product.id);
@@ -1512,53 +1566,96 @@ function PricesAdmin({ products = [], reload, profile }) {
         note: payload.price_notes,
       }).then(()=>{});
       setDrafts(prev => { const next = { ...prev }; delete next[product.id]; return next; });
+      setNotice({ type: 'success', icon: '✅', title: 'Precio actualizado', message: `${product.name} quedó como ${payload.price_status}.` });
       await reload?.();
     } catch (error) {
-      alert(error.message || 'No se pudo actualizar el precio. Verifica que ejecutaste el SQL V01.12.');
+      setNotice({ type: 'warning', icon: '⚠️', title: 'No se pudo actualizar el precio', message: error.message || 'Verifica que ejecutaste el SQL V01.12.' });
     } finally {
       setSavingId('');
     }
   }
 
-  return <div className="page prices-page">
+  return <div className="page prices-page prices-page-pro">
+    <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
     <div className="hero compact-hero"><h1>💰 Control de precios</h1><p>Valida costos, precios y márgenes antes de vender, imprimir etiquetas o generar comprobantes.</p></div>
-    <div className="kpi-grid">
-      <Kpi label="Pendientes" value={summary.pending} helper="requieren validación" />
-      <Kpi label="Sin costo" value={summary.noCost} helper="afecta ganancia" />
-      <Kpi label="Sin precio" value={summary.noPrice} helper="no vender" />
-      <Kpi label="Margen bajo" value={summary.lowMargin} helper="menor a 25%" />
+    <div className="price-command-center">
+      <div className="price-command-copy">
+        <span className="eyebrow">No asumir precios</span>
+        <h3>Los productos pendientes no se venden hasta validar costo y precio.</h3>
+        <p>Usa esta pantalla para confirmar costos reales, definir precio mínimo, revisar margen y dejar trazabilidad de cada cambio.</p>
+      </div>
+      <div className="price-kpi-row">
+        <Kpi label="Pendientes" value={summary.pending} helper="requieren validación" />
+        <Kpi label="Validados" value={summary.validated} helper="listos para vender" />
+        <Kpi label="Sin costo" value={summary.noCost} helper="afecta ganancia" />
+        <Kpi label="Margen bajo" value={summary.lowMargin} helper="menor a 25%" />
+      </div>
     </div>
-    <section className="card compact-card">
-      <h3>Filtros de control</h3>
-      <div className="form-split">
+
+    <section className="card compact-card price-filter-card">
+      <div className="price-filter-head">
+        <div><h3>Filtros de control</h3><p className="muted">Encuentra productos pendientes, sin costo, sin precio o con margen bajo.</p></div>
+        <span className="result-pill">{rows.length} productos</span>
+      </div>
+      <div className="form-split price-filter-grid">
         <label>Buscar producto<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nombre, código, marca, barcode..." /></label>
         <label>Estado<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="pendientes">Pendientes/Revisar</option><option value="sin_costo">Sin costo</option><option value="sin_precio">Sin precio</option><option value="margen_bajo">Margen bajo</option><option value="todos">Todos</option></select></label>
       </div>
-      <p className="muted">No se asume que un precio es correcto. Todo producto nuevo o importado queda como Pendiente hasta que lo valides.</p>
     </section>
-    <section className="card compact-card prices-table-card">
-      <h3>Productos</h3>
-      <div className="prices-list">
-        {rows.map(product => {
-          const d = draft(product);
-          const profit = asNum(d.price) - asNum(d.cost);
-          const margin = asNum(d.price) > 0 ? (profit / asNum(d.price)) * 100 : 0;
-          const markup = asNum(d.cost) > 0 ? (profit / asNum(d.cost)) * 100 : 0;
-          return <div className="price-row" key={product.id}>
+
+    <section className="price-card-list">
+      {rows.map(product => {
+        const d = draft(product);
+        const cost = asNum(d.cost);
+        const price = asNum(d.price);
+        const profit = price - cost;
+        const margin = price > 0 ? (profit / price) * 100 : 0;
+        const markup = cost > 0 ? (profit / cost) * 100 : 0;
+        const suggested = suggestedPrice(d.cost, d.margin_target);
+        const health = priceHealth(d);
+        const open = expandedId === product.id;
+        return <article className="price-product-card" key={product.id}>
+          <div className="price-card-main">
             <img src={productImageSrc(product)} alt={product.name} />
-            <div className="price-product-info"><strong>{product.name}</strong><small>{product.code} · {product.barcode || 'Sin barcode'} · {product.category || 'General'}{product.subcategory ? ` / ${product.subcategory}` : ''}</small><span className={priceBadgeClass(d.price_status)}>{d.price_status}</span></div>
-            <label>Costo<input value={d.cost} inputMode="decimal" onChange={e=>setDraft(product, 'cost', e.target.value)} /></label>
-            <label>Precio<input value={d.price} inputMode="decimal" onChange={e=>setDraft(product, 'price', e.target.value)} /></label>
-            <label>Margen obj. %<input value={d.margin_target} inputMode="decimal" onChange={e=>setDraft(product, 'margin_target', e.target.value)} /></label>
-            <label>Mínimo<input value={d.min_price} inputMode="decimal" onChange={e=>setDraft(product, 'min_price', e.target.value)} /></label>
-            <label>Estado<select value={d.price_status} onChange={e=>setDraft(product, 'price_status', e.target.value)}>{PRICE_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></label>
-            <div className="price-metrics"><small>Sugerido: <strong>{money(suggestedPrice(d.cost, d.margin_target))}</strong></small><small>Ganancia: <strong>{money(profit)}</strong></small><small>Margen precio: <strong>{margin.toFixed(1)}%</strong></small><small>Sobre costo: <strong>{markup.toFixed(1)}%</strong></small></div>
-            <label className="price-notes">Nota<input value={d.price_notes} onChange={e=>setDraft(product, 'price_notes', e.target.value)} placeholder="Motivo del cambio o pendiente" /></label>
-            <div className="price-actions"><button type="button" className="secondary-btn" onClick={()=>useSuggested(product)}>Usar sugerido</button><button type="button" className="primary-btn" disabled={savingId===product.id} onClick={()=>savePrice(product)}>{savingId===product.id ? 'Guardando...' : 'Guardar'}</button></div>
-          </div>;
-        })}
-        {!rows.length && <p className="muted">No hay productos para este filtro.</p>}
-      </div>
+            <div className="price-card-title">
+              <div className="price-title-line"><strong>{product.name}</strong><span className={priceBadgeClass(d.price_status)}>{d.price_status}</span></div>
+              <small>{product.code} · {product.barcode || 'Sin barcode'} · {product.category || 'General'}{product.subcategory ? ` / ${product.subcategory}` : ''}</small>
+              <div className={`health-chip health-${health.kind}`}>{health.text}</div>
+            </div>
+            <div className="price-card-total">
+              <span>Precio actual</span>
+              <strong>{money(price)}</strong>
+              <small>Costo {money(cost)}</small>
+            </div>
+            <button type="button" className="secondary-btn price-expand-btn" onClick={()=>setExpandedId(open ? null : product.id)}>{open ? 'Cerrar edición' : 'Editar precio'}</button>
+          </div>
+
+          <div className="price-metric-strip">
+            <div><span>Sugerido</span><strong>{money(suggested)}</strong></div>
+            <div><span>Ganancia</span><strong className={profit < 0 ? 'danger-text' : ''}>{money(profit)}</strong></div>
+            <div><span>Margen precio</span><strong className={margin < 25 ? 'warn-text' : ''}>{margin.toFixed(1)}%</strong></div>
+            <div><span>Sobre costo</span><strong>{markup.toFixed(1)}%</strong></div>
+          </div>
+
+          {open && <div className="price-edit-panel">
+            <div className="price-edit-grid">
+              <label>Costo real<input value={d.cost} inputMode="decimal" onChange={e=>setDraft(product, 'cost', e.target.value)} /></label>
+              <label>Precio venta<input value={d.price} inputMode="decimal" onChange={e=>setDraft(product, 'price', e.target.value)} /></label>
+              <label>Margen objetivo %<input value={d.margin_target} inputMode="decimal" onChange={e=>setDraft(product, 'margin_target', e.target.value)} /></label>
+              <label>Precio mínimo<input value={d.min_price} inputMode="decimal" onChange={e=>setDraft(product, 'min_price', e.target.value)} /></label>
+              <label>Estado<select value={d.price_status} onChange={e=>setDraft(product, 'price_status', e.target.value)}>{PRICE_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></label>
+            </div>
+            <label className="price-note-full">Nota de control<input value={d.price_notes} onChange={e=>setDraft(product, 'price_notes', e.target.value)} placeholder="Ej.: confirmado con proveedor, revisar por promoción, precio temporal..." /></label>
+            <div className="price-edit-actions">
+              <button type="button" className="secondary-btn" onClick={()=>useSuggested(product)}>Usar sugerido</button>
+              <button type="button" className="secondary-btn" onClick={()=>markValidated(product)}>Marcar validado</button>
+              <button type="button" className="secondary-btn" onClick={()=>resetDraft(product)}>Restaurar</button>
+              <button type="button" className="primary-btn" disabled={savingId===product.id} onClick={()=>savePrice(product)}>{savingId===product.id ? 'Guardando...' : 'Guardar cambios'}</button>
+            </div>
+          </div>}
+        </article>;
+      })}
+      {!rows.length && <section className="card compact-card"><p className="muted">No hay productos para este filtro.</p></section>}
     </section>
   </div>;
 }
