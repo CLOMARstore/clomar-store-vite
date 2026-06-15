@@ -108,6 +108,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
+const APP_VERSION = 'V02.2C Mobile UI Pro';
 const logoSrc = (store) => store?.logo_url || APP_ICON;
 const productImageSrc = (product) => product?.image_url || APP_ICON;
 
@@ -432,16 +433,14 @@ function Header({ setOpen, current, profile, store }) {
     panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
-    <header className="app-header">
-      <button className="ghost mobile-only" onClick={() => setOpen(true)}><Menu/></button>
-      <div>
-        <h2>{titleMap[current]}</h2>
-        <p>{store?.name || 'Clomar Store Pro'} · {roleMeta(profile)}</p>
-      </div>
+    <header className="app-header app-header-pro">
+      <button className="ghost mobile-only menu-toggle-pro" type="button" onClick={() => setOpen(true)}><Menu/></button>
+      <div className="header-brand-mobile"><img src={logoSrc(store)} alt="Logo tienda" /></div>
+      <div className="header-title-block"><h2>{titleMap[current]}</h2><p>{store?.name || 'Clomar Store Pro'} · {roleMeta(profile)}</p></div>
+      <div className="header-status-chip"><span className="status-dot" /><small>{APP_VERSION}</small></div>
     </header>
   );
 }
-
 function useProducts(profile) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2492,17 +2491,42 @@ function StoreSettings({ store, reloadProfile }) {
   );
 }
 
+
+function MobileBottomNav({ current, setCurrent, role }) {
+  const labelMap = {
+    panel: ['📊', 'Inicio'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
+  };
+  const preferred = role === 'almacen'
+    ? ['productos', 'inventario', 'ingreso', 'etiquetas']
+    : role === 'cajero'
+      ? ['ventas', 'comprobantes', 'caja', 'creditos']
+      : role === 'lectura'
+        ? ['panel', 'reportes', 'inventario']
+        : ['panel', 'ventas', 'reportes', 'caja', 'herramientas'];
+  const items = preferred.filter(key => canAccess(role, key) && labelMap[key]).slice(0, 5);
+  if (!items.length) return null;
+  return (
+    <nav className="mobile-bottom-nav" aria-label="Navegación móvil principal">
+      {items.map(key => {
+        const [icon, label] = labelMap[key];
+        return <button key={key} type="button" className={current === key ? 'active' : ''} onClick={() => setCurrent(key)}><span>{icon}</span><small>{label}</small></button>;
+      })}
+    </nav>
+  );
+}
+
 function AppShell({ session }) {
-  const [current, setCurrent] = useState('ventas');
+  const [current, setCurrent] = useState(() => {
+    try { return localStorage.getItem('clomar_last_module') || 'ventas'; } catch (err) { return 'ventas'; }
+  });
   const [open, setOpen] = useState(false);
   const { profile, store, loading: profileLoading, reload: reloadProfile } = useUserProfile(session);
   const { products, loading, reload } = useProducts(profile);
   const { customers, reload: reloadCustomers } = useCustomers(profile);
   const { categories, subcategories, reload: reloadCategories } = useCategories(profile);
 
-  useEffect(() => {
-    if (profile && !canAccess(profile.role, current)) setCurrent(firstAllowedModule(profile.role));
-  }, [profile?.role, current]);
+  useEffect(() => { if (profile && !canAccess(profile.role, current)) setCurrent(firstAllowedModule(profile.role)); }, [profile?.role, current]);
+  useEffect(() => { try { localStorage.setItem('clomar_last_module', current); } catch (err) {} }, [current]);
 
   if (profileLoading) return <div className="loader full">Cargando perfil y permisos...</div>;
   if (profile?.status === 'Inactivo') return <InactiveUser profile={profile} />;
@@ -2526,9 +2550,15 @@ function AppShell({ session }) {
     herramientas: <ToolsAdmin profile={profile} products={products} categories={categories} subcategories={subcategories} reloadProducts={reload} reloadCustomers={reloadCustomers}/>,
   };
   const content = canAccess(profile?.role, current) ? contentMap[current] : <AccessDenied profile={profile} setCurrent={setCurrent} />;
-  return <div className="app"><Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session} profile={profile} store={store}/><main className="main"><Header setOpen={setOpen} current={current} profile={profile} store={store}/>{loading ? <div className="loader">Cargando...</div> : content}</main></div>;
+  return (
+    <div className="app app-mobile-pro">
+      <button className={`sidebar-scrim ${open ? 'show' : ''}`} type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} />
+      <Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session} profile={profile} store={store}/>
+      <main className="main main-pro"><Header setOpen={setOpen} current={current} profile={profile} store={store}/>{loading ? <div className="loader">Cargando...</div> : content}</main>
+      <MobileBottomNav current={current} setCurrent={setCurrent} role={profile?.role || 'cajero'} />
+    </div>
+  );
 }
-
 function Root() {
   const { session, loading } = useAuth();
   useEffect(() => {
