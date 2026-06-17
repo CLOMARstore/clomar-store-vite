@@ -812,6 +812,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   async function checkout() {
     if (!validateSaleBeforeConfirm()) return;
     setConfirmOpen(false);
+    setMobileCartOpen(false);
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
     const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
@@ -868,13 +869,35 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
         <aside className={`card compact-card cart-card pro-cart-card cart-mobile-sheet ${mobileCartOpen ? 'mobile-sheet-open' : ''}`}>
           <button className="sheet-close-btn cart-sheet-close" type="button" onClick={() => setMobileCartOpen(false)}>Cerrar ×</button>
           <h3><ShoppingCart size={20}/> Carrito Pro</h3>
-          {cart.length === 0 ? <p className="muted">Agrega productos para vender.</p> : cart.map(item => (<div className="cart-row cart-row-pro" key={item.id}><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><label className="mini-discount">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label><strong>{money(lineSubtotal(item))}</strong><button className="icon-btn" onClick={()=>removeItem(item.id)}>×</button></div>))}
+          {cart.length === 0 ? <p className="muted">Agrega productos para vender.</p> : cart.map(item => (
+            <article className="cart-item-premium" key={item.id}>
+              <div className="cart-item-head">
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small>
+                </div>
+                <button type="button" className="cart-remove-btn" onClick={()=>removeItem(item.id)}>Quitar</button>
+              </div>
+              <div className="cart-item-controls">
+                <label>Cant.
+                  <input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} />
+                </label>
+                <label>Desc.
+                  <input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" />
+                </label>
+                <div className="cart-item-total">
+                  <span>Importe</span>
+                  <strong>{money(lineSubtotal(item))}</strong>
+                </div>
+              </div>
+            </article>
+          ))}
           <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div><div><span>Desc. venta</span><input value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div><div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
           <select value={customer} onChange={(e)=>setCustomer(e.target.value)}><option>Cliente</option>{customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
           <div className="payment-fast-row"><button type="button" onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" onClick={()=>setMethod('Yape')}>Yape</button><button type="button" onClick={()=>setMethod('Plin')}>Plin</button><button type="button" onClick={()=>setMethod('Mixto')}>Mixto</button></div>
           <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option><option>Mixto</option></select>
           {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
-          <button className="primary-btn" disabled={!cart.length || saving} onClick={()=>validateSaleBeforeConfirm() && setConfirmOpen(true)}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : 'Confirmar cobro'}</button>
+          <button className="primary-btn" disabled={!cart.length || saving} onClick={()=>{ if (validateSaleBeforeConfirm()) { setMobileCartOpen(false); setConfirmOpen(true); } }}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : 'Confirmar cobro'}</button>
           {lastTicket && <div className="ticket-box"><h4>✅ Venta registrada</h4><p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p><p><strong>Total:</strong> {money(lastTicket.sale.total)}</p><div className="ticket-actions"><button className="primary-btn" onClick={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}>Abrir comprobante</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button><button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button></div></div>}
         </aside>
       </div>
@@ -1107,6 +1130,7 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
   const [formOpen, setFormOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState({});
+  const [detailCategory, setDetailCategory] = useState(null);
 
   const productCountFor = (cat) => products.filter(p => p.active !== false && (p.category_id === cat.id || p.subcategory_id === cat.id || p.category === cat.name || p.subcategory === cat.name)).length;
   const visibleCategories = categories.filter(cat => {
@@ -1214,7 +1238,7 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
             {visibleCategories.map(cat => {
               const children = subcategories.filter(s => s.parent_id === cat.id);
               const catProducts = productCountFor(cat);
-              const isOpen = expanded[cat.id] || query.trim();
+              const isOpen = false;
               return (
                 <article className="category-card-pro" key={cat.id}>
                   <div className="category-card-main">
@@ -1225,22 +1249,10 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
                     </div>
                   </div>
                   <div className="category-card-actions">
-                    <button type="button" className="secondary-btn" onClick={()=>toggle(cat.id)}>{isOpen ? 'Ocultar' : 'Ver'}</button>
+                    <button type="button" className="secondary-btn" onClick={()=>setDetailCategory(cat)}>Ver</button>
                     <button type="button" className="secondary-btn" onClick={()=>renameCategory(cat)}>Editar</button>
                     <button type="button" className="danger-mini-btn" onClick={()=>deactivateCategory(cat)}>Desactivar</button>
                   </div>
-                  {isOpen && (
-                    <div className="subcategory-list-pro">
-                      {children.length ? children.map(sub => (
-                        <div className="subcategory-row-pro" key={sub.id}>
-                          <span>{sub.name}</span>
-                          <small>{productCountFor(sub)} productos</small>
-                          <button type="button" onClick={()=>renameCategory(sub)}>Editar</button>
-                          <button type="button" className="danger-text-btn" onClick={()=>deactivateCategory(sub)}>Desactivar</button>
-                        </div>
-                      )) : <p className="muted empty-subcategory">Sin subcategorías registradas.</p>}
-                    </div>
-                  )}
                 </article>
               );
             })}
@@ -1248,6 +1260,43 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
           </div>
         </section>
       </div>
+      <CategoryDetailSheet category={detailCategory} subcategories={subcategories.filter(s => s.parent_id === detailCategory?.id)} productCountFor={productCountFor} onClose={() => setDetailCategory(null)} onEdit={renameCategory} onDeactivate={deactivateCategory} />
+    </div>
+  );
+}
+
+function CategoryDetailSheet({ category, subcategories = [], productCountFor, onClose, onEdit, onDeactivate }) {
+  if (!category) return null;
+  return (
+    <div className="ux-sheet-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <section className="category-detail-sheet" onClick={e => e.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="category-detail-head">
+          <div className="category-icon-badge">🏷️</div>
+          <div>
+            <h3>{category.name}</h3>
+            <p>{subcategories.length} subcategorías · {productCountFor(category)} productos</p>
+          </div>
+          <button type="button" className="sheet-x-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="category-detail-actions">
+          <button type="button" className="secondary-btn" onClick={() => onEdit(category)}>Editar categoría</button>
+          <button type="button" className="danger-mini-btn" onClick={() => onDeactivate(category)}>Desactivar</button>
+        </div>
+        <h4>Subcategorías</h4>
+        <div className="subcategory-sheet-list">
+          {subcategories.length ? subcategories.map(sub => (
+            <article className="subcategory-sheet-card" key={sub.id}>
+              <div>
+                <strong>{sub.name}</strong>
+                <small>{productCountFor(sub)} productos</small>
+              </div>
+              <button type="button" className="secondary-btn" onClick={() => onEdit(sub)}>Editar</button>
+              <button type="button" className="danger-mini-btn" onClick={() => onDeactivate(sub)}>Desactivar</button>
+            </article>
+          )) : <p className="muted empty-subcategory">Sin subcategorías registradas.</p>}
+        </div>
+      </section>
     </div>
   );
 }
@@ -1478,8 +1527,50 @@ function Customers({ customers, reload, profile }) {
 }
 
 function Inventory({ products }) {
-  const byCat = products.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
-  return <div className="page"><div className="hero compact-hero"><h1>📘 Inventario</h1><p>Vista compacta por categoría y stock.</p></div>{Object.entries(byCat).map(([cat, items]) => <section className="card compact-card inventory-block" key={cat}><h3>{cat}</h3>{items.map(p=><div className="list-row inventory-product-row" key={p.id}><img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/><span>{p.code} · {p.name}<small>{p.brand || 'Sin marca'} · {p.color || 'Sin color'} · Stock mínimo {asNum(p.stock_min)}</small></span><strong className={asNum(p.stock) <= asNum(p.stock_min) ? 'danger-text' : ''}>Stock {asNum(p.stock)}</strong></div>)}</section>)}</div>;
+  const [query, setQuery] = useState('');
+  const active = products.filter(p => p.active !== false);
+  const lowStock = active.filter(p => asNum(p.stock) <= asNum(p.stock_min));
+  const noStock = active.filter(p => asNum(p.stock) <= 0);
+  const filtered = active.filter(p => `${p.code || ''} ${p.barcode || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const byCat = filtered.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
+  return (
+    <div className="page inventory-page">
+      <div className="hero compact-hero"><h1>📘 Inventario</h1><p>Control compacto por categoría, stock disponible y alertas de reposición.</p></div>
+      <section className="card compact-card inventory-control-card">
+        <div className="inventory-control-head">
+          <div><h3>Resumen de inventario</h3><p className="muted">Busca, revisa stock bajo y valida disponibilidad por categoría.</p></div>
+          <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div>
+        </div>
+        <div className="inventory-kpi-grid">
+          <Kpi label="Productos" value={active.length} helper="activos" />
+          <Kpi label="Stock bajo" value={lowStock.length} helper="requieren revisión" />
+          <Kpi label="Sin stock" value={noStock.length} helper="reposición urgente" />
+          <Kpi label="Categorías" value={Object.keys(byCat).length} helper="con resultados" />
+        </div>
+      </section>
+      {Object.entries(byCat).map(([cat, items]) => (
+        <section className="card compact-card inventory-block inventory-pro-block" key={cat}>
+          <div className="inventory-category-head"><h3>{cat}</h3><span>{items.length} producto(s)</span></div>
+          <div className="inventory-card-grid">
+            {items.map(p => {
+              const low = asNum(p.stock) <= asNum(p.stock_min);
+              return (
+                <article className="inventory-card-pro" key={p.id}>
+                  <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
+                  <div className="inventory-card-info">
+                    <strong>{p.name}</strong>
+                    <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}</small>
+                  </div>
+                  <div className={low ? 'stock-pill stock-low' : 'stock-pill'}>Stock {asNum(p.stock)}</div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+      {!filtered.length && <section className="card compact-card"><p className="muted">No se encontraron productos con ese criterio.</p></section>}
+    </div>
+  );
 }
 
 function StockEntry({ products, reloadProducts, profile }) {
