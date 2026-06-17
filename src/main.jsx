@@ -1,3 +1,4 @@
+/* V02.2G Native Mobile Commerce Layout */
 // V02.2F — Mobile Commerce UX Premium
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -1157,7 +1158,7 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
   }
 
   return (
-    <div className="page">
+    <div className="page categories-page">
       <div className="hero compact-hero"><h1>🏷️ Categorías</h1><p>Panel profesional para organizar productos por categoría principal y subcategoría.</p></div>
       <div className="category-toolbar card compact-card premium-summary-card">
         <div>
@@ -1352,7 +1353,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
   }
 
   return (
-    <div className="page">
+    <div className="page products-page">
       <div className="hero compact-hero"><h1>📦 Productos con imágenes</h1><p>Crea artículos visuales con marca, talla, color, código de barras y foto.</p></div>
       <div className="mobile-page-actions">
         <button type="button" className="primary-btn" onClick={() => setFormOpen(true)}>+ Nuevo producto</button>
