@@ -108,7 +108,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V02.2C Mobile UI Pro';
+const APP_VERSION = 'V02.2E App Design System Premium';
 const logoSrc = (store) => store?.logo_url || APP_ICON;
 const productImageSrc = (product) => product?.image_url || APP_ICON;
 
@@ -888,7 +888,7 @@ function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDisc
   if (!open) return null;
   return (
     <div className="notice-backdrop" role="dialog" aria-modal="true">
-      <div className="notice-card confirm-sale-card">
+      <div className="notice-card confirm-sale-card premium-confirm-sale-card">
         <div className="notice-icon">🧾</div>
         <div className="notice-content">
           <h3>Confirmar venta</h3>
@@ -939,6 +939,7 @@ function LastReceiptBanner({ ticket, store = {}, profile = {}, onOpen, onGoRecei
 
 
 function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSale, onGoReceipts }) {
+  const [showPreview, setShowPreview] = useState(false);
   if (!ticket?.sale) return null;
   const sale = ticket.sale;
   const items = ticket.items || [];
@@ -946,7 +947,7 @@ function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSal
   const formatPrint = (format) => printReceipt({ sale, items, store, profile, format });
   return (
     <div className="sale-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="sale-modal-card">
+      <div className="sale-modal-card premium-sale-modal-card">
         <div className="sale-modal-head">
           <div className="sale-success-icon">✓</div>
           <div>
@@ -962,23 +963,26 @@ function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSal
           <div><span>Método</span><strong>{sale.payment_method || 'Efectivo'}</strong></div>
           <div><span>Productos</span><strong>{totalItems}</strong></div>
         </div>
-        <div className="sale-modal-body">
-          <section className="sale-modal-actions-card">
+        <div className="sale-modal-body premium-sale-modal-body">
+          <section className="sale-modal-actions-card premium-actions-card">
             <h3>Acción rápida</h3>
-            <div className="receipt-action-grid">
-              <button className="primary-btn" type="button" onClick={() => formatPrint('80mm')}>Imprimir ticket 80mm</button>
+            <div className="receipt-action-grid premium-action-grid">
+              <button className="primary-btn" type="button" onClick={() => formatPrint('80mm')}>Imprimir 80mm</button>
               <button className="secondary-btn" type="button" onClick={() => formatPrint('58mm')}>Ticket 58mm</button>
-              <button className="secondary-btn" type="button" onClick={() => formatPrint('a4')}>Guardar PDF A4</button>
-              <button className="secondary-btn" type="button" onClick={() => downloadText(`comprobante-${receiptNumber(sale)}.txt`, ticketText(sale, items))}>Descargar TXT</button>
+              <button className="secondary-btn" type="button" onClick={() => formatPrint('a4')}>PDF A4</button>
+              <button className="secondary-btn" type="button" onClick={() => downloadText(`comprobante-${receiptNumber(sale)}.txt`, ticketText(sale, items))}>TXT</button>
             </div>
-            <div className="sale-modal-next-actions">
-              <button className="secondary-btn" type="button" onClick={onGoReceipts}>Ver en Comprobantes</button>
+            <div className="sale-modal-next-actions premium-next-actions">
+              <button className="secondary-btn" type="button" onClick={() => setShowPreview(v => !v)}>{showPreview ? 'Ocultar comprobante' : 'Ver comprobante'}</button>
+              <button className="secondary-btn" type="button" onClick={onGoReceipts}>Historial</button>
               <button className="primary-btn" type="button" onClick={onNewSale}>Nueva venta</button>
             </div>
           </section>
-          <section className="sale-modal-preview-card">
-            <ReceiptMiniPreview sale={sale} items={items} store={store} profile={profile} format="80mm" />
-          </section>
+          {showPreview && (
+            <section className="sale-modal-preview-card premium-preview-card">
+              <ReceiptMiniPreview sale={sale} items={items} store={store} profile={profile} format="80mm" />
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -1130,6 +1134,7 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
     setSaving(false);
     if (error) return alert(error.message || 'No se pudo guardar la categoría.');
     resetForm();
+    setFormOpen(false);
     reloadCategories?.();
   }
 
@@ -1153,15 +1158,20 @@ function CategoriesAdmin({ profile, categories = [], subcategories = [], product
   return (
     <div className="page">
       <div className="hero compact-hero"><h1>🏷️ Categorías</h1><p>Panel profesional para organizar productos por categoría principal y subcategoría.</p></div>
-      <div className="category-toolbar card compact-card">
+      <div className="category-toolbar card compact-card premium-summary-card">
         <div>
           <h3>Resumen de categorías</h3>
           <p className="muted">{categories.length} categorías principales · {subcategories.length} subcategorías activas · {products.filter(p=>p.active!==false).length} productos activos</p>
         </div>
         <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar categoría o subcategoría..." /></div>
       </div>
+      <div className="mobile-page-actions premium-mobile-actions">
+        <button type="button" className="primary-btn" onClick={() => setFormOpen(true)}>+ Nueva categoría</button>
+        <span>{visibleCategories.length} visibles</span>
+      </div>
       <div className="two-col category-admin-layout polished-categories">
-        <form className="card form-grid category-form-card" onSubmit={save}>
+        <form className={`card form-grid category-form-card category-form-sheet ${formOpen ? 'form-open' : ''}`} onSubmit={save}>
+          <button className="sheet-close-btn form-sheet-close" type="button" onClick={() => setFormOpen(false)}>Cerrar ×</button>
           <h3>Nueva categoría</h3>
           <label>Tipo de registro
             <select value={form.type} onChange={e=>setForm({...form,type:e.target.value,parent_id:''})}>
