@@ -657,6 +657,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [notice, setNotice] = useState(null);
   const [globalDiscount, setGlobalDiscount] = useState('0');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [mixedPayments, setMixedPayments] = useState({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -862,7 +863,8 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
           {scanOpen && <div className="scanner-panel"><div className="scanner-head"><strong>Escáner con cámara</strong><button className="icon-btn" type="button" onClick={stopScanner}>×</button></div><div className="scanner-frame"><video ref={videoRef} muted playsInline /></div><p className="muted">Usa la cámara trasera del celular. Si no detecta, escribe el código manualmente en el buscador.</p></div>}
           <div className="product-list">{matches.map(product => (<button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}><img className="product-thumb" src={productImageSrc(product)} alt={product.name} /><div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span></div><b>{money(product.price)}</b></button>))}{!matches.length && <p className="muted">No se encontraron productos.</p>}</div>
         </section>
-        <aside className="card compact-card cart-card pro-cart-card">
+        <aside className={`card compact-card cart-card pro-cart-card cart-mobile-sheet ${mobileCartOpen ? 'mobile-sheet-open' : ''}`}>
+          <button className="sheet-close-btn cart-sheet-close" type="button" onClick={() => setMobileCartOpen(false)}>Cerrar ×</button>
           <h3><ShoppingCart size={20}/> Carrito Pro</h3>
           {cart.length === 0 ? <p className="muted">Agrega productos para vender.</p> : cart.map(item => (<div className="cart-row cart-row-pro" key={item.id}><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><label className="mini-discount">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label><strong>{money(lineSubtotal(item))}</strong><button className="icon-btn" onClick={()=>removeItem(item.id)}>×</button></div>))}
           <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div><div><span>Desc. venta</span><input value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div><div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
@@ -874,6 +876,10 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
           {lastTicket && <div className="ticket-box"><h4>✅ Venta registrada</h4><p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p><p><strong>Total:</strong> {money(lastTicket.sale.total)}</p><div className="ticket-actions"><button className="primary-btn" onClick={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}>Abrir comprobante</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button><button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button></div></div>}
         </aside>
       </div>
+      {cart.length > 0 && <div className="mobile-checkout-bar">
+        <div><small>Total</small><strong>{money(total)}</strong><span>{cart.length} producto(s)</span></div>
+        <button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito / cobrar</button>
+      </div>}
     </div>
   );
 }
@@ -1092,6 +1098,7 @@ function ReceiptsPage({ profile, store }) {
 function CategoriesAdmin({ profile, categories = [], subcategories = [], products = [], reloadCategories }) {
   const [form, setForm] = useState({ name: '', type: 'principal', parent_id: '', description: '', sort_order: '100' });
   const [saving, setSaving] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState({});
 
@@ -1239,6 +1246,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [query, setQuery] = useState('');
   const filteredProducts = products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.toLowerCase()));
   const selectedSubcategories = subcategories.filter(c => c.parent_id === form.category_id);
@@ -1318,6 +1326,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
       setPreviewUrl('');
       reload();
       alert('Producto guardado correctamente.');
+      setFormOpen(false);
     } catch (error) {
       alert(error.message || 'No se pudo guardar el producto.');
     } finally {
@@ -1334,8 +1343,13 @@ function Products({ products, reload, profile, categories = [], subcategories = 
   return (
     <div className="page">
       <div className="hero compact-hero"><h1>📦 Productos con imágenes</h1><p>Crea artículos visuales con marca, talla, color, código de barras y foto.</p></div>
+      <div className="mobile-page-actions">
+        <button type="button" className="primary-btn" onClick={() => setFormOpen(true)}>+ Nuevo producto</button>
+        <span>{filteredProducts.length} producto(s)</span>
+      </div>
       <div className="two-col product-admin-layout">
-        <form className="card form-grid" onSubmit={save}>
+        <form className={`card form-grid product-form-sheet ${formOpen ? 'form-open' : ''}`} onSubmit={save}>
+          <button className="sheet-close-btn form-sheet-close" type="button" onClick={() => setFormOpen(false)}>Cerrar ×</button>
           <h3>Nuevo producto</h3>
           <div className="image-uploader">
             <div className="image-preview-box">
@@ -1556,6 +1570,7 @@ function Credits({ profile }) {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ sale_id:'', amount:'0', method:'Efectivo', note:'' });
+  const [paymentOpen, setPaymentOpen] = useState(false);
   async function loadCredits() {
     if (!hasSupabaseConfig) return;
     setLoading(true);
@@ -1590,16 +1605,22 @@ function Credits({ profile }) {
     await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: form.method, amount, note: `Abono crédito B${selected.receipt_number}. ${form.note || ''}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
     if (amount >= asNum(selected.balance)) await supabase.from('sales').update({ status: 'Pagado' }).eq('id', selected.id);
     setForm({ sale_id:'', amount:'0', method:'Efectivo', note:'' });
+    setPaymentOpen(false);
     loadCredits();
   }
   const byClient = rows.reduce((acc, s) => { acc[s.customer_name || 'Cliente'] = (acc[s.customer_name || 'Cliente'] || 0) + asNum(s.balance); return acc; }, {});
   return (
     <div className="page">
       <div className="hero compact-hero"><h1>💳 Créditos</h1><p>Control de deuda, abonos y saldo real por cliente.</p></div>
-      <div className="kpi-grid"><Kpi label="Saldo pendiente" value={money(totalPending)} helper={`${rows.length} comprobantes`} /><Kpi label="Clientes con deuda" value={Object.keys(byClient).length} helper="Cuentas activas" /><Kpi label="Abonado" value={money(payments.reduce((s,p)=>s+asNum(p.amount),0))} helper="Historial de abonos" /><Kpi label="Estado" value={loading ? 'Cargando' : 'Activo'} helper="Supabase" /></div>
-      <div className="two-col">
+      <div className="kpi-grid credit-compact-kpis"><Kpi label="Saldo pendiente" value={money(totalPending)} helper={`${rows.length} comprobantes`} /><Kpi label="Clientes" value={Object.keys(byClient).length} helper="Con deuda" /><Kpi label="Abonado" value={money(payments.reduce((s,p)=>s+asNum(p.amount),0))} helper="Historial" /><Kpi label="Estado" value={loading ? 'Cargando' : 'Activo'} helper="Supabase" /></div>
+      <div className="mobile-page-actions">
+        <button type="button" className="primary-btn" onClick={() => setPaymentOpen(true)} disabled={!rows.length}>+ Registrar abono</button>
+        <span>{rows.length} crédito(s) pendiente(s)</span>
+      </div>
+      <div className="two-col credit-layout-pro">
         <section className="card compact-card"><h3>Deuda por cliente</h3>{Object.entries(byClient).map(([client, amount])=><div className="list-row" key={client}><span>{client}</span><strong>{money(amount)}</strong></div>)}{!rows.length && <p className="muted">No hay créditos pendientes.</p>}</section>
-        <form className="card form-grid" onSubmit={savePayment}>
+        <form className={`card form-grid credit-payment-sheet ${paymentOpen ? 'form-open' : ''}`} onSubmit={savePayment}>
+          <button className="sheet-close-btn form-sheet-close" type="button" onClick={() => setPaymentOpen(false)}>Cerrar ×</button>
           <h3>Registrar abono</h3>
           <label>Crédito<select value={form.sale_id || selected?.id || ''} onChange={e=>setForm({...form,sale_id:e.target.value})}>{rows.map(s=><option key={s.id} value={s.id}>B{s.receipt_number} · {s.customer_name} · Saldo {money(s.balance)}</option>)}</select></label>
           <label>Monto del abono<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" placeholder="Monto recibido" /></label>
