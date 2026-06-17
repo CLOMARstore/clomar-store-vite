@@ -1,3 +1,4 @@
+// V02.2F — Mobile Commerce UX Premium
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
