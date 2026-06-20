@@ -1,4 +1,4 @@
-/* V02.2I Checkout Pro + SUNAT Ready UX */
+/* V02.2J Clientes Inteligentes + Fiscal Checkout Pro */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -111,20 +111,27 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V02.2I Checkout Pro + SUNAT Ready UX';
+const APP_VERSION = 'V02.2J Clientes Inteligentes + Fiscal Checkout Pro';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
-  if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pendiente SUNAT', action: 'Registrar boleta pendiente', note: 'Preparado para envío posterior por PSE/OSE.' };
-  if (type === 'Factura') return { label: 'Factura electrónica', series: 'F001', status: 'Pendiente SUNAT', action: 'Registrar factura pendiente', note: 'Requiere RUC y razón social antes de emitir.' };
+  if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
+  if (type === 'Factura') return { label: 'Factura electrónica', series: 'F001', status: 'Pre-emisión', action: 'Registrar factura pendiente', note: 'Requiere RUC y razón social. El envío real requerirá un backend seguro y un PSE/OSE.' };
   return { label: 'Comprobante interno', series: 'INT', status: 'Interno', action: 'Registrar venta interna', note: 'Control interno. No reemplaza comprobante electrónico SUNAT.' };
 };
 const sunatStatusClass = (status = '') => {
   const s = String(status).toLowerCase();
   if (s.includes('acept')) return 'accepted';
   if (s.includes('rechaz')) return 'rejected';
-  if (s.includes('pend')) return 'pending';
+  if (s.includes('pend') || s.includes('pre')) return 'pending';
   return 'internal';
 };
+const inferDocumentType = (value = '') => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 11) return 'RUC';
+  if (digits.length === 8) return 'DNI';
+  return 'DNI';
+};
+const cleanDocument = (value = '') => String(value || '').replace(/[^0-9A-Za-z-]/g, '');
 const logoSrc = (store) => store?.logo_url || APP_ICON;
 const productImageSrc = (product) => product?.image_url || APP_ICON;
 
@@ -667,6 +674,12 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [customerDocType, setCustomerDocType] = useState('DNI');
   const [customerDocNumber, setCustomerDocNumber] = useState('');
   const [customer, setCustomer] = useState('Cliente');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [checkoutCustomers, setCheckoutCustomers] = useState(customers || []);
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerQuickOpen, setCustomerQuickOpen] = useState(false);
+  const [quickCustomerSaving, setQuickCustomerSaving] = useState(false);
+  const [quickCustomer, setQuickCustomer] = useState({ name: '', document_type: 'DNI', document: '', phone: '', address: '' });
   const [saving, setSaving] = useState(false);
   const [lastTicket, setLastTicket] = useState(null);
   const [saleModal, setSaleModal] = useState(null);
@@ -684,11 +697,15 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const normalized = query.trim().toLowerCase();
   const activeProducts = useMemo(() => products.filter(p => p.active !== false), [products]);
   const fiscalMeta = documentMeta(documentType);
-  const customerDocumentLabel = documentType === 'Interno' ? 'Sin documento fiscal' : `${customerDocType}${customerDocNumber ? ` ${customerDocNumber}` : ''}`;
   const matches = useMemo(() => {
     const base = !normalized ? activeProducts.slice(0, 12) : activeProducts.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
   }, [activeProducts, normalized]);
+  const customerMatches = useMemo(() => {
+    const needle = customerQuery.trim().toLowerCase();
+    if (!needle) return checkoutCustomers.slice(0, 5);
+    return checkoutCustomers.filter(c => `${c.name || ''} ${c.document || ''} ${c.phone || ''}`.toLowerCase().includes(needle)).slice(0, 6);
+  }, [checkoutCustomers, customerQuery]);
   const lineBase = (item) => asNum(item.price) * asNum(item.qty);
   const lineDiscount = (item) => Math.min(lineBase(item), Math.max(0, asNum(item.discount)));
   const lineSubtotal = (item) => Math.max(0, lineBase(item) - lineDiscount(item));
@@ -700,6 +717,14 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const mixedTotal = Object.values(mixedPayments).reduce((sum, v) => sum + asNum(v), 0);
   const mixedBalance = total - mixedTotal;
   const paymentOk = method !== 'Mixto' || Math.abs(mixedBalance) < 0.01;
+
+  useEffect(() => { setCheckoutCustomers(customers || []); }, [customers]);
+  useEffect(() => {
+    const shouldLock = mobileCartOpen || customerQuickOpen || confirmOpen || Boolean(saleModal);
+    const previous = document.body.style.overflow;
+    if (shouldLock) document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [mobileCartOpen, customerQuickOpen, confirmOpen, saleModal]);
 
   function clearLastTicketBackup() {
     try { sessionStorage.removeItem('clomar_last_completed_sale'); } catch (err) { /* no-op */ }
@@ -809,15 +834,69 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     return () => { cancelled = true; if (raf) cancelAnimationFrame(raf); if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; } };
   }, [scanOpen]);
 
-  function updateQty(id, qty) {
-    setCart(prev => prev.map(x => x.id === id ? { ...x, qty: Math.max(1, Math.min(asNum(x.stock), asNum(qty || 1))) } : x));
-  }
-  function updateItemDiscount(id, value) {
-    setCart(prev => prev.map(x => x.id === id ? { ...x, discount: Math.max(0, Math.min(lineBase(x), asNum(value))) } : x));
-  }
+  function updateQty(id, qty) { setCart(prev => prev.map(x => x.id === id ? { ...x, qty: Math.max(1, Math.min(asNum(x.stock), asNum(qty || 1))) } : x)); }
+  function updateItemDiscount(id, value) { setCart(prev => prev.map(x => x.id === id ? { ...x, discount: Math.max(0, Math.min(lineBase(x), asNum(value))) } : x)); }
   function removeItem(id) { setCart(prev => prev.filter(x => x.id !== id)); }
   function setMixed(methodName, value) { setMixedPayments(prev => ({ ...prev, [methodName]: value })); }
   function fillMixed(methodName) { setMixed(methodName, Math.max(0, total - (mixedTotal - asNum(mixedPayments[methodName]))).toFixed(2)); }
+
+  function changeDocumentType(type) {
+    setDocumentType(type);
+    if (type === 'Factura') setCustomerDocType('RUC');
+    if (type === 'Interno') setCustomerDocNumber('');
+  }
+
+  function selectCheckoutCustomer(item) {
+    const doc = String(item?.document || '');
+    const docType = item?.document_type || inferDocumentType(doc);
+    setCustomer(item?.name || 'Cliente');
+    setSelectedCustomerId(item?.id || '');
+    if (documentType !== 'Interno' || doc) {
+      setCustomerDocType(documentType === 'Factura' ? 'RUC' : docType);
+      setCustomerDocNumber(doc);
+    }
+    setCustomerQuery('');
+  }
+
+  function openQuickCustomer() {
+    setQuickCustomer({
+      name: customer && customer !== 'Cliente' ? customer : '',
+      document_type: documentType === 'Factura' ? 'RUC' : customerDocType || 'DNI',
+      document: customerDocNumber || '',
+      phone: '',
+      address: '',
+    });
+    setCustomerQuickOpen(true);
+  }
+
+  async function saveQuickCustomer(e) {
+    e?.preventDefault?.();
+    const name = String(quickCustomer.name || '').trim();
+    const doc = cleanDocument(quickCustomer.document);
+    const docType = documentType === 'Factura' ? 'RUC' : quickCustomer.document_type;
+    if (!name) { setNotice({ type: 'warning', icon: '👤', title: 'Falta el cliente', message: docType === 'RUC' ? 'Ingresa la razón social del cliente.' : 'Ingresa el nombre del cliente.' }); return; }
+    if (docType === 'RUC' && doc.length !== 11) { setNotice({ type: 'warning', icon: '🧾', title: 'RUC inválido', message: 'El RUC debe tener 11 dígitos para registrar una factura o cliente fiscal.' }); return; }
+    if (docType === 'DNI' && doc && doc.length !== 8) { setNotice({ type: 'warning', icon: '🪪', title: 'DNI inválido', message: 'El DNI debe tener 8 dígitos o puedes dejarlo vacío en una venta interna.' }); return; }
+    const existing = doc ? checkoutCustomers.find(c => String(c.document || '').replace(/\D/g, '') === doc.replace(/\D/g, '')) : null;
+    if (existing) { selectCheckoutCustomer(existing); setCustomerQuickOpen(false); setNotice({ type: 'info', icon: '👤', title: 'Cliente ya registrado', message: 'Se seleccionó el cliente existente con ese documento.' }); return; }
+    const localCustomer = { id: `quick-${Date.now()}`, name, document: doc, document_type: docType, phone: quickCustomer.phone || '', address: quickCustomer.address || '' };
+    if (!hasSupabaseConfig) {
+      setCheckoutCustomers(prev => [localCustomer, ...prev]);
+      selectCheckoutCustomer(localCustomer);
+      setCustomerQuickOpen(false);
+      return;
+    }
+    setQuickCustomerSaving(true);
+    const payload = { name, phone: quickCustomer.phone || '', document: doc, address: quickCustomer.address || '', credit_limit: 0, status: 'Activo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null };
+    const { data, error } = await supabase.from('customers').insert(payload).select().single();
+    setQuickCustomerSaving(false);
+    if (error) { setNotice({ type: 'warning', icon: '⚠️', title: 'No se pudo guardar el cliente', message: error.message }); return; }
+    const saved = { ...data, document_type: docType };
+    setCheckoutCustomers(prev => [saved, ...prev]);
+    selectCheckoutCustomer(saved);
+    setCustomerQuickOpen(false);
+    setNotice({ type: 'success', icon: '✓', title: 'Cliente agregado', message: `${name} quedó disponible para esta venta y futuras compras.` });
+  }
 
   function validateSaleBeforeConfirm() {
     if (!cart.length || saving) return false;
@@ -825,8 +904,14 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (invalidPrice) { setNotice({ type: 'warning', icon: '💰', title: 'No se puede cobrar todavía', message: `Revisa y valida el precio de ${invalidPrice.name} antes de finalizar la venta.` }); return false; }
     if (total <= 0) { setNotice({ type: 'warning', icon: '📉', title: 'Total inválido', message: 'El total de la venta debe ser mayor a cero.' }); return false; }
     if (method === 'Mixto' && !paymentOk) { setNotice({ type: 'warning', icon: '💳', title: 'Pago mixto incompleto', message: `Falta cuadrar ${money(Math.abs(mixedBalance))}. El total de pagos debe coincidir con el total de la venta.` }); return false; }
-    if (documentType === 'Factura' && (!customerDocNumber.trim() || customerDocType !== 'RUC')) { setNotice({ type: 'warning', icon: '🧾', title: 'Factura requiere RUC', message: 'Para factura electrónica prepara el cliente con RUC y razón social antes de registrar.' }); return false; }
-    if (documentType === 'Boleta' && customerDocNumber.trim() && customerDocNumber.trim().length < 8) { setNotice({ type: 'warning', icon: '🧾', title: 'Documento incompleto', message: 'Revisa el DNI/RUC del cliente o deja el comprobante como interno.' }); return false; }
+    const doc = cleanDocument(customerDocNumber);
+    if (documentType === 'Factura') {
+      if (customerDocType !== 'RUC' || doc.length !== 11 || !customer || customer === 'Cliente') {
+        setNotice({ type: 'warning', icon: '🧾', title: 'Factura incompleta', message: 'Para factura registra RUC de 11 dígitos y razón social del cliente desde “Nuevo cliente”.' });
+        return false;
+      }
+    }
+    if (documentType === 'Boleta' && doc && ![8, 11].includes(doc.replace(/\D/g, '').length)) { setNotice({ type: 'warning', icon: '🧾', title: 'Documento incompleto', message: 'Revisa el DNI/RUC del cliente o deja la boleta sin documento.' }); return false; }
     return true;
   }
 
@@ -839,17 +924,26 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     setSaving(true);
     const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
     const saleMethod = method === 'Mixto' ? 'Mixto' : method;
-    const salePayloadBase = { customer_name: customer || 'Cliente', payment_method: saleMethod, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
-    const salePayloadFiscal = { ...salePayloadBase, document_type: documentType, fiscal_series: fiscalMeta.series, sunat_status: fiscalMeta.status, customer_doc_type: customerDocType, customer_doc_number: customerDocNumber };
-    let saleResult = await supabase.from('sales').insert(salePayloadFiscal).select().single();
-    if (saleResult.error && /document_type|fiscal_series|sunat_status|customer_doc/i.test(saleResult.error.message || '')) {
-      saleResult = await supabase.from('sales').insert(salePayloadBase).select().single();
-    }
-    const { data: sale, error } = saleResult;
-    if (error) { alert(error.message); setSaving(false); return; }
+    const fiscalStatus = documentType === 'Interno' ? 'Interno' : 'Pre-emisión';
+    const salePayload = {
+      customer_name: customer || 'Cliente',
+      customer_id: selectedCustomerId && !String(selectedCustomerId).startsWith('quick-') ? selectedCustomerId : null,
+      payment_method: saleMethod,
+      total,
+      status: method === 'Crédito' ? 'Crédito' : 'Pagado',
+      document_type: documentType,
+      fiscal_series: fiscalMeta.series,
+      fiscal_correlative: null,
+      sunat_status: fiscalStatus,
+      customer_doc_type: documentType === 'Interno' ? null : customerDocType,
+      customer_doc_number: documentType === 'Interno' ? null : cleanDocument(customerDocNumber),
+      electronic_provider: null,
+      ...meta,
+    };
+    const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
+    if (error) { setNotice({ type: 'warning', icon: '⚠️', title: 'No se pudo registrar la venta', message: `${error.message}. Ejecuta primero el SQL de V02.2J si faltan columnas fiscales.` }); setSaving(false); return; }
     const items = cart.map(item => {
       const qty = asNum(item.qty);
-      const base = lineBase(item);
       const afterLine = lineSubtotal(item);
       const globalShare = afterItemDiscount > 0 ? saleDiscount * (afterLine / afterItemDiscount) : 0;
       const finalSubtotal = Math.max(0, afterLine - globalShare);
@@ -858,7 +952,8 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       const unitProfit = finalPrice - unitCost;
       return { sale_id: sale.id, product_id: item.id, product_name: item.name, qty, price: finalPrice, unit_cost: unitCost, subtotal: finalSubtotal, profit: unitProfit * qty, margin_percent: finalPrice > 0 ? (unitProfit / finalPrice) * 100 : 0, store_id: profile?.store_id || DEFAULT_STORE_ID };
     });
-    await supabase.from('sale_items').insert(items);
+    const itemsInsert = await supabase.from('sale_items').insert(items);
+    if (itemsInsert.error) { setNotice({ type: 'warning', icon: '⚠️', title: 'Venta parcialmente registrada', message: 'La venta se creó pero no se pudieron guardar todos los productos. Revisa Comprobantes antes de repetir la operación.' }); setSaving(false); return; }
     for (const item of cart) {
       await supabase.from('products').update({ stock: asNum(item.stock) - asNum(item.qty) }).eq('id', item.id);
       await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta ${receiptNumber(sale)}${item.discount ? ` · Desc. ${money(item.discount)}` : ''}`, ...meta });
@@ -870,20 +965,34 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     } else {
       await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
     }
-    const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalMeta.status, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: customerDocNumber }, items };
+    const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalStatus, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: cleanDocument(customerDocNumber) }, items };
     openCompletedSale(completedSale);
-    setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: `Comprobante listo por ${money(total)}. Puedes imprimir el ticket, guardar PDF o seguir vendiendo.` });
-    setCart([]); setCustomer('Cliente'); setCustomerDocNumber(''); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
+    setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: documentType === 'Interno' ? `Comprobante interno listo por ${money(total)}.` : `${fiscalMeta.label} guardada como pre-emisión; todavía no se envió a SUNAT.` });
+    setCart([]); setCustomer('Cliente'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
     await reloadProducts();
     setTimeout(() => searchInputRef.current?.focus(), 250);
   }
 
+  const submitCheckout = () => {
+    if (!cart.length) { setNotice({ type: 'info', icon: '🛒', title: 'Carrito vacío', message: 'Agrega al menos un producto para continuar con la venta.' }); return; }
+    if (validateSaleBeforeConfirm()) { document.activeElement?.blur?.(); setMobileCartOpen(false); setConfirmOpen(true); }
+  };
+
   return (
     <div className="page pos-page pos-pro-page">
       <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
+      <CustomerQuickModal
+        open={customerQuickOpen}
+        onClose={() => setCustomerQuickOpen(false)}
+        form={quickCustomer}
+        setForm={setQuickCustomer}
+        saving={quickCustomerSaving}
+        forceRuc={documentType === 'Factura'}
+        onSave={saveQuickCustomer}
+      />
       <SaleConfirmModal open={confirmOpen} onClose={()=>setConfirmOpen(false)} onConfirm={checkout} saving={saving} subtotal={subtotal} itemDiscountTotal={itemDiscountTotal} saleDiscount={saleDiscount} total={total} method={method} mixedPayments={mixedPayments} mixedTotal={mixedTotal} customer={customer} cart={cart} documentType={documentType} customerDocType={customerDocType} customerDocNumber={customerDocNumber} />
       <SaleCompleteModal ticket={saleModal} store={store} profile={profile} onClose={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }} onNewSale={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} onGoReceipts={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); onGoReceipts?.(); }} />
-      <div className="hero compact-hero"><h1>🧾 Checkout Pro</h1><p>Venta rápida con comprobante interno, boleta/factura pendiente SUNAT y pagos mixtos.</p></div>
+      <div className="hero compact-hero"><h1>🧾 Checkout fiscal</h1><p>Venta interna, boleta y factura preparadas para una futura integración segura con PSE/OSE.</p></div>
       {lastTicket && <LastReceiptBanner ticket={lastTicket} store={store} profile={profile} onOpen={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }} onGoReceipts={onGoReceipts} onDismiss={() => { setDismissedTicketId(lastTicket?.sale?.id || null); clearLastTicketBackup(); setLastTicket(null); setSaleModal(null); }} />}
       <div className="pos-layout">
         <section className="card compact-card">
@@ -894,53 +1003,57 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
           <div className="product-list">{matches.map(product => (<button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}><img className="product-thumb" src={productImageSrc(product)} alt={product.name} /><div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span></div><b>{money(product.price)}</b></button>))}{!matches.length && <p className="muted">No se encontraron productos.</p>}</div>
         </section>
         <aside className={`card compact-card cart-card pro-cart-card cart-mobile-sheet ${mobileCartOpen ? 'mobile-sheet-open' : ''}`}>
-          <button className="sheet-close-btn cart-sheet-close" type="button" onClick={() => setMobileCartOpen(false)}>Cerrar ×</button>
-          <h3><ShoppingCart size={20}/> Carrito Pro</h3>
-          {cart.length === 0 ? <p className="muted">Agrega productos para vender.</p> : cart.map(item => (
+          <button className="sheet-close-btn cart-sheet-close" type="button" onClick={() => setMobileCartOpen(false)}>Cerrar</button>
+          <h3><ShoppingCart size={20}/> Carrito</h3>
+          {cart.length === 0 ? <div className="empty-checkout-state"><strong>Aún no hay productos</strong><span>Busca, escanea o toca un producto para armar la venta.</span><button type="button" className="secondary-btn" onClick={() => setMobileCartOpen(false)}>Agregar productos</button></div> : cart.map(item => (
             <article className="cart-item-premium" key={item.id}>
-              <div className="cart-item-head">
-                <div>
-                  <strong>{item.name}</strong>
-                  <small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small>
-                </div>
-                <button type="button" className="cart-remove-btn" onClick={()=>removeItem(item.id)}>Quitar</button>
-              </div>
-              <div className="cart-item-controls">
-                <label>Cant.
-                  <input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} />
-                </label>
-                <label>Desc.
-                  <input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" />
-                </label>
-                <div className="cart-item-total">
-                  <span>Importe</span>
-                  <strong>{money(lineSubtotal(item))}</strong>
-                </div>
-              </div>
+              <div className="cart-item-head"><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><button type="button" className="cart-remove-btn" aria-label={`Quitar ${item.name}`} onClick={()=>removeItem(item.id)}>Eliminar</button></div>
+              <div className="cart-item-controls"><label>Cant.<input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /></label><label>Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label><div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
             </article>
           ))}
           <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div><div><span>Desc. venta</span><input value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div><div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
           <div className="sunat-ready-card checkout-fiscal-card">
-            <div className="sunat-card-head"><div><span className="eyebrow">Tipo de comprobante</span><strong>{fiscalMeta.label}</strong></div><span className={`sunat-status-pill ${sunatStatusClass(fiscalMeta.status)}`}>{fiscalMeta.status}</span></div>
-            <div className="document-type-tabs">
-              {DOCUMENT_TYPES.map(type => <button key={type} type="button" className={documentType === type ? 'active' : ''} onClick={()=>setDocumentType(type)}>{type}</button>)}
-            </div>
-            <div className="sunat-mini-grid"><div><span>Serie</span><strong>{fiscalMeta.series}</strong></div><div><span>Integración</span><strong>{documentType === 'Interno' ? 'No aplica' : 'PSE/OSE futura'}</strong></div></div>
+            <div className="sunat-card-head"><div><span className="eyebrow">Comprobante</span><strong>{fiscalMeta.label}</strong></div><span className={`sunat-status-pill ${sunatStatusClass(fiscalMeta.status)}`}>{fiscalMeta.status}</span></div>
+            <div className="document-type-tabs">{DOCUMENT_TYPES.map(type => <button key={type} type="button" className={documentType === type ? 'active' : ''} onClick={()=>changeDocumentType(type)}>{type}</button>)}</div>
+            <div className="fiscal-compact-line"><span>Serie {fiscalMeta.series}</span><span>{documentType === 'Interno' ? 'Control interno' : 'PSE/OSE: no conectado'}</span></div>
             <p>{fiscalMeta.note}</p>
           </div>
-          <select value={customer} onChange={(e)=>setCustomer(e.target.value)}><option>Cliente</option>{customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
-          {documentType !== 'Interno' && <div className="sunat-client-grid"><select value={customerDocType} onChange={e=>setCustomerDocType(e.target.value)}><option>DNI</option><option>RUC</option><option>CE</option></select><input value={customerDocNumber} inputMode="numeric" onChange={e=>setCustomerDocNumber(e.target.value)} placeholder={documentType === 'Factura' ? 'RUC obligatorio' : 'DNI/RUC opcional'} /></div>}
-          <div className="payment-fast-row"><button type="button" onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" onClick={()=>setMethod('Yape')}>Yape</button><button type="button" onClick={()=>setMethod('Plin')}>Plin</button><button type="button" onClick={()=>setMethod('Mixto')}>Mixto</button></div>
+          <section className="checkout-customer-card">
+            <div className="checkout-customer-head"><div><span className="eyebrow">Cliente</span><strong>{customer || 'Cliente'}</strong></div><button type="button" className="mini-add-customer" onClick={openQuickCustomer}>+ Nuevo</button></div>
+            <div className="customer-search-picker"><Search size={17}/><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} placeholder="Buscar por nombre, DNI, RUC o teléfono" />{customerQuery && <button type="button" className="clear-customer-query" onClick={()=>setCustomerQuery('')}>×</button>}</div>
+            {(customerQuery || customerMatches.length > 0) && <div className="customer-suggestions">{customerMatches.map(item => <button type="button" key={item.id} onClick={()=>selectCheckoutCustomer(item)}><span><strong>{item.name}</strong><small>{item.document || 'Sin documento'} · {item.phone || 'Sin teléfono'}</small></span><b>Usar</b></button>)}<button type="button" className="create-customer-inline" onClick={openQuickCustomer}>+ Registrar cliente desde esta venta</button></div>}
+            {customer !== 'Cliente' && <div className="selected-customer-chip"><span>Seleccionado: {customer}</span><button type="button" onClick={()=>{setCustomer('Cliente');setSelectedCustomerId('');setCustomerDocNumber('');}}>Quitar</button></div>}
+          </section>
+          {documentType !== 'Interno' && <section className="fiscal-client-panel"><div className="fiscal-client-title"><div><span className="eyebrow">Datos fiscales</span><strong>{documentType === 'Factura' ? 'RUC y razón social obligatorios' : 'DNI, RUC o venta sin documento'}</strong></div><button type="button" className="fiscal-edit-btn" onClick={openQuickCustomer}>Editar cliente</button></div><div className="sunat-client-grid"><select value={documentType === 'Factura' ? 'RUC' : customerDocType} disabled={documentType === 'Factura'} onChange={e=>setCustomerDocType(e.target.value)}><option>DNI</option><option>RUC</option><option>CE</option><option>Sin documento</option></select><input value={customerDocNumber} inputMode="numeric" onChange={e=>setCustomerDocNumber(cleanDocument(e.target.value))} placeholder={documentType === 'Factura' ? 'RUC de 11 dígitos' : 'Número de documento opcional'} /></div><div className="lookup-note"><span>Consulta automática DNI/RUC</span><small>No conectada. Se habilita después mediante backend seguro y proveedor autorizado.</small></div></section>}
+          <div className="payment-fast-row"><button type="button" className={method==='Efectivo'?'active':''} onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" className={method==='Yape'?'active':''} onClick={()=>setMethod('Yape')}>Yape</button><button type="button" className={method==='Plin'?'active':''} onClick={()=>setMethod('Plin')}>Plin</button><button type="button" className={method==='Mixto'?'active':''} onClick={()=>setMethod('Mixto')}>Mixto</button></div>
           <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option><option>Mixto</option></select>
           {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
-          <button className="primary-btn checkout-submit-btn" disabled={!cart.length || saving} onClick={()=>{ if (validateSaleBeforeConfirm()) { document.activeElement?.blur?.(); setMobileCartOpen(false); setConfirmOpen(true); } }}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : fiscalMeta.action}</button>
-          {lastTicket && <div className="ticket-box"><h4>✅ Venta registrada</h4><p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p><p><strong>Total:</strong> {money(lastTicket.sale.total)}</p><div className="ticket-actions"><button className="primary-btn" onClick={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}>Abrir comprobante</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button><button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button></div></div>}
+          <button className="primary-btn checkout-submit-btn" disabled={saving} onClick={submitCheckout}>{saving ? 'Guardando...' : !cart.length ? 'Agregar productos' : method === 'Crédito' ? 'Registrar crédito' : fiscalMeta.action}</button>
         </aside>
       </div>
-      {cart.length > 0 && <div className="mobile-checkout-bar">
-        <div><small>Total</small><strong>{money(total)}</strong><span>{cart.length} producto(s)</span></div>
-        <button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Carrito / emitir</button>
-      </div>}
+      {cart.length > 0 && <div className="mobile-checkout-bar"><div><small>Total</small><strong>{money(total)}</strong><span>{cart.length} producto(s)</span></div><button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito</button></div>}
+    </div>
+  );
+}
+
+function CustomerQuickModal({ open, onClose, form, setForm, saving, forceRuc = false, onSave }) {
+  if (!open) return null;
+  const type = forceRuc ? 'RUC' : form.document_type;
+  return (
+    <div className="customer-modal-backdrop" role="dialog" aria-modal="true">
+      <form className="customer-modal-card" onSubmit={onSave}>
+        <div className="customer-modal-handle" />
+        <div className="customer-modal-head"><div><span className="eyebrow">Cliente desde venta</span><h3>{forceRuc ? 'Nueva razón social' : 'Nuevo cliente'}</h3><p>{forceRuc ? 'Para factura se requiere RUC y razón social.' : 'Registra el cliente sin salir de la venta.'}</p></div><button type="button" className="sheet-x-btn" onClick={onClose}>×</button></div>
+        <div className="quick-customer-grid">
+          <label>Tipo de documento<select value={type} disabled={forceRuc} onChange={e=>setForm({...form, document_type:e.target.value})}><option>DNI</option><option>RUC</option><option>CE</option><option>Sin documento</option></select></label>
+          <label>{type === 'RUC' ? 'RUC' : 'Documento'}<input value={form.document} inputMode="numeric" onChange={e=>setForm({...form, document:cleanDocument(e.target.value)})} placeholder={type === 'RUC' ? '11 dígitos' : type === 'DNI' ? '8 dígitos' : 'Opcional'} /></label>
+          <label className="full-row">{type === 'RUC' ? 'Razón social' : 'Nombre completo'}<input autoFocus value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder={type === 'RUC' ? 'Razón social del cliente' : 'Nombres y apellidos'} /></label>
+          <label>Teléfono<input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Celular o WhatsApp" /></label>
+          <label>Dirección<input value={form.address} onChange={e=>setForm({...form, address:e.target.value})} placeholder="Opcional" /></label>
+        </div>
+        <div className="customer-api-note"><strong>Consulta automática DNI/RUC</strong><span>Se conecta después desde backend seguro. Por ahora los datos se registran manualmente.</span></div>
+        <div className="customer-modal-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancelar</button><button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar y usar cliente'}</button></div>
+      </form>
     </div>
   );
 }
@@ -954,7 +1067,7 @@ function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDisc
         <div className="notice-icon">🧾</div>
         <div className="notice-content">
           <h3>{documentType === 'Interno' ? 'Confirmar venta interna' : `Confirmar ${fiscalMeta.label}`}</h3>
-          <p>{documentType === 'Interno' ? 'Revisa el total y método de pago antes de registrar el comprobante interno.' : 'Esta venta quedará registrada como pendiente para futura emisión electrónica SUNAT vía PSE/OSE.'}</p>
+          <p>{documentType === 'Interno' ? 'Revisa el total y método de pago antes de registrar el comprobante interno.' : 'Esta venta se registrará como pre-emisión. Aún no se enviará a SUNAT hasta conectar un backend seguro y un PSE/OSE.'}</p>
           <div className="sunat-confirm-strip"><span>{fiscalMeta.label}</span><strong>{fiscalMeta.series} · {fiscalMeta.status}</strong></div>
           <div className="confirm-sale-summary">
             <div><span>Cliente</span><strong>{customer || 'Cliente'}</strong></div>
@@ -966,7 +1079,7 @@ function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDisc
             <div><span>Total final</span><strong>{money(total)}</strong></div>
           </div>
           {method === 'Mixto' && <div className="info-box">Pagos mixtos: {Object.entries(mixedPayments).filter(([,v])=>asNum(v)>0).map(([k,v])=>`${k} ${money(v)}`).join(' · ')} · Total pagos {money(mixedTotal)}</div>}
-          <div className="notice-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancelar</button><button type="button" className="primary-btn" disabled={saving} onClick={onConfirm}>{saving ? 'Guardando...' : documentType === 'Interno' ? 'Registrar venta' : 'Registrar pendiente SUNAT'}</button></div>
+          <div className="notice-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancelar</button><button type="button" className="primary-btn" disabled={saving} onClick={onConfirm}>{saving ? 'Guardando...' : documentType === 'Interno' ? 'Registrar venta' : 'Registrar pre-emisión'}</button></div>
         </div>
       </div>
     </div>
@@ -1020,11 +1133,11 @@ function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSal
           <div>
             <span className="eyebrow">{documentType === 'Interno' ? 'Comprobante generado' : 'Registro SUNAT-ready'}</span>
             <h2>{documentType === 'Interno' ? 'Venta registrada correctamente' : `${fiscalMeta.label} registrada`}</h2>
-            <p>{documentType === 'Interno' ? 'El comprobante interno quedó listo para imprimir, guardar o reimprimir desde el módulo Comprobantes.' : 'El documento quedó preparado con estado pendiente para futura integración SUNAT/PSE/OSE.'}</p>
+            <p>{documentType === 'Interno' ? 'El comprobante interno quedó listo para imprimir, guardar o reimprimir desde el módulo Comprobantes.' : 'El documento quedó guardado como pre-emisión. Aún no fue enviado a SUNAT ni a un proveedor electrónico.'}</p>
           </div>
           <button className="icon-btn sale-modal-close neutral-close" type="button" onClick={onClose}>Cerrar</button>
         </div>
-        <div className="sunat-result-strip"><span className={`sunat-status-pill ${sunatStatusClass(fiscalStatus)}`}>{fiscalStatus}</span><strong>{documentType === 'Interno' ? 'Control interno' : `${sale?.fiscal_series || fiscalMeta.series} · Envío real no conectado`}</strong></div>
+        <div className="sunat-result-strip"><span className={`sunat-status-pill ${sunatStatusClass(fiscalStatus)}`}>{fiscalStatus}</span><strong>{documentType === 'Interno' ? 'Control interno' : `${sale?.fiscal_series || fiscalMeta.series} · Pre-emisión · Envío no conectado`}</strong></div>
         <div className="sale-summary-grid">
           <div><span>Tipo</span><strong>{documentType}</strong></div>
           <div><span>N°</span><strong>{receiptNumber(sale)}</strong></div>
@@ -1099,9 +1212,9 @@ function ReceiptsPage({ profile, store }) {
   const [loadingItems, setLoadingItems] = useState(false);
 
   const filteredSales = useMemo(() => sales.filter(s => {
-    const text = `${receiptNumber(s)} ${s.customer_name || ''} ${s.payment_method || ''} ${s.status || ''}`.toLowerCase();
+    const text = `${receiptNumber(s)} ${s.customer_name || ''} ${s.payment_method || ''} ${s.status || ''} ${s.document_type || ''} ${s.sunat_status || ''}`.toLowerCase();
     const passText = !query.trim() || text.includes(query.trim().toLowerCase());
-    const passStatus = statusFilter === 'Todos' || s.status === statusFilter || s.payment_method === statusFilter;
+    const passStatus = statusFilter === 'Todos' || s.status === statusFilter || s.payment_method === statusFilter || s.document_type === statusFilter || s.sunat_status === statusFilter;
     return passText && passStatus;
   }), [sales, query, statusFilter]);
 
@@ -1142,12 +1255,12 @@ function ReceiptsPage({ profile, store }) {
           <div className="card-head-line"><h3>Historial de comprobantes</h3><button className="secondary-btn" onClick={reload} disabled={loading}>{loading ? 'Cargando...' : 'Actualizar'}</button></div>
           <div className="receipt-filters">
             <label>Buscar<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="B123, cliente, método..." /></label>
-            <label>Estado<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>Todos</option><option>Pagado</option><option>Crédito</option><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label>
+            <label>Estado<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>Todos</option><option>Pagado</option><option>Crédito</option><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Interno</option><option>Pre-emisión</option></select></label>
           </div>
           <div className="receipt-list">
             {filteredSales.map(sale => (
               <button key={sale.id} className={`receipt-row ${selectedSale?.id === sale.id ? 'active' : ''}`} onClick={()=>selectSale(sale)}>
-                <div><strong>{receiptNumber(sale)} · {sale.customer_name || 'Cliente'}</strong><small>{fmtDate(sale.created_at)} · {sale.payment_method || 'Efectivo'} · {sale.status || 'Pagado'}</small></div>
+                <div><strong>{receiptNumber(sale)} · {sale.customer_name || 'Cliente'}</strong><small>{fmtDate(sale.created_at)} · {sale.payment_method || 'Efectivo'} · {sale.document_type || 'Interno'} · {sale.sunat_status || sale.status || 'Pagado'}</small></div>
                 <b>{money(sale.total)}</b>
               </button>
             ))}
