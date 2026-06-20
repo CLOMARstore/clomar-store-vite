@@ -1,5 +1,4 @@
-/* V02.2G Native Mobile Commerce Layout */
-// V02.2F — Mobile Commerce UX Premium
+/* V02.2I Checkout Pro + SUNAT Ready UX */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -70,7 +69,9 @@ const buildReceiptHTML = ({ sale, items = [], store = {}, profile = {}, format =
   const width = isA4 ? '190mm' : is58 ? '54mm' : '76mm';
   const qr = qrUrl(receiptQrData(sale, store));
   const totals = receiptTotals(sale, items);
-  const receiptTitle = sale?.payment_method === 'Crédito' ? 'COMPROBANTE DE CRÉDITO' : 'COMPROBANTE INTERNO';
+  const docType = sale?.document_type || 'Interno';
+  const docMeta = documentMeta(docType);
+  const receiptTitle = docType === 'Boleta' ? 'BOLETA ELECTRÓNICA — PENDIENTE SUNAT' : docType === 'Factura' ? 'FACTURA ELECTRÓNICA — PENDIENTE SUNAT' : sale?.payment_method === 'Crédito' ? 'COMPROBANTE DE CRÉDITO' : 'COMPROBANTE INTERNO';
   const rows = items.map((it) => {
     const qty = asNum(it.qty);
     const price = asNum(it.price);
@@ -86,10 +87,10 @@ const buildReceiptHTML = ({ sale, items = [], store = {}, profile = {}, format =
 </style></head><body><main class="receipt"><section class="${isA4?'a4-box':''}">
   <div class="center"><img class="logo" src="${escapeHtml(publicAssetUrl(store?.logo_url || APP_ICON))}"/><div class="store">${escapeHtml(store?.name || 'Clomar Store')}</div><div class="muted">${escapeHtml(store?.ruc ? `RUC: ${store.ruc}` : '')}</div><div class="muted">${escapeHtml(store?.address || '')}</div><div class="muted">${escapeHtml(store?.phone ? `Tel: ${store.phone}` : '')}</div></div>
   <div class="line"></div><div class="title">${receiptTitle}</div>
-  <div class="meta"><div><strong>N°</strong><span>${escapeHtml(receiptNumber(sale))}</span></div><div><strong>Fecha</strong><span>${escapeHtml(fmtDate(sale?.created_at || new Date()))}</span></div><div><strong>Cliente</strong><span>${escapeHtml(sale?.customer_name || 'Cliente')}</span></div><div><strong>Vendedor</strong><span>${escapeHtml(profile?.full_name || sale?.seller_email || profile?.email || 'Usuario')}</span></div><div><strong>Pago</strong><span>${escapeHtml(sale?.payment_method || 'Efectivo')}</span></div><div><strong>Estado</strong><span>${escapeHtml(sale?.status || 'Pagado')}</span></div></div>
+  <div class="meta"><div><strong>N°</strong><span>${escapeHtml(receiptNumber(sale))}</span></div><div><strong>Fecha</strong><span>${escapeHtml(fmtDate(sale?.created_at || new Date()))}</span></div><div><strong>Cliente</strong><span>${escapeHtml(sale?.customer_name || 'Cliente')}</span></div><div><strong>Vendedor</strong><span>${escapeHtml(profile?.full_name || sale?.seller_email || profile?.email || 'Usuario')}</span></div><div><strong>Pago</strong><span>${escapeHtml(sale?.payment_method || 'Efectivo')}</span></div><div><strong>Estado</strong><span>${escapeHtml(sale?.status || 'Pagado')}</span></div><div><strong>SUNAT</strong><span>${escapeHtml(sale?.sunat_status || docMeta.status)}</span></div></div>
   <table><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">P.U.</th><th class="num">Importe</th></tr></thead><tbody>${rows}</tbody></table>
   <div class="line"></div><div class="meta"><div><strong>Subtotal</strong><span>${money(totals.subtotal)}</span></div><div class="total"><strong>Total</strong><span>${money(totals.total)}</span></div>${sale?.payment_method === 'Crédito' ? `<div><strong>Saldo pendiente</strong><span>${money(totals.total)}</span></div>` : ''}</div>
-  <img class="qr" src="${qr}"/><div class="center muted">${escapeHtml(receiptNumber(sale))}</div><div class="center thanks">Gracias por su compra</div><div class="center muted">Comprobante interno. No reemplaza comprobante electrónico SUNAT.</div>
+  <img class="qr" src="${qr}"/><div class="center muted">${escapeHtml(receiptNumber(sale))}</div><div class="center thanks">Gracias por su compra</div><div class="center muted">${docType === 'Interno' ? 'Comprobante interno. No reemplaza comprobante electrónico SUNAT.' : 'Documento preparado para futura integración SUNAT/PSE/OSE. No enviado todavía.'}</div>
 </section></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
 };
 const printReceipt = ({ sale, items = [], store = {}, profile = {}, format = '80mm' }) => {
@@ -110,7 +111,20 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V02.2E App Design System Premium';
+const APP_VERSION = 'V02.2I Checkout Pro + SUNAT Ready UX';
+const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
+const documentMeta = (type = 'Interno') => {
+  if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pendiente SUNAT', action: 'Registrar boleta pendiente', note: 'Preparado para envío posterior por PSE/OSE.' };
+  if (type === 'Factura') return { label: 'Factura electrónica', series: 'F001', status: 'Pendiente SUNAT', action: 'Registrar factura pendiente', note: 'Requiere RUC y razón social antes de emitir.' };
+  return { label: 'Comprobante interno', series: 'INT', status: 'Interno', action: 'Registrar venta interna', note: 'Control interno. No reemplaza comprobante electrónico SUNAT.' };
+};
+const sunatStatusClass = (status = '') => {
+  const s = String(status).toLowerCase();
+  if (s.includes('acept')) return 'accepted';
+  if (s.includes('rechaz')) return 'rejected';
+  if (s.includes('pend')) return 'pending';
+  return 'internal';
+};
 const logoSrc = (store) => store?.logo_url || APP_ICON;
 const productImageSrc = (product) => product?.image_url || APP_ICON;
 
@@ -649,6 +663,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [method, setMethod] = useState('Efectivo');
+  const [documentType, setDocumentType] = useState('Interno');
+  const [customerDocType, setCustomerDocType] = useState('DNI');
+  const [customerDocNumber, setCustomerDocNumber] = useState('');
   const [customer, setCustomer] = useState('Cliente');
   const [saving, setSaving] = useState(false);
   const [lastTicket, setLastTicket] = useState(null);
@@ -666,6 +683,8 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const searchInputRef = useRef(null);
   const normalized = query.trim().toLowerCase();
   const activeProducts = useMemo(() => products.filter(p => p.active !== false), [products]);
+  const fiscalMeta = documentMeta(documentType);
+  const customerDocumentLabel = documentType === 'Interno' ? 'Sin documento fiscal' : `${customerDocType}${customerDocNumber ? ` ${customerDocNumber}` : ''}`;
   const matches = useMemo(() => {
     const base = !normalized ? activeProducts.slice(0, 12) : activeProducts.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
@@ -806,19 +825,27 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (invalidPrice) { setNotice({ type: 'warning', icon: '💰', title: 'No se puede cobrar todavía', message: `Revisa y valida el precio de ${invalidPrice.name} antes de finalizar la venta.` }); return false; }
     if (total <= 0) { setNotice({ type: 'warning', icon: '📉', title: 'Total inválido', message: 'El total de la venta debe ser mayor a cero.' }); return false; }
     if (method === 'Mixto' && !paymentOk) { setNotice({ type: 'warning', icon: '💳', title: 'Pago mixto incompleto', message: `Falta cuadrar ${money(Math.abs(mixedBalance))}. El total de pagos debe coincidir con el total de la venta.` }); return false; }
+    if (documentType === 'Factura' && (!customerDocNumber.trim() || customerDocType !== 'RUC')) { setNotice({ type: 'warning', icon: '🧾', title: 'Factura requiere RUC', message: 'Para factura electrónica prepara el cliente con RUC y razón social antes de registrar.' }); return false; }
+    if (documentType === 'Boleta' && customerDocNumber.trim() && customerDocNumber.trim().length < 8) { setNotice({ type: 'warning', icon: '🧾', title: 'Documento incompleto', message: 'Revisa el DNI/RUC del cliente o deja el comprobante como interno.' }); return false; }
     return true;
   }
 
   async function checkout() {
     if (!validateSaleBeforeConfirm()) return;
+    document.activeElement?.blur?.();
     setConfirmOpen(false);
     setMobileCartOpen(false);
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
     const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
     const saleMethod = method === 'Mixto' ? 'Mixto' : method;
-    const salePayload = { customer_name: customer || 'Cliente', payment_method: saleMethod, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
-    const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
+    const salePayloadBase = { customer_name: customer || 'Cliente', payment_method: saleMethod, total, status: method === 'Crédito' ? 'Crédito' : 'Pagado', ...meta };
+    const salePayloadFiscal = { ...salePayloadBase, document_type: documentType, fiscal_series: fiscalMeta.series, sunat_status: fiscalMeta.status, customer_doc_type: customerDocType, customer_doc_number: customerDocNumber };
+    let saleResult = await supabase.from('sales').insert(salePayloadFiscal).select().single();
+    if (saleResult.error && /document_type|fiscal_series|sunat_status|customer_doc/i.test(saleResult.error.message || '')) {
+      saleResult = await supabase.from('sales').insert(salePayloadBase).select().single();
+    }
+    const { data: sale, error } = saleResult;
     if (error) { alert(error.message); setSaving(false); return; }
     const items = cart.map(item => {
       const qty = asNum(item.qty);
@@ -843,10 +870,10 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     } else {
       await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
     }
-    const completedSale = { sale: { ...sale, payment_method: saleMethod, total }, items };
+    const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalMeta.status, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: customerDocNumber }, items };
     openCompletedSale(completedSale);
     setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: `Comprobante listo por ${money(total)}. Puedes imprimir el ticket, guardar PDF o seguir vendiendo.` });
-    setCart([]); setCustomer('Cliente'); setMethod('Efectivo'); setGlobalDiscount('0'); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
+    setCart([]); setCustomer('Cliente'); setCustomerDocNumber(''); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
     await reloadProducts();
     setTimeout(() => searchInputRef.current?.focus(), 250);
   }
@@ -854,9 +881,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   return (
     <div className="page pos-page pos-pro-page">
       <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
-      <SaleConfirmModal open={confirmOpen} onClose={()=>setConfirmOpen(false)} onConfirm={checkout} saving={saving} subtotal={subtotal} itemDiscountTotal={itemDiscountTotal} saleDiscount={saleDiscount} total={total} method={method} mixedPayments={mixedPayments} mixedTotal={mixedTotal} customer={customer} cart={cart} />
+      <SaleConfirmModal open={confirmOpen} onClose={()=>setConfirmOpen(false)} onConfirm={checkout} saving={saving} subtotal={subtotal} itemDiscountTotal={itemDiscountTotal} saleDiscount={saleDiscount} total={total} method={method} mixedPayments={mixedPayments} mixedTotal={mixedTotal} customer={customer} cart={cart} documentType={documentType} customerDocType={customerDocType} customerDocNumber={customerDocNumber} />
       <SaleCompleteModal ticket={saleModal} store={store} profile={profile} onClose={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }} onNewSale={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} onGoReceipts={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); onGoReceipts?.(); }} />
-      <div className="hero compact-hero"><h1>🧾 Ventas Pro</h1><p>Venta rápida con descuentos, confirmación y pagos mixtos.</p></div>
+      <div className="hero compact-hero"><h1>🧾 Checkout Pro</h1><p>Venta rápida con comprobante interno, boleta/factura pendiente SUNAT y pagos mixtos.</p></div>
       {lastTicket && <LastReceiptBanner ticket={lastTicket} store={store} profile={profile} onOpen={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }} onGoReceipts={onGoReceipts} onDismiss={() => { setDismissedTicketId(lastTicket?.sale?.id || null); clearLastTicketBackup(); setLastTicket(null); setSaleModal(null); }} />}
       <div className="pos-layout">
         <section className="card compact-card">
@@ -893,33 +920,45 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             </article>
           ))}
           <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div><div><span>Desc. venta</span><input value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div><div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
+          <div className="sunat-ready-card checkout-fiscal-card">
+            <div className="sunat-card-head"><div><span className="eyebrow">Tipo de comprobante</span><strong>{fiscalMeta.label}</strong></div><span className={`sunat-status-pill ${sunatStatusClass(fiscalMeta.status)}`}>{fiscalMeta.status}</span></div>
+            <div className="document-type-tabs">
+              {DOCUMENT_TYPES.map(type => <button key={type} type="button" className={documentType === type ? 'active' : ''} onClick={()=>setDocumentType(type)}>{type}</button>)}
+            </div>
+            <div className="sunat-mini-grid"><div><span>Serie</span><strong>{fiscalMeta.series}</strong></div><div><span>Integración</span><strong>{documentType === 'Interno' ? 'No aplica' : 'PSE/OSE futura'}</strong></div></div>
+            <p>{fiscalMeta.note}</p>
+          </div>
           <select value={customer} onChange={(e)=>setCustomer(e.target.value)}><option>Cliente</option>{customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
+          {documentType !== 'Interno' && <div className="sunat-client-grid"><select value={customerDocType} onChange={e=>setCustomerDocType(e.target.value)}><option>DNI</option><option>RUC</option><option>CE</option></select><input value={customerDocNumber} inputMode="numeric" onChange={e=>setCustomerDocNumber(e.target.value)} placeholder={documentType === 'Factura' ? 'RUC obligatorio' : 'DNI/RUC opcional'} /></div>}
           <div className="payment-fast-row"><button type="button" onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" onClick={()=>setMethod('Yape')}>Yape</button><button type="button" onClick={()=>setMethod('Plin')}>Plin</button><button type="button" onClick={()=>setMethod('Mixto')}>Mixto</button></div>
           <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option><option>Mixto</option></select>
           {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
-          <button className="primary-btn" disabled={!cart.length || saving} onClick={()=>{ if (validateSaleBeforeConfirm()) { setMobileCartOpen(false); setConfirmOpen(true); } }}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : 'Confirmar cobro'}</button>
+          <button className="primary-btn checkout-submit-btn" disabled={!cart.length || saving} onClick={()=>{ if (validateSaleBeforeConfirm()) { document.activeElement?.blur?.(); setMobileCartOpen(false); setConfirmOpen(true); } }}>{saving ? 'Guardando...' : method === 'Crédito' ? 'Registrar crédito' : fiscalMeta.action}</button>
           {lastTicket && <div className="ticket-box"><h4>✅ Venta registrada</h4><p><strong>Boleta interna:</strong> B{lastTicket.sale.receipt_number}</p><p><strong>Total:</strong> {money(lastTicket.sale.total)}</p><div className="ticket-actions"><button className="primary-btn" onClick={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }}>Abrir comprobante</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '80mm' })}>Ticket 80mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: '58mm' })}>Ticket 58mm</button><button className="secondary-btn" onClick={() => printReceipt({ sale: lastTicket.sale, items: lastTicket.items, store, profile, format: 'a4' })}>PDF A4</button><button className="secondary-btn" onClick={() => downloadText(`comprobante-${receiptNumber(lastTicket.sale)}.txt`, ticketText(lastTicket.sale, lastTicket.items))}>TXT</button></div></div>}
         </aside>
       </div>
       {cart.length > 0 && <div className="mobile-checkout-bar">
         <div><small>Total</small><strong>{money(total)}</strong><span>{cart.length} producto(s)</span></div>
-        <button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito / cobrar</button>
+        <button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Carrito / emitir</button>
       </div>}
     </div>
   );
 }
 
-function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDiscountTotal, saleDiscount, total, method, mixedPayments, mixedTotal, customer, cart }) {
+function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDiscountTotal, saleDiscount, total, method, mixedPayments, mixedTotal, customer, cart, documentType = 'Interno', customerDocType = 'DNI', customerDocNumber = '' }) {
+  const fiscalMeta = documentMeta(documentType);
   if (!open) return null;
   return (
     <div className="notice-backdrop" role="dialog" aria-modal="true">
       <div className="notice-card confirm-sale-card premium-confirm-sale-card">
         <div className="notice-icon">🧾</div>
         <div className="notice-content">
-          <h3>Confirmar venta</h3>
-          <p>Revisa el total, descuentos y método de pago antes de registrar el comprobante.</p>
+          <h3>{documentType === 'Interno' ? 'Confirmar venta interna' : `Confirmar ${fiscalMeta.label}`}</h3>
+          <p>{documentType === 'Interno' ? 'Revisa el total y método de pago antes de registrar el comprobante interno.' : 'Esta venta quedará registrada como pendiente para futura emisión electrónica SUNAT vía PSE/OSE.'}</p>
+          <div className="sunat-confirm-strip"><span>{fiscalMeta.label}</span><strong>{fiscalMeta.series} · {fiscalMeta.status}</strong></div>
           <div className="confirm-sale-summary">
             <div><span>Cliente</span><strong>{customer || 'Cliente'}</strong></div>
+            <div><span>Documento</span><strong>{documentType === 'Interno' ? 'Interno' : `${customerDocType} ${customerDocNumber || 'pendiente'}`}</strong></div>
             <div><span>Productos</span><strong>{cart.length}</strong></div>
             <div><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
             <div><span>Descuentos</span><strong>{money(itemDiscountTotal + saleDiscount)}</strong></div>
@@ -927,7 +966,7 @@ function SaleConfirmModal({ open, onClose, onConfirm, saving, subtotal, itemDisc
             <div><span>Total final</span><strong>{money(total)}</strong></div>
           </div>
           {method === 'Mixto' && <div className="info-box">Pagos mixtos: {Object.entries(mixedPayments).filter(([,v])=>asNum(v)>0).map(([k,v])=>`${k} ${money(v)}`).join(' · ')} · Total pagos {money(mixedTotal)}</div>}
-          <div className="notice-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancelar</button><button type="button" className="primary-btn" disabled={saving} onClick={onConfirm}>{saving ? 'Guardando...' : 'Registrar venta'}</button></div>
+          <div className="notice-actions"><button type="button" className="secondary-btn" onClick={onClose}>Cancelar</button><button type="button" className="primary-btn" disabled={saving} onClick={onConfirm}>{saving ? 'Guardando...' : documentType === 'Interno' ? 'Registrar venta' : 'Registrar pendiente SUNAT'}</button></div>
         </div>
       </div>
     </div>
@@ -969,6 +1008,9 @@ function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSal
   const sale = ticket.sale;
   const items = ticket.items || [];
   const totalItems = items.reduce((sum, item) => sum + asNum(item.qty), 0);
+  const documentType = sale?.document_type || 'Interno';
+  const fiscalMeta = documentMeta(documentType);
+  const fiscalStatus = sale?.sunat_status || fiscalMeta.status;
   const formatPrint = (format) => printReceipt({ sale, items, store, profile, format });
   return (
     <div className="sale-modal-backdrop" role="dialog" aria-modal="true">
@@ -976,13 +1018,15 @@ function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSal
         <div className="sale-modal-head">
           <div className="sale-success-icon">✓</div>
           <div>
-            <span className="eyebrow">Comprobante generado</span>
-            <h2>Venta registrada correctamente</h2>
-            <p>El comprobante interno quedó listo para imprimir, guardar o reimprimir desde el módulo Comprobantes.</p>
+            <span className="eyebrow">{documentType === 'Interno' ? 'Comprobante generado' : 'Registro SUNAT-ready'}</span>
+            <h2>{documentType === 'Interno' ? 'Venta registrada correctamente' : `${fiscalMeta.label} registrada`}</h2>
+            <p>{documentType === 'Interno' ? 'El comprobante interno quedó listo para imprimir, guardar o reimprimir desde el módulo Comprobantes.' : 'El documento quedó preparado con estado pendiente para futura integración SUNAT/PSE/OSE.'}</p>
           </div>
-          <button className="icon-btn sale-modal-close" type="button" onClick={onClose}>×</button>
+          <button className="icon-btn sale-modal-close neutral-close" type="button" onClick={onClose}>Cerrar</button>
         </div>
+        <div className="sunat-result-strip"><span className={`sunat-status-pill ${sunatStatusClass(fiscalStatus)}`}>{fiscalStatus}</span><strong>{documentType === 'Interno' ? 'Control interno' : `${sale?.fiscal_series || fiscalMeta.series} · Envío real no conectado`}</strong></div>
         <div className="sale-summary-grid">
+          <div><span>Tipo</span><strong>{documentType}</strong></div>
           <div><span>N°</span><strong>{receiptNumber(sale)}</strong></div>
           <div><span>Total</span><strong>{money(sale.total)}</strong></div>
           <div><span>Método</span><strong>{sale.payment_method || 'Efectivo'}</strong></div>
@@ -991,6 +1035,7 @@ function SaleCompleteModal({ ticket, store = {}, profile = {}, onClose, onNewSal
         <div className="sale-modal-body premium-sale-modal-body">
           <section className="sale-modal-actions-card premium-actions-card">
             <h3>Acción rápida</h3>
+            {documentType !== 'Interno' && <button className="secondary-btn sunat-disabled-action" type="button" disabled>Enviar a SUNAT · Próximamente</button>}
             <div className="receipt-action-grid premium-action-grid">
               <button className="primary-btn" type="button" onClick={() => formatPrint('80mm')}>Imprimir 80mm</button>
               <button className="secondary-btn" type="button" onClick={() => formatPrint('58mm')}>Ticket 58mm</button>

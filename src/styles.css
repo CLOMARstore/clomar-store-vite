@@ -1514,3 +1514,143 @@ body{font-feature-settings:"liga" 1,"kern" 1;-webkit-font-smoothing:antialiased;
   .stock-pill{display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;background:#ecfdf5!important;color:#047857!important;border:1px solid #bbf7d0!important;font-size:12px!important;font-weight:950!important;padding:8px 9px!important;white-space:nowrap!important;}
   .stock-pill.stock-low{background:#fff1f2!important;color:#b91c1c!important;border-color:#fecaca!important;}
 }
+
+
+/* V02.2I — Checkout Pro + SUNAT Ready UX */
+.checkout-fiscal-card {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, .08);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 22px;
+  box-shadow: 0 16px 34px rgba(15,23,42,.06);
+}
+.sunat-card-head,
+.sunat-result-strip,
+.sunat-confirm-strip {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.sunat-card-head strong { display:block; font-size: 17px; color:#0f172a; }
+.sunat-status-pill {
+  border-radius:999px;
+  padding:7px 10px;
+  font-size:10.5px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  border:1px solid transparent;
+}
+.sunat-status-pill.internal { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+.sunat-status-pill.pending { background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+.sunat-status-pill.accepted { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+.sunat-status-pill.rejected { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+.document-type-tabs {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin:12px 0;
+}
+.document-type-tabs button,
+.payment-fast-row button {
+  min-height:44px;
+  border-radius:16px;
+  border:1px solid rgba(15,23,42,.12);
+  background:#fff;
+  color:#0f172a;
+  font-weight:900;
+  font-size:13px;
+}
+.document-type-tabs button.active {
+  background:#0f172a;
+  color:#fff;
+  box-shadow:0 14px 28px rgba(15,23,42,.16);
+}
+.sunat-mini-grid,
+.sunat-client-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.sunat-mini-grid div {
+  border-radius:16px;
+  background:#f8fafc;
+  border:1px solid rgba(15,23,42,.07);
+  padding:10px;
+}
+.sunat-mini-grid span { display:block; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:.08em; font-weight:900; }
+.sunat-mini-grid strong { font-size:13px; color:#0f172a; }
+.checkout-fiscal-card p { margin:10px 0 0; color:#64748b; font-size:12.5px; line-height:1.35; }
+.sunat-client-grid { margin:10px 0; }
+.sunat-client-grid select,
+.sunat-client-grid input {
+  min-width:0;
+  height:50px;
+  border-radius:16px;
+  border:1px solid rgba(15,23,42,.11);
+  background:#fff;
+  padding:0 12px;
+  font-size:15px;
+  font-weight:800;
+}
+.checkout-submit-btn { margin-top:10px; }
+.sunat-confirm-strip,
+.sunat-result-strip {
+  background:#f8fafc;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:18px;
+  padding:12px;
+  margin:10px 0 14px;
+}
+.sunat-confirm-strip span,
+.sunat-result-strip strong { color:#475569; font-weight:900; font-size:13px; }
+.premium-confirm-sale-card .confirm-sale-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sale-modal-close.neutral-close {
+  width:auto;
+  min-width:74px;
+  height:42px;
+  border-radius:999px;
+  color:#334155;
+  background:#f8fafc;
+  border:1px solid rgba(15,23,42,.08);
+  font-size:13px;
+}
+.sunat-disabled-action {
+  width:100%;
+  opacity:.68;
+  cursor:not-allowed;
+  margin-bottom:10px;
+  background:#f8fafc !important;
+}
+.premium-sale-modal-card .sale-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 720px) {
+  .cart-mobile-sheet.mobile-sheet-open {
+    max-height: 86svh;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .cart-item-controls { grid-template-columns: .9fr 1fr 1.1fr; gap:8px; align-items:end; }
+  .cart-item-controls label input { height:46px; }
+  .cart-item-total { min-height:46px; padding:9px 10px; }
+  .sale-total-panel { padding:14px; }
+  .document-type-tabs button { font-size:12px; min-height:42px; }
+  .notice-card.confirm-sale-card { width:min(92vw, 620px); padding:22px; border-radius:28px; }
+  .premium-confirm-sale-card .notice-icon { display:none; }
+  .premium-confirm-sale-card .notice-content h3 { font-size:25px; line-height:1.05; }
+  .premium-confirm-sale-card .notice-content p { font-size:14.5px; line-height:1.35; }
+  .premium-confirm-sale-card .confirm-sale-summary > div { padding:12px; border-radius:17px; }
+  .premium-confirm-sale-card .confirm-sale-summary span { font-size:10px; }
+  .premium-confirm-sale-card .confirm-sale-summary strong { font-size:17px; }
+  .premium-confirm-sale-card .notice-actions { display:grid; grid-template-columns:1fr 1.15fr; gap:10px; }
+  .premium-confirm-sale-card .notice-actions button { min-height:54px; }
+  .premium-sale-modal-card { max-height:86svh; overflow-y:auto; overscroll-behavior:contain; }
+  .premium-sale-modal-card .sale-modal-head { gap:12px; align-items:flex-start; }
+  .premium-sale-modal-card .sale-modal-head h2 { font-size:25px; line-height:1.05; }
+  .premium-sale-modal-card .sale-modal-head p { font-size:14px; line-height:1.35; }
+  .premium-sale-modal-card .sale-success-icon { width:58px; height:58px; min-width:58px; }
+}
