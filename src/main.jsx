@@ -673,7 +673,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [documentType, setDocumentType] = useState('Interno');
   const [customerDocType, setCustomerDocType] = useState('DNI');
   const [customerDocNumber, setCustomerDocNumber] = useState('');
-  const [customer, setCustomer] = useState('Cliente');
+  const [customer, setCustomer] = useState('Consumidor final');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [checkoutCustomers, setCheckoutCustomers] = useState(customers || []);
   const [customerQuery, setCustomerQuery] = useState('');
@@ -689,7 +689,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [scanStatus, setScanStatus] = useState('');
   const [notice, setNotice] = useState(null);
   const [globalDiscount, setGlobalDiscount] = useState('0');
-  const [showDiscounts, setShowDiscounts] = useState(false);
+  const [showItemDiscounts, setShowItemDiscounts] = useState(false);
+  const [showGlobalDiscount, setShowGlobalDiscount] = useState(false);
+  const [showMorePaymentMethods, setShowMorePaymentMethods] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [mixedPayments, setMixedPayments] = useState({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
@@ -699,6 +701,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const normalized = query.trim().toLowerCase();
   const activeProducts = useMemo(() => products.filter(p => p.active !== false), [products]);
   const fiscalMeta = documentMeta(documentType);
+  const isDefaultCheckoutCustomer = !customer || ['Cliente', 'Cliente general', 'Consumidor final'].includes(customer);
   const matches = useMemo(() => {
     const base = !normalized ? activeProducts.slice(0, 12) : activeProducts.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(normalized)).slice(0, 20);
     return base;
@@ -871,7 +874,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   function selectCheckoutCustomer(item) {
     const doc = String(item?.document || '');
     const docType = item?.document_type || inferDocumentType(doc);
-    setCustomer(item?.name || 'Cliente');
+    setCustomer(item?.name || 'Consumidor final');
     setSelectedCustomerId(item?.id || '');
     if (documentType !== 'Interno' || doc) {
       setCustomerDocType(documentType === 'Factura' ? 'RUC' : docType);
@@ -884,7 +887,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   function openQuickCustomer() {
     setCustomerPickerOpen(false);
     setQuickCustomer({
-      name: customer && customer !== 'Cliente' ? customer : '',
+      name: isDefaultCheckoutCustomer ? '' : customer,
       document_type: documentType === 'Factura' ? 'RUC' : customerDocType || 'DNI',
       document: customerDocNumber || '',
       phone: '',
@@ -930,7 +933,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (method === 'Mixto' && !paymentOk) { setNotice({ type: 'warning', icon: '💳', title: 'Pago mixto incompleto', message: `Falta cuadrar ${money(Math.abs(mixedBalance))}. El total de pagos debe coincidir con el total de la venta.` }); return false; }
     const doc = cleanDocument(customerDocNumber);
     if (documentType === 'Factura') {
-      if (customerDocType !== 'RUC' || doc.length !== 11 || !customer || customer === 'Cliente') {
+      if (customerDocType !== 'RUC' || doc.length !== 11 || isDefaultCheckoutCustomer) {
         setNotice({ type: 'warning', icon: '🧾', title: 'Factura incompleta', message: 'Para factura registra RUC de 11 dígitos y razón social del cliente desde “Nuevo cliente”.' });
         return false;
       }
@@ -950,7 +953,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     const saleMethod = method === 'Mixto' ? 'Mixto' : method;
     const fiscalStatus = documentType === 'Interno' ? 'Interno' : 'Pre-emisión';
     const salePayload = {
-      customer_name: customer || 'Cliente',
+      customer_name: customer || 'Consumidor final',
       customer_id: selectedCustomerId && !String(selectedCustomerId).startsWith('quick-') ? selectedCustomerId : null,
       payment_method: saleMethod,
       total,
@@ -992,7 +995,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalStatus, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: cleanDocument(customerDocNumber) }, items };
     openCompletedSale(completedSale);
     setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: documentType === 'Interno' ? `Comprobante interno listo por ${money(total)}.` : `${fiscalMeta.label} guardada como pre-emisión; todavía no se envió a SUNAT.` });
-    setCart([]); setCustomer('Cliente'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
+    setCart([]); setCustomer('Consumidor final'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setShowItemDiscounts(false); setShowGlobalDiscount(false); setShowMorePaymentMethods(false); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
     await reloadProducts();
     setTimeout(() => searchInputRef.current?.focus(), 250);
   }
@@ -1042,21 +1045,20 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             {cart.length === 0 ? <div className="empty-checkout-state"><strong>Aún no hay productos</strong><span>Busca, escanea o toca un producto para armar la venta.</span><button type="button" className="secondary-btn" onClick={() => setMobileCartOpen(false)}>Agregar productos</button></div> : cart.map(item => (
               <article className="cart-item-premium" key={item.id}>
                 <div className="cart-item-head"><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><button type="button" className="cart-remove-btn" aria-label={`Quitar ${item.name}`} title="Quitar producto" onClick={()=>removeItem(item.id)}>×</button></div>
-                <div className="cart-item-controls"><div className="cart-control-field"><span>Cant.</span><div className="quantity-stepper"><button type="button" aria-label="Restar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)-1)}>−</button><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><button type="button" aria-label="Sumar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)+1)}>+</button></div></div>{showDiscounts || asNum(item.discount) > 0 ? <label className="cart-control-field">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label> : <button type="button" className="add-line-discount" onClick={()=>setShowDiscounts(true)}>+ Desc.</button>}<div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
+                <div className="cart-item-controls"><div className="cart-control-field"><span>Cant.</span><div className="quantity-stepper"><button type="button" aria-label="Restar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)-1)}>−</button><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><button type="button" aria-label="Sumar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)+1)}>+</button></div></div>{showItemDiscounts || asNum(item.discount) > 0 ? <label className="cart-control-field">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label> : <button type="button" className="add-line-discount" onClick={()=>setShowItemDiscounts(true)}>Descuento ítem</button>}<div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
               </article>
             ))}
-            <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div>{showDiscounts || saleDiscount > 0 ? <div className="global-discount-row"><div className="global-discount-copy"><span>Desc. venta</span><button className="discount-clear-btn" type="button" onClick={()=>{ setGlobalDiscount('0'); setShowDiscounts(false); }}>Quitar</button></div><input aria-label="Descuento de venta" value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div> : <button type="button" className="add-global-discount" onClick={()=>setShowDiscounts(true)}>+ Agregar descuento</button>}<div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
+            <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div>{showGlobalDiscount || saleDiscount > 0 ? <div className="global-discount-row"><div className="global-discount-copy"><span>Desc. general</span><button className="discount-clear-btn" type="button" onClick={()=>{ setGlobalDiscount('0'); setShowGlobalDiscount(false); }}>Quitar</button></div><input aria-label="Descuento general" value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div> : <button type="button" className="add-global-discount" onClick={()=>setShowGlobalDiscount(true)}>Descuento general</button>}<div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
             <div className="sunat-ready-card checkout-fiscal-card checkout-fiscal-compact">
               <div className="sunat-card-head"><div><span className="eyebrow">Comprobante</span><strong>{fiscalMeta.label}</strong></div><span className={`sunat-status-pill ${sunatStatusClass(fiscalMeta.status)}`}>{fiscalMeta.status}</span></div>
               <div className="document-type-tabs">{DOCUMENT_TYPES.map(type => <button key={type} type="button" className={documentType === type ? 'active' : ''} onClick={()=>changeDocumentType(type)}>{type}</button>)}</div>
-              <div className="fiscal-compact-line"><span>{documentType === 'Interno' ? 'No se envía a SUNAT' : `Serie ${fiscalMeta.series} · pre-emisión`}</span><button type="button" className="fiscal-info-link" onClick={()=>setNotice({ type:'info', icon:'🧾', title:fiscalMeta.label, message:fiscalMeta.note })}>Info</button></div>
+              <div className="fiscal-compact-line"><span>{documentType === 'Interno' ? 'No se envía a SUNAT' : `Serie ${fiscalMeta.series} · pre-emisión`}</span><button type="button" className="fiscal-info-link" aria-label={`Información sobre ${fiscalMeta.label}`} title="Ver información" onClick={()=>setNotice({ type:'info', icon:'🧾', title:fiscalMeta.label, message:fiscalMeta.note })}>ⓘ</button></div>
             </div>
             <section className="checkout-customer-card customer-compact-card checkout-customer-summary">
-              <div className="checkout-customer-head"><div><span className="eyebrow">Cliente</span><strong>{customer || 'Cliente general'}</strong><small>{customerDocNumber ? `${customerDocType}: ${customerDocNumber}` : 'Venta rápida sin documento'}</small></div><div className="customer-compact-actions"><button type="button" className="secondary-btn mini-change-customer" onClick={()=>setCustomerPickerOpen(true)}>Cambiar</button><button type="button" className="mini-add-customer" onClick={openQuickCustomer}>+ Nuevo</button></div></div>
+              <div className="checkout-customer-head"><div><span className="eyebrow">Cliente</span><strong>{isDefaultCheckoutCustomer ? 'Consumidor final' : customer}</strong><small>{customerDocNumber ? `${customerDocType}: ${customerDocNumber}` : 'Venta rápida sin documento'}</small></div><div className="customer-compact-actions"><button type="button" className="secondary-btn mini-change-customer" onClick={()=>setCustomerPickerOpen(true)}>Cambiar</button><button type="button" className="mini-add-customer" onClick={openQuickCustomer}>+ Nuevo</button></div></div>
             </section>
             {documentType !== 'Interno' && <section className="fiscal-client-panel fiscal-client-compact"><div className="fiscal-client-title"><div><span className="eyebrow">Datos fiscales</span><strong>{documentType === 'Factura' ? 'RUC y razón social' : 'Documento opcional para boleta'}</strong></div><button type="button" className="fiscal-edit-btn" onClick={openQuickCustomer}>Editar</button></div><div className="sunat-client-grid"><select value={documentType === 'Factura' ? 'RUC' : customerDocType} disabled={documentType === 'Factura'} onChange={e=>setCustomerDocType(e.target.value)}><option>DNI</option><option>RUC</option><option>CE</option><option>Sin documento</option></select><input value={customerDocNumber} inputMode="numeric" onChange={e=>setCustomerDocNumber(cleanDocument(e.target.value))} placeholder={documentType === 'Factura' ? 'RUC de 11 dígitos' : 'Número opcional'} /></div></section>}
-            <div className="payment-fast-row"><button type="button" className={method==='Efectivo'?'active':''} onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" className={method==='Yape'?'active':''} onClick={()=>setMethod('Yape')}>Yape</button><button type="button" className={method==='Plin'?'active':''} onClick={()=>setMethod('Plin')}>Plin</button><button type="button" className={method==='Mixto'?'active':''} onClick={()=>setMethod('Mixto')}>Mixto</button></div>
-            <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option><option>Mixto</option></select>
+            <div className="payment-section"><span className="eyebrow payment-label">Método de pago</span><div className="payment-fast-row"><button type="button" className={method==='Efectivo'?'active':''} onClick={()=>{setMethod('Efectivo');setShowMorePaymentMethods(false);}}>Efectivo</button><button type="button" className={method==='Yape'?'active':''} onClick={()=>{setMethod('Yape');setShowMorePaymentMethods(false);}}>Yape</button><button type="button" className={method==='Plin'?'active':''} onClick={()=>{setMethod('Plin');setShowMorePaymentMethods(false);}}>Plin</button><button type="button" className={method==='Mixto'?'active':''} onClick={()=>{setMethod('Mixto');setShowMorePaymentMethods(false);}}>Mixto</button></div><button type="button" className="other-payment-toggle" onClick={()=>setShowMorePaymentMethods(v=>!v)}>{showMorePaymentMethods ? 'Ocultar otros métodos' : 'Otros métodos'}</button>{showMorePaymentMethods && <div className="additional-payment-row"><button type="button" className={method==='Tarjeta'?'active':''} onClick={()=>setMethod('Tarjeta')}>Tarjeta</button><button type="button" className={method==='Transferencia'?'active':''} onClick={()=>setMethod('Transferencia')}>Transferencia</button><button type="button" className={method==='Crédito'?'active':''} onClick={()=>setMethod('Crédito')}>Crédito</button></div>}</div>
             {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
           </div>
           <footer className="checkout-footer" aria-label="Resumen final de la venta">

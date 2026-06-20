@@ -2078,3 +2078,261 @@ html:has(body.clomar-modal-open){overflow:hidden!important;overscroll-behavior:n
     font-size:15px!important;
   }
 }
+
+/* =========================================================
+   V02.2O — Checkout Density & Payment Flow Polish
+   Checkout móvil compacto, método de pago sin duplicidades
+   y dock de acción integrado.
+   ========================================================= */
+.checkout-footer{
+  box-sizing:border-box!important;
+  width:100%!important;
+  padding:10px 14px calc(12px + env(safe-area-inset-bottom))!important;
+  background:#fff!important;
+  border-top:1px solid rgba(15,23,42,.10)!important;
+  box-shadow:0 -10px 26px rgba(15,23,42,.10)!important;
+}
+.checkout-footer-action{
+  box-sizing:border-box!important;
+  width:100%!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)!important;
+  align-items:stretch!important;
+  gap:8px!important;
+  padding:6px!important;
+  border:1px solid #dbe3f0!important;
+  border-radius:20px!important;
+  background:#f8fafc!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92)!important;
+}
+.checkout-total-dock{
+  box-sizing:border-box!important;
+  min-width:0!important;
+  min-height:52px!important;
+  padding:7px 11px!important;
+  border:0!important;
+  border-radius:14px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  display:grid!important;
+  align-content:center!important;
+  gap:2px!important;
+}
+.checkout-total-dock span{
+  color:#64748b!important;
+  font-size:10px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:.09em!important;
+  text-transform:uppercase!important;
+}
+.checkout-total-dock strong{
+  display:block!important;
+  min-width:0!important;
+  overflow:visible!important;
+  color:#0f172a!important;
+  font-size:22px!important;
+  line-height:1.05!important;
+  letter-spacing:-.055em!important;
+  white-space:nowrap!important;
+}
+.checkout-footer .checkout-submit-btn{
+  min-width:0!important;
+  min-height:52px!important;
+  margin:0!important;
+  padding:0 14px!important;
+  border-radius:14px!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  box-shadow:0 12px 22px rgba(15,23,42,.20)!important;
+}
+
+/* Menos ruido y mejor jerarquía para descuentos. */
+.add-line-discount,.add-global-discount{
+  min-height:40px!important;
+  border:1px solid #dbe3f0!important;
+  border-radius:12px!important;
+  background:#fff!important;
+  color:#334155!important;
+  box-shadow:none!important;
+  font-size:12px!important;
+  font-weight:850!important;
+}
+.add-line-discount::before,.add-global-discount::before{
+  content:'+';
+  margin-right:5px;
+  color:#0f172a;
+  font-weight:950;
+}
+.global-discount-row{
+  grid-template-columns:minmax(0,1fr) 92px!important;
+  align-items:center!important;
+  gap:9px!important;
+}
+.global-discount-copy>span{
+  color:#334155!important;
+  font-size:13px!important;
+  font-weight:800!important;
+}
+.discount-clear-btn{
+  background:#f1f5f9!important;
+  color:#64748b!important;
+  border:0!important;
+}
+
+/* Comprobante compacto: información secundaria bajo demanda. */
+.checkout-fiscal-compact{
+  padding:12px!important;
+  border-radius:16px!important;
+}
+.checkout-fiscal-compact .sunat-card-head{
+  margin-bottom:8px!important;
+}
+.checkout-fiscal-compact .sunat-card-head strong{
+  font-size:16px!important;
+  line-height:1.15!important;
+}
+.checkout-fiscal-compact .sunat-status-pill{
+  padding:6px 9px!important;
+  font-size:10px!important;
+}
+.checkout-fiscal-compact .document-type-tabs{
+  gap:7px!important;
+}
+.checkout-fiscal-compact .document-type-tabs button{
+  min-height:40px!important;
+  padding:0 8px!important;
+  border-radius:13px!important;
+  font-size:13px!important;
+}
+.checkout-fiscal-compact .fiscal-compact-line{
+  min-height:26px!important;
+  margin-top:8px!important;
+  font-size:12px!important;
+}
+.fiscal-info-link{
+  width:28px!important;
+  min-width:28px!important;
+  height:28px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #dbe3f0!important;
+  border-radius:999px!important;
+  background:#f8fafc!important;
+  color:#475569!important;
+  font-size:15px!important;
+  line-height:1!important;
+}
+
+/* Cliente y pagos: más densidad, menos elementos repetidos. */
+.checkout-customer-summary{
+  padding:12px!important;
+  border-radius:16px!important;
+}
+.checkout-customer-summary .checkout-customer-head strong{
+  font-size:16px!important;
+}
+.checkout-customer-summary .checkout-customer-head small{
+  font-size:12px!important;
+}
+.payment-section{
+  display:grid;
+  gap:8px;
+  margin:10px 0 0;
+}
+.payment-label{
+  padding-left:2px;
+}
+.payment-fast-row{
+  margin-top:0!important;
+}
+.other-payment-toggle{
+  justify-self:start;
+  min-height:30px;
+  padding:0 4px;
+  border:0;
+  background:transparent;
+  color:#64748b;
+  font-size:12px;
+  font-weight:800;
+}
+.other-payment-toggle::before{
+  content:'+';
+  margin-right:4px;
+  color:#0f172a;
+  font-weight:950;
+}
+.additional-payment-row{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+}
+.additional-payment-row button{
+  min-height:38px;
+  padding:0 6px;
+  border:1px solid #dbe3f0;
+  border-radius:12px;
+  background:#fff;
+  color:#475569;
+  font-size:11px;
+  font-weight:850;
+}
+.additional-payment-row button.active{
+  background:#0f172a;
+  color:#fff;
+  border-color:#0f172a;
+}
+
+@media(max-width:720px){
+  .cart-mobile-sheet .checkout-sheet-scroll{
+    padding:0 12px 16px!important;
+  }
+  .cart-mobile-sheet .checkout-footer{
+    padding:10px 12px calc(12px + env(safe-area-inset-bottom))!important;
+  }
+  .cart-mobile-sheet .checkout-footer-action{
+    grid-template-columns:minmax(108px,.86fr) minmax(0,1.14fr)!important;
+    gap:7px!important;
+    padding:5px!important;
+    border-radius:18px!important;
+  }
+  .cart-mobile-sheet .checkout-total-dock{
+    min-height:50px!important;
+    padding:7px 9px!important;
+  }
+  .cart-mobile-sheet .checkout-total-dock strong{
+    font-size:20px!important;
+  }
+  .cart-mobile-sheet .checkout-footer .checkout-submit-btn{
+    min-height:50px!important;
+    padding:0 10px!important;
+    font-size:15px!important;
+  }
+  .cart-mobile-sheet .checkout-fiscal-card{
+    margin:9px 0!important;
+  }
+  .cart-mobile-sheet .payment-section{
+    margin-top:9px!important;
+  }
+  .cart-mobile-sheet .payment-fast-row{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:6px!important;
+  }
+  .cart-mobile-sheet .payment-fast-row button{
+    min-height:40px!important;
+    font-size:11px!important;
+  }
+  .cart-mobile-sheet .other-payment-toggle{
+    min-height:28px!important;
+    font-size:11px!important;
+  }
+  .cart-mobile-sheet .additional-payment-row button{
+    min-height:37px!important;
+    font-size:10.5px!important;
+  }
+  .cart-mobile-sheet .add-line-discount,.cart-mobile-sheet .add-global-discount{
+    min-height:38px!important;
+    font-size:11px!important;
+  }
+}
