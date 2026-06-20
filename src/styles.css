@@ -1989,3 +1989,92 @@ html:has(body.clomar-modal-open){overflow:hidden!important;overscroll-behavior:n
     font-size:13px;
   }
 }
+
+
+/* =========================================================
+   V02.2N — Checkout Action Dock Premium
+   Barra de cobro visible, sin texto cortado ni duplicación.
+   ========================================================= */
+.checkout-footer{
+  width:100%!important;
+  padding:12px 14px calc(14px + env(safe-area-inset-bottom))!important;
+  background:#fff!important;
+  border-top:1px solid rgba(15,23,42,.10)!important;
+  box-shadow:0 -14px 32px rgba(15,23,42,.10)!important;
+}
+.checkout-footer-action{
+  width:100%!important;
+  display:grid!important;
+  grid-template-columns:minmax(126px,.8fr) minmax(0,1.2fr)!important;
+  align-items:stretch!important;
+  gap:10px!important;
+}
+.checkout-total-dock{
+  min-width:0;
+  min-height:54px;
+  display:grid;
+  align-content:center;
+  gap:1px;
+  padding:8px 13px;
+  border:1px solid #dbe3f0;
+  border-radius:16px;
+  background:linear-gradient(135deg,#f8fafc,#eef2ff);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92);
+}
+.checkout-total-dock span{
+  font-size:10px;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  color:#64748b;
+}
+.checkout-total-dock strong{
+  display:block;
+  overflow:hidden;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.05;
+  letter-spacing:-.055em;
+  white-space:nowrap;
+}
+.checkout-footer .checkout-submit-btn{
+  width:auto!important;
+  min-width:0!important;
+  min-height:54px!important;
+  margin:0!important;
+  border-radius:16px!important;
+  font-size:16px!important;
+  letter-spacing:-.015em;
+  box-shadow:0 14px 24px rgba(15,23,42,.20)!important;
+}
+@media(min-width:721px){
+  .pos-pro-page .cart-card>.checkout-footer{
+    width:calc(100% + 36px)!important;
+  }
+}
+@media(max-width:720px){
+  .cart-mobile-sheet .checkout-sheet-scroll{
+    padding-bottom:18px!important;
+  }
+  .cart-mobile-sheet .checkout-footer{
+    width:100%!important;
+    padding:11px 12px calc(12px + env(safe-area-inset-bottom))!important;
+  }
+  .cart-mobile-sheet .checkout-footer-action{
+    grid-template-columns:minmax(118px,.86fr) minmax(0,1.14fr)!important;
+    gap:9px!important;
+  }
+  .cart-mobile-sheet .checkout-total-dock{
+    min-height:52px;
+    padding:7px 11px;
+    border-radius:15px;
+  }
+  .cart-mobile-sheet .checkout-total-dock strong{
+    font-size:20px;
+  }
+  .cart-mobile-sheet .checkout-footer .checkout-submit-btn{
+    min-height:52px!important;
+    font-size:15px!important;
+  }
+}

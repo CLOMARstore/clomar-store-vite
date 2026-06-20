@@ -1059,9 +1059,12 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             <select value={method} onChange={(e)=>setMethod(e.target.value)}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option><option>Mixto</option></select>
             {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
           </div>
-          <footer className="checkout-footer">
+          <footer className="checkout-footer" aria-label="Resumen final de la venta">
             <div className="checkout-footer-action">
-              <strong aria-label={`Total ${money(total)}`}>{money(total)}</strong>
+              <div className="checkout-total-dock" aria-label={`Total ${money(total)}`}>
+                <span>Total</span>
+                <strong>{money(total)}</strong>
+              </div>
               <button className="primary-btn checkout-submit-btn" disabled={saving} onClick={submitCheckout}>{checkoutButtonLabel}</button>
             </div>
           </footer>
