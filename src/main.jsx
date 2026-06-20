@@ -1,4 +1,4 @@
-/* V02.2J Clientes Inteligentes + Fiscal Checkout Pro */
+/* V02.2K Responsive Checkout + Importador Pro */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V02.2J Clientes Inteligentes + Fiscal Checkout Pro';
+const APP_VERSION = 'V02.2K Responsive Checkout + Importador Pro';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -678,6 +678,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [checkoutCustomers, setCheckoutCustomers] = useState(customers || []);
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerQuickOpen, setCustomerQuickOpen] = useState(false);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [quickCustomerSaving, setQuickCustomerSaving] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState({ name: '', document_type: 'DNI', document: '', phone: '', address: '' });
   const [saving, setSaving] = useState(false);
@@ -720,11 +721,11 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
 
   useEffect(() => { setCheckoutCustomers(customers || []); }, [customers]);
   useEffect(() => {
-    const shouldLock = mobileCartOpen || customerQuickOpen || confirmOpen || Boolean(saleModal);
+    const shouldLock = mobileCartOpen || customerQuickOpen || customerPickerOpen || confirmOpen || Boolean(saleModal);
     const previous = document.body.style.overflow;
     if (shouldLock) document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previous; };
-  }, [mobileCartOpen, customerQuickOpen, confirmOpen, saleModal]);
+  }, [mobileCartOpen, customerQuickOpen, customerPickerOpen, confirmOpen, saleModal]);
 
   function clearLastTicketBackup() {
     try { sessionStorage.removeItem('clomar_last_completed_sale'); } catch (err) { /* no-op */ }
@@ -856,9 +857,11 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       setCustomerDocNumber(doc);
     }
     setCustomerQuery('');
+    setCustomerPickerOpen(false);
   }
 
   function openQuickCustomer() {
+    setCustomerPickerOpen(false);
     setQuickCustomer({
       name: customer && customer !== 'Cliente' ? customer : '',
       document_type: documentType === 'Factura' ? 'RUC' : customerDocType || 'DNI',
@@ -990,6 +993,15 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
         forceRuc={documentType === 'Factura'}
         onSave={saveQuickCustomer}
       />
+      <CheckoutCustomerPickerModal
+        open={customerPickerOpen}
+        onClose={() => setCustomerPickerOpen(false)}
+        query={customerQuery}
+        setQuery={setCustomerQuery}
+        matches={customerMatches}
+        onSelect={selectCheckoutCustomer}
+        onCreate={openQuickCustomer}
+      />
       <SaleConfirmModal open={confirmOpen} onClose={()=>setConfirmOpen(false)} onConfirm={checkout} saving={saving} subtotal={subtotal} itemDiscountTotal={itemDiscountTotal} saleDiscount={saleDiscount} total={total} method={method} mixedPayments={mixedPayments} mixedTotal={mixedTotal} customer={customer} cart={cart} documentType={documentType} customerDocType={customerDocType} customerDocNumber={customerDocNumber} />
       <SaleCompleteModal ticket={saleModal} store={store} profile={profile} onClose={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }} onNewSale={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} onGoReceipts={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); onGoReceipts?.(); }} />
       <div className="hero compact-hero"><h1>🧾 Checkout fiscal</h1><p>Venta interna, boleta y factura preparadas para una futura integración segura con PSE/OSE.</p></div>
@@ -1007,8 +1019,8 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
           <h3><ShoppingCart size={20}/> Carrito</h3>
           {cart.length === 0 ? <div className="empty-checkout-state"><strong>Aún no hay productos</strong><span>Busca, escanea o toca un producto para armar la venta.</span><button type="button" className="secondary-btn" onClick={() => setMobileCartOpen(false)}>Agregar productos</button></div> : cart.map(item => (
             <article className="cart-item-premium" key={item.id}>
-              <div className="cart-item-head"><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><button type="button" className="cart-remove-btn" aria-label={`Quitar ${item.name}`} onClick={()=>removeItem(item.id)}>Eliminar</button></div>
-              <div className="cart-item-controls"><label>Cant.<input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /></label><label>Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label><div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
+              <div className="cart-item-head"><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><button type="button" className="cart-remove-btn" aria-label={`Quitar ${item.name}`} onClick={()=>removeItem(item.id)}>Quitar</button></div>
+              <div className="cart-item-controls"><div className="cart-control-field"><span>Cant.</span><div className="quantity-stepper"><button type="button" aria-label="Restar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)-1)}>−</button><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><button type="button" aria-label="Sumar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)+1)}>+</button></div></div><label className="cart-control-field">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label><div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
             </article>
           ))}
           <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div><div><span>Desc. venta</span><input value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div><div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
@@ -1018,11 +1030,9 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             <div className="fiscal-compact-line"><span>Serie {fiscalMeta.series}</span><span>{documentType === 'Interno' ? 'Control interno' : 'PSE/OSE: no conectado'}</span></div>
             <p>{fiscalMeta.note}</p>
           </div>
-          <section className="checkout-customer-card">
-            <div className="checkout-customer-head"><div><span className="eyebrow">Cliente</span><strong>{customer || 'Cliente'}</strong></div><button type="button" className="mini-add-customer" onClick={openQuickCustomer}>+ Nuevo</button></div>
-            <div className="customer-search-picker"><Search size={17}/><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} placeholder="Buscar por nombre, DNI, RUC o teléfono" />{customerQuery && <button type="button" className="clear-customer-query" onClick={()=>setCustomerQuery('')}>×</button>}</div>
-            {(customerQuery || customerMatches.length > 0) && <div className="customer-suggestions">{customerMatches.map(item => <button type="button" key={item.id} onClick={()=>selectCheckoutCustomer(item)}><span><strong>{item.name}</strong><small>{item.document || 'Sin documento'} · {item.phone || 'Sin teléfono'}</small></span><b>Usar</b></button>)}<button type="button" className="create-customer-inline" onClick={openQuickCustomer}>+ Registrar cliente desde esta venta</button></div>}
-            {customer !== 'Cliente' && <div className="selected-customer-chip"><span>Seleccionado: {customer}</span><button type="button" onClick={()=>{setCustomer('Cliente');setSelectedCustomerId('');setCustomerDocNumber('');}}>Quitar</button></div>}
+          <section className="checkout-customer-card customer-compact-card">
+            <div className="checkout-customer-head"><div><span className="eyebrow">Cliente</span><strong>{customer || 'Cliente general'}</strong><small>{customerDocNumber ? `${customerDocType}: ${customerDocNumber}` : 'Sin documento registrado'}</small></div><div className="customer-compact-actions"><button type="button" className="secondary-btn mini-change-customer" onClick={()=>setCustomerPickerOpen(true)}>Cambiar</button><button type="button" className="mini-add-customer" onClick={openQuickCustomer}>+ Nuevo</button></div></div>
+            {customer !== 'Cliente' && <button type="button" className="selected-customer-chip customer-clear-selection" onClick={()=>{setCustomer('Cliente');setSelectedCustomerId('');setCustomerDocNumber('');setCustomerDocType(documentType === 'Factura' ? 'RUC' : 'DNI');}}>Quitar cliente seleccionado</button>}
           </section>
           {documentType !== 'Interno' && <section className="fiscal-client-panel"><div className="fiscal-client-title"><div><span className="eyebrow">Datos fiscales</span><strong>{documentType === 'Factura' ? 'RUC y razón social obligatorios' : 'DNI, RUC o venta sin documento'}</strong></div><button type="button" className="fiscal-edit-btn" onClick={openQuickCustomer}>Editar cliente</button></div><div className="sunat-client-grid"><select value={documentType === 'Factura' ? 'RUC' : customerDocType} disabled={documentType === 'Factura'} onChange={e=>setCustomerDocType(e.target.value)}><option>DNI</option><option>RUC</option><option>CE</option><option>Sin documento</option></select><input value={customerDocNumber} inputMode="numeric" onChange={e=>setCustomerDocNumber(cleanDocument(e.target.value))} placeholder={documentType === 'Factura' ? 'RUC de 11 dígitos' : 'Número de documento opcional'} /></div><div className="lookup-note"><span>Consulta automática DNI/RUC</span><small>No conectada. Se habilita después mediante backend seguro y proveedor autorizado.</small></div></section>}
           <div className="payment-fast-row"><button type="button" className={method==='Efectivo'?'active':''} onClick={()=>setMethod('Efectivo')}>Efectivo</button><button type="button" className={method==='Yape'?'active':''} onClick={()=>setMethod('Yape')}>Yape</button><button type="button" className={method==='Plin'?'active':''} onClick={()=>setMethod('Plin')}>Plin</button><button type="button" className={method==='Mixto'?'active':''} onClick={()=>setMethod('Mixto')}>Mixto</button></div>
@@ -1032,6 +1042,23 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
         </aside>
       </div>
       {cart.length > 0 && <div className="mobile-checkout-bar"><div><small>Total</small><strong>{money(total)}</strong><span>{cart.length} producto(s)</span></div><button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito</button></div>}
+    </div>
+  );
+}
+
+function CheckoutCustomerPickerModal({ open, onClose, query, setQuery, matches = [], onSelect, onCreate }) {
+  if (!open) return null;
+  return (
+    <div className="customer-modal-backdrop customer-picker-backdrop" role="dialog" aria-modal="true" onMouseDown={(event)=>{ if (event.target === event.currentTarget) onClose(); }}>
+      <section className="customer-modal-card customer-picker-card">
+        <div className="customer-modal-handle" />
+        <div className="customer-modal-head"><div><span className="eyebrow">Cliente de la venta</span><h3>Buscar o seleccionar</h3><p>Busca por nombre, DNI, RUC o teléfono. Selecciona un cliente para usarlo en esta venta.</p></div><button type="button" className="sheet-x-btn" onClick={onClose}>×</button></div>
+        <div className="customer-search-picker customer-picker-search"><Search size={18}/><input autoFocus value={query} onChange={event=>setQuery(event.target.value)} placeholder="Nombre, DNI, RUC o teléfono" />{query && <button type="button" className="clear-customer-query" onClick={()=>setQuery('')}>×</button>}</div>
+        <div className="customer-picker-results">
+          {matches.length ? matches.map(item => <button type="button" key={item.id} onClick={()=>onSelect(item)}><span><strong>{item.name}</strong><small>{item.document || 'Sin documento'} · {item.phone || 'Sin teléfono'}</small></span><b>Usar</b></button>) : <div className="empty-customer-picker">No se encontraron clientes con esa búsqueda.</div>}
+        </div>
+        <button type="button" className="create-customer-inline customer-picker-create" onClick={onCreate}>+ Registrar nuevo cliente</button>
+      </section>
     </div>
   );
 }
@@ -2643,10 +2670,18 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
   const [rawRows, setRawRows] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [importMode, setImportMode] = useState('Completo');
   const [exporting, setExporting] = useState(false);
 
   const categoryByName = useMemo(() => { const map = new Map(); categories.forEach(c => map.set(normalizeText(c.name), c)); return map; }, [categories]);
   const subcategoryByParentAndName = useMemo(() => { const map = new Map(); subcategories.forEach(sc => map.set(`${sc.parent_id}|${normalizeText(sc.name)}`, sc)); return map; }, [subcategories]);
+  const productByCode = useMemo(() => { const map = new Map(); products.forEach(p => { const key = normalizeText(p.code || ''); if (key) map.set(key, p); }); return map; }, [products]);
+  const importOverview = useMemo(() => {
+    const errors = rawRows.filter(r => r.errors.length).length;
+    const valid = rawRows.length - errors;
+    const existing = rawRows.filter(r => productByCode.has(normalizeText(r.code))).length;
+    return { errors, valid, existing, newRows: Math.max(0, valid - existing) };
+  }, [rawRows, productByCode]);
 
   function normalizeImportedRow(row, idx) {
     const normalized = {};
@@ -2673,21 +2708,44 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
 
   async function parseFile(e) {
     const file = e.target.files?.[0]; setImportResult(null); setPreviewRows([]); setRawRows([]); if (!file) return; setFileName(file.name);
-    try { const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }); const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx)); setRawRows(normalized); setPreviewRows(normalized.slice(0, 30)); } catch (error) { alert(error.message || 'No se pudo leer el archivo Excel.'); }
+    try { const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }); const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx)); const codeCounts = normalized.reduce((acc, row) => { const key = normalizeText(row.code || ''); if (key) acc.set(key, (acc.get(key) || 0) + 1); return acc; }, new Map()); normalized.forEach(row => { if (codeCounts.get(normalizeText(row.code || '')) > 1) row.errors.push('Código interno duplicado en el Excel'); }); setRawRows(normalized); setPreviewRows(normalized.slice(0, 30)); } catch (error) { alert(error.message || 'No se pudo leer el archivo Excel.'); }
   }
 
   async function importProducts() {
     if (!rawRows.length) return alert('Primero carga un Excel.');
     const invalid = rawRows.filter(r => r.errors.length);
     if (invalid.length) return alert(`Hay ${invalid.length} filas con errores. Corrige el Excel antes de importar.`);
+    const storeId = profile?.store_id || DEFAULT_STORE_ID;
+    if (importMode !== 'Completo') {
+      const missing = rawRows.filter(r => !productByCode.has(normalizeText(r.code)));
+      if (missing.length) return alert(`En modo “${importMode}” todos los códigos deben existir. Hay ${missing.length} código(s) que no se encontraron.`);
+    }
     setImporting(true);
     try {
-      const payloads = rawRows.map(r => ({ code: r.code, barcode: r.barcode, name: r.name, category: r.category, subcategory: r.subcategory, category_id: r.category_id, subcategory_id: r.subcategory_id, brand: r.brand, size: r.size, color: r.color, description: r.description, cost: r.cost, price: r.price, price_status: r.price_status, margin_target: r.margin_target, min_price: r.min_price, price_notes: r.price_notes, price_updated_at: new Date().toISOString(), price_updated_by: profile?.id || null, stock: r.stock, stock_min: r.stock_min, image_url: r.image_url, image_path: '', active: r.active, status: r.active ? 'Activo' : 'Inactivo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null, updated_at: new Date().toISOString() }));
-      const chunks = []; for (let i = 0; i < payloads.length; i += 200) chunks.push(payloads.slice(i, i + 200));
       let count = 0;
-      for (const chunk of chunks) { const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' }); if (error) throw error; count += chunk.length; }
-      await supabase.from('product_import_batches').insert({ store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null, file_name: fileName, total_rows: rawRows.length, imported_rows: count, status: 'Importado', notes: 'Importación desde V02.2 PRO TOTAL' }).then(()=>{});
-      setImportResult({ count }); setPreviewRows([]); setRawRows([]); setFileName(''); await reloadProducts?.(); alert(`Importación completada: ${count} productos.`);
+      let created = 0;
+      let updated = 0;
+      if (importMode === 'Solo stock') {
+        for (const row of rawRows) {
+          const { error } = await supabase.from('products').update({ stock: row.stock, stock_min: row.stock_min, updated_at: new Date().toISOString() }).eq('code', row.code).eq('store_id', storeId);
+          if (error) throw error;
+          count += 1; updated += 1;
+        }
+      } else if (importMode === 'Solo precios') {
+        for (const row of rawRows) {
+          const { error } = await supabase.from('products').update({ cost: row.cost, price: row.price, price_status: row.price_status, margin_target: row.margin_target, min_price: row.min_price, price_notes: row.price_notes, price_updated_at: new Date().toISOString(), price_updated_by: profile?.id || null, updated_at: new Date().toISOString() }).eq('code', row.code).eq('store_id', storeId);
+          if (error) throw error;
+          count += 1; updated += 1;
+        }
+      } else {
+        const payloads = rawRows.map(r => ({ code: r.code, barcode: r.barcode, name: r.name, category: r.category, subcategory: r.subcategory, category_id: r.category_id, subcategory_id: r.subcategory_id, brand: r.brand, size: r.size, color: r.color, description: r.description, cost: r.cost, price: r.price, price_status: r.price_status, margin_target: r.margin_target, min_price: r.min_price, price_notes: r.price_notes, price_updated_at: new Date().toISOString(), price_updated_by: profile?.id || null, stock: r.stock, stock_min: r.stock_min, image_url: r.image_url, image_path: '', active: r.active, status: r.active ? 'Activo' : 'Inactivo', store_id: storeId, created_by: profile?.id || null, updated_at: new Date().toISOString() }));
+        const chunks = []; for (let i = 0; i < payloads.length; i += 200) chunks.push(payloads.slice(i, i + 200));
+        for (const chunk of chunks) { const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' }); if (error) throw error; count += chunk.length; }
+        updated = rawRows.filter(r => productByCode.has(normalizeText(r.code))).length;
+        created = Math.max(0, count - updated);
+      }
+      await supabase.from('product_import_batches').insert({ store_id: storeId, user_id: profile?.id || null, file_name: fileName, total_rows: rawRows.length, imported_rows: count, status: 'Importado', notes: `V02.2K · ${importMode} · nuevos ${created} · actualizados ${updated}` }).then(()=>{});
+      setImportResult({ count, created, updated, mode: importMode }); setPreviewRows([]); setRawRows([]); setFileName(''); await reloadProducts?.(); alert(`Importación completada: ${count} producto(s).`);
     } catch (error) { alert(error.message || 'No se pudo importar productos.'); } finally { setImporting(false); }
   }
 
@@ -2722,7 +2780,7 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
       <div className="tool-grid">
         <section className="card compact-card backup-card"><h3>Backup / exportación general</h3><p className="muted">Descarga un respaldo JSON y Excel con productos, ventas, caja, créditos, clientes, movimientos y precios.</p><div className="backup-points"><div><strong>{products.length}</strong><small>productos</small></div><div><strong>{categories.length}</strong><small>categorías</small></div><div><strong>{subcategories.length}</strong><small>subcategorías</small></div></div><button className="primary-btn" disabled={exporting} onClick={exportGeneralBackup}>{exporting ? 'Exportando...' : 'Exportar backup JSON + Excel'}</button><p className="muted">Recomendación: hacer backup antes de cada actualización grande.</p></section>
         <section className="card compact-card danger-zone-card"><h3>Reinicio controlado</h3><p className="muted">Borra datos operativos de prueba y conserva usuarios, roles, tienda, logo, categorías y subcategorías.</p><div className="reset-keep-delete"><div><strong>Conserva</strong><small>Usuarios · Roles · Tienda · Logo · Categorías</small></div><div><strong>Borra</strong><small>Productos · Ventas · Caja · Créditos · Clientes · Movimientos</small></div></div><label className="check-row"><input type="checkbox" checked={deleteImages} onChange={e=>setDeleteImages(e.target.checked)} /> Borrar también imágenes del bucket product-images</label><label>Confirmación obligatoria<input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder="Escribe REINICIAR CLOMAR" /></label><button className="danger-btn" disabled={resetting} onClick={controlledReset}>{resetting ? 'Reiniciando...' : 'Reiniciar datos de prueba'}</button></section>
-        <section className="card compact-card"><h3>Importar productos desde Excel</h3><p className="muted">Carga una plantilla .xlsx con productos reales. Si falta código o barcode, la app genera uno interno.</p><a className="secondary-btn" href="/plantilla_productos_clomar_v0112.xlsx" download>Descargar plantilla Excel</a><label>Seleccionar archivo Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={parseFile} /></label>{fileName && <div className="info-box">Archivo cargado: <strong>{fileName}</strong> · Filas leídas: {rawRows.length}</div>}{rawRows.length > 0 && <div className="import-summary"><Kpi label="Filas" value={rawRows.length} helper="productos detectados" /><Kpi label="Errores" value={rawRows.filter(r=>r.errors.length).length} helper="deben corregirse" /><Kpi label="Listos" value={rawRows.filter(r=>!r.errors.length).length} helper="para importar" /></div>}{previewRows.length > 0 && <div className="preview-table-wrap"><table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Estado precio</th><th>Stock</th><th>Errores</th></tr></thead><tbody>{previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.price_status}</td><td>{r.stock}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}</tbody></table></div>}<button className="primary-btn" disabled={!rawRows.length || importing || rawRows.some(r=>r.errors.length)} onClick={importProducts}>{importing ? 'Importando...' : 'Importar productos'}</button>{importResult && <div className="success-box">Importación completada: {importResult.count} productos.</div>}</section>
+        <section className="card compact-card import-pro-card"><div className="import-pro-head"><div><span className="eyebrow">Asistente de carga</span><h3>Importar productos desde Excel</h3><p className="muted">Valida códigos, detecta duplicados y elige si deseas importar todo, actualizar solo stock o solo precios.</p></div><a className="secondary-btn" href="/plantilla_productos_clomar_v0112.xlsx" download>Descargar plantilla</a></div><div className="import-steps"><span>1. Plantilla</span><span>2. Revisar</span><span>3. Importar</span></div><div className="import-mode-picker"><button type="button" className={importMode === 'Completo' ? 'active' : ''} onClick={()=>setImportMode('Completo')}>Completo</button><button type="button" className={importMode === 'Solo stock' ? 'active' : ''} onClick={()=>setImportMode('Solo stock')}>Solo stock</button><button type="button" className={importMode === 'Solo precios' ? 'active' : ''} onClick={()=>setImportMode('Solo precios')}>Solo precios</button></div><p className="import-mode-note">{importMode === 'Completo' ? 'Crea productos nuevos y actualiza los que coincidan por código interno.' : importMode === 'Solo stock' ? 'Actualiza stock y stock mínimo. Todos los códigos del Excel deben existir.' : 'Actualiza costo, precio y validación. Todos los códigos del Excel deben existir.'}</p><label className="import-file-field">Seleccionar archivo Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={parseFile} /></label>{fileName && <div className="info-box">Archivo cargado: <strong>{fileName}</strong> · Filas leídas: {rawRows.length}</div>}{rawRows.length > 0 && <div className="import-summary import-pro-summary"><Kpi label="Filas" value={rawRows.length} helper="leídas" /><Kpi label="Nuevos" value={importOverview.newRows} helper="por crear" /><Kpi label="Actualizar" value={importOverview.existing} helper="ya existen" /><Kpi label="Errores" value={importOverview.errors} helper="corregir antes" /></div>}{previewRows.length > 0 && <div className="preview-table-wrap"><table className="preview-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Precio</th><th>Estado precio</th><th>Stock</th><th>Acción</th><th>Errores</th></tr></thead><tbody>{previewRows.map(r => <tr key={r.rowNumber} className={r.errors.length ? 'row-error' : ''}><td>{r.rowNumber}</td><td>{r.code}</td><td>{r.name}</td><td>{r.category}</td><td>{r.subcategory}</td><td>{money(r.price)}</td><td>{r.price_status}</td><td>{r.stock}</td><td>{productByCode.has(normalizeText(r.code)) ? 'Actualizar' : importMode === 'Completo' ? 'Crear' : 'No existe'}</td><td>{r.errors.length ? r.errors.join('; ') : 'OK'}</td></tr>)}</tbody></table></div>}<button className="primary-btn" disabled={!rawRows.length || importing || rawRows.some(r=>r.errors.length)} onClick={importProducts}>{importing ? 'Importando...' : importMode === 'Completo' ? 'Importar productos' : importMode === 'Solo stock' ? 'Actualizar stock' : 'Actualizar precios'}</button>{importResult && <div className="success-box">Importación completada: {importResult.count} producto(s). Nuevos: {importResult.created} · Actualizados: {importResult.updated} · Modo: {importResult.mode}.</div>}</section>
       </div>
     </div>
   );
