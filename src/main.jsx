@@ -666,7 +666,7 @@ function Panel({ products, profile }) {
   );
 }
 
-function POS({ products, reloadProducts, customers, profile, store, onGoReceipts }) {
+function POS({ products, reloadProducts, customers, profile, store, onGoReceipts, menuOpen = false }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [method, setMethod] = useState('Efectivo');
@@ -735,6 +735,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             : 'Registrar factura pendiente';
 
   useEffect(() => { setCheckoutCustomers(customers || []); }, [customers]);
+  useEffect(() => { if (menuOpen) setMobileCartOpen(false); }, [menuOpen]);
   useEffect(() => {
     const shouldLock = mobileCartOpen || customerQuickOpen || customerPickerOpen || confirmOpen || Boolean(saleModal);
     const previousBodyOverflow = document.body.style.overflow;
@@ -862,6 +863,17 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   function updateQty(id, qty) { setCart(prev => prev.map(x => x.id === id ? { ...x, qty: Math.max(1, Math.min(asNum(x.stock), asNum(qty || 1))) } : x)); }
   function updateItemDiscount(id, value) { setCart(prev => prev.map(x => x.id === id ? { ...x, discount: Math.max(0, Math.min(lineBase(x), asNum(value))) } : x)); }
   function removeItem(id) { setCart(prev => prev.filter(x => x.id !== id)); }
+  function clearCart() {
+    if (!cart.length) return;
+    const accepted = window.confirm('¿Vaciar el carrito actual?');
+    if (!accepted) return;
+    setCart([]);
+    setGlobalDiscount('0');
+    setShowItemDiscounts(false);
+    setShowGlobalDiscount(false);
+    setMobileCartOpen(false);
+    setNotice({ type:'info', icon:'🛒', title:'Carrito vaciado', message:'Puedes seleccionar nuevos productos para iniciar otra venta.' });
+  }
   function setMixed(methodName, value) { setMixedPayments(prev => ({ ...prev, [methodName]: value })); }
   function fillMixed(methodName) { setMixed(methodName, Math.max(0, total - (mixedTotal - asNum(mixedPayments[methodName]))).toFixed(2)); }
 
@@ -1036,7 +1048,14 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
           <div className="scanner-help">Lector físico: enfoca el buscador y escanea. Cámara: abre el escáner y apunta al código.</div>
           {scanStatus && <div className="scan-status">{scanStatus}</div>}
           {scanOpen && <div className="scanner-panel"><div className="scanner-head"><strong>Escáner con cámara</strong><button className="icon-btn" type="button" onClick={stopScanner}>×</button></div><div className="scanner-frame"><video ref={videoRef} muted playsInline /></div><p className="muted">Usa la cámara trasera del celular. Si no detecta, escribe el código manualmente en el buscador.</p></div>}
-          <div className="product-list">{matches.map(product => (<button key={product.id} className="product-row product-row-media" onClick={() => addProduct(product)}><img className="product-thumb" src={productImageSrc(product)} alt={product.name} /><div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span></div><b>{money(product.price)}</b></button>))}{!matches.length && <p className="muted">No se encontraron productos.</p>}</div>
+          <div className="product-list">{matches.map(product => {
+            const cartItem = cart.find(item => item.id === product.id);
+            return <button key={product.id} type="button" className={`product-row product-row-media ${cartItem ? 'product-in-cart' : ''}`} onClick={() => addProduct(product)} aria-label={`Agregar ${product.name} al carrito`}>
+              <img className="product-thumb" src={productImageSrc(product)} alt={product.name} />
+              <div className="product-row-info"><strong>{product.name}</strong><small>{product.code} · {product.category}{product.subcategory ? ` / ${product.subcategory}` : ''} · {product.brand || 'Sin marca'} · Stock {asNum(product.stock)}</small><span className={priceBadgeClass(productPriceStatus(product))}>{productPriceStatus(product)}</span>{cartItem && <em className="product-cart-badge">En carrito · {cartItem.qty}</em>}</div>
+              <b>{money(product.price)}</b>
+            </button>;
+          })}{!matches.length && <p className="muted">No se encontraron productos.</p>}</div>
         </section>
         <aside className={`card compact-card cart-card pro-cart-card cart-mobile-sheet ${mobileCartOpen ? 'mobile-sheet-open' : ''}`}>
           <button className="sheet-close-btn cart-sheet-close" type="button" aria-label="Cerrar carrito" title="Cerrar carrito" onClick={() => setMobileCartOpen(false)}>×</button>
@@ -1072,7 +1091,11 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
           </footer>
         </aside>
       </div>
-      {cart.length > 0 && <div className="mobile-checkout-bar"><div><small>Total</small><strong>{money(total)}</strong><span>{cart.length} producto(s)</span></div><button type="button" className="primary-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito</button></div>}
+      {cart.length > 0 && !mobileCartOpen && !menuOpen && !customerQuickOpen && !customerPickerOpen && !confirmOpen && !saleModal && <div className="mobile-checkout-bar" role="status" aria-label={`${cart.length} producto(s) en el carrito por ${money(total)}`}>
+        <div className="mobile-cart-summary"><small>Carrito activo</small><strong>{cart.length} producto(s) · {money(total)}</strong></div>
+        <button type="button" className="mobile-cart-clear" onClick={clearCart}>Vaciar</button>
+        <button type="button" className="primary-btn mobile-cart-open-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito</button>
+      </div>}
     </div>
   );
 }
@@ -2863,7 +2886,7 @@ function StoreSettings({ store, reloadProfile }) {
 }
 
 
-function MobileBottomNav({ current, setCurrent, role }) {
+function MobileBottomNav({ current, setCurrent, role, menuOpen = false }) {
   const labelMap = {
     panel: ['📊', 'Inicio'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
   };
@@ -2875,7 +2898,7 @@ function MobileBottomNav({ current, setCurrent, role }) {
         ? ['panel', 'reportes', 'inventario']
         : ['panel', 'ventas', 'reportes', 'caja', 'herramientas'];
   const items = preferred.filter(key => canAccess(role, key) && labelMap[key]).slice(0, 5);
-  if (!items.length) return null;
+  if (!items.length || menuOpen) return null;
   return (
     <nav className="mobile-bottom-nav" aria-label="Navegación móvil principal">
       {items.map(key => {
@@ -2904,7 +2927,7 @@ function AppShell({ session }) {
 
   const contentMap = {
     panel: <Panel products={products} profile={profile}/>,
-    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} onGoReceipts={() => setCurrent('comprobantes')}/>,
+    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} menuOpen={open} onGoReceipts={() => setCurrent('comprobantes')}/>,
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
@@ -2926,7 +2949,7 @@ function AppShell({ session }) {
       <button className={`sidebar-scrim ${open ? 'show' : ''}`} type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} />
       <Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session} profile={profile} store={store}/>
       <main className="main main-pro"><Header setOpen={setOpen} current={current} profile={profile} store={store}/>{loading ? <div className="loader">Cargando...</div> : content}</main>
-      <MobileBottomNav current={current} setCurrent={setCurrent} role={profile?.role || 'cajero'} />
+      <MobileBottomNav current={current} setCurrent={setCurrent} role={profile?.role || 'cajero'} menuOpen={open} />
     </div>
   );
 }
