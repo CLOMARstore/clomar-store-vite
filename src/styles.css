@@ -1900,3 +1900,92 @@ html:has(body.clomar-modal-open){overflow:hidden!important;overscroll-behavior:n
   .checkout-footer-total strong{font-size:22px!important;}
   .checkout-footer .checkout-submit-btn{min-height:50px!important;font-size:15px!important;}
 }
+
+
+/* =========================================================
+   V02.2M — Checkout Footer & Discount Polish
+   Total único, descuento legible y acciones discretas.
+   ========================================================= */
+.checkout-footer{
+  padding:10px 14px 14px!important;
+}
+.checkout-footer-action{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  gap:12px;
+}
+.checkout-footer-action>strong{
+  color:#0f172a;
+  font-size:25px;
+  letter-spacing:-.055em;
+  line-height:1;
+  white-space:nowrap;
+}
+.checkout-footer .checkout-submit-btn{
+  min-height:50px!important;
+  box-shadow:0 12px 22px rgba(17,24,39,.17)!important;
+}
+.cart-remove-btn{
+  color:#94a3b8!important;
+  background:#f8fafc!important;
+  border-color:#e2e8f0!important;
+}
+.cart-remove-btn:hover,
+.cart-remove-btn:focus-visible{
+  color:#b4234b!important;
+  background:#fff7f7!important;
+  border-color:rgba(190,24,93,.20)!important;
+}
+.global-discount-row{
+  grid-template-columns:minmax(0,1fr) 96px!important;
+  gap:10px!important;
+}
+.global-discount-copy{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.global-discount-copy>span{
+  color:#475569;
+  font-size:14px;
+}
+.discount-clear-btn{
+  border:0!important;
+  background:#f8fafc!important;
+  color:#64748b!important;
+  border-radius:999px!important;
+  padding:6px 9px!important;
+  font-size:11px!important;
+  font-weight:850!important;
+  line-height:1!important;
+}
+.discount-clear-btn:hover,
+.discount-clear-btn:focus-visible{
+  background:#fff1f2!important;
+  color:#b4234b!important;
+}
+@media(max-width:720px){
+  .cart-mobile-sheet .checkout-footer{
+    padding:10px 12px calc(11px + env(safe-area-inset-bottom))!important;
+  }
+  .cart-mobile-sheet .checkout-footer-action{
+    gap:9px;
+  }
+  .cart-mobile-sheet .checkout-footer-action>strong{
+    font-size:21px;
+  }
+  .cart-mobile-sheet .checkout-footer .checkout-submit-btn{
+    min-height:48px!important;
+    font-size:15px!important;
+  }
+  .cart-mobile-sheet .global-discount-row{
+    grid-template-columns:minmax(0,1fr) 82px!important;
+    gap:8px!important;
+  }
+  .global-discount-copy>span{
+    font-size:13px;
+  }
+}
