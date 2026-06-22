@@ -808,7 +808,17 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     const clean = String(value || '').trim();
     if (!clean) return;
     const product = findProductByBarcode(clean);
-    if (product) { addProduct(product); setQuery(''); setScanStatus(`Agregado al carrito: ${product.name}`); if (source === 'camera') setScanOpen(false); return; }
+    if (product) {
+      addProduct(product);
+      setQuery('');
+      setScanStatus(`Agregado al carrito: ${product.name}`);
+      if (source === 'camera') {
+        releaseCamera();
+        setScannerReady(false);
+        setScanOpen(false);
+      }
+      return;
+    }
     setQuery(clean);
     setScanStatus(`Código no encontrado: ${clean}`);
     if (source !== 'camera') setNotice({ type: 'info', icon: '🔍', title: 'Código no encontrado', message: `No existe un producto con el código ${clean}. Puedes asignarlo desde Productos o importarlo desde Excel.` });
@@ -825,40 +835,140 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     setNotice({ type: 'info', icon: '🔍', title: 'Sin coincidencia exacta', message: 'No se encontró un producto exacto. Escanea el código de barras, escribe el código interno o busca por nombre.' });
   }
 
+  const [scannerReady, setScannerReady] = useState(false);
+
+  function releaseCamera() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }
+
+  function cameraErrorMessage(error) {
+    const name = String(error?.name || '');
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      return 'La cámara requiere que la app se publique con HTTPS. Abre la versión segura de la aplicación, no una URL http://.';
+    }
+    if (name === 'NotAllowedError' || name === 'SecurityError' || /permission|denied/i.test(String(error?.message || ''))) {
+      return 'Permiso de cámara denegado. En Chrome: toca el candado junto a la dirección → Permisos → Cámara → Permitir; luego recarga la página. Revisa también Ajustes del teléfono → Apps → Chrome → Permisos → Cámara.';
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      return 'No se detectó una cámara disponible. Verifica que el teléfono tenga cámara activa y que no esté bloqueada por otra aplicación.';
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      return 'La cámara está siendo usada por otra aplicación. Cierra Cámara, WhatsApp, Instagram u otra app que pueda estar utilizándola e inténtalo de nuevo.';
+    }
+    if (name === 'OverconstrainedError') {
+      return 'No fue posible seleccionar la cámara trasera. Prueba nuevamente o usa la cámara disponible del dispositivo.';
+    }
+    return `No se pudo abrir la cámara: ${error?.message || error || 'Error desconocido'}`;
+  }
+
+  async function openScanner() {
+    releaseCamera();
+    setScannerReady(false);
+    setScanOpen(true);
+
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      setScanStatus('La cámara requiere HTTPS. Publica la aplicación con https:// para poder usar el escáner.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanStatus('Este navegador no permite usar la cámara. Usa Chrome actualizado, lector físico o ingresa el código manualmente.');
+      return;
+    }
+    if (!('BarcodeDetector' in window)) {
+      setScanStatus('Este navegador puede abrir la cámara, pero no tiene lector de códigos integrado. Usa Chrome en Android, un lector físico USB/Bluetooth o escribe el código manualmente.');
+      return;
+    }
+
+    setScanStatus('Solicitando permiso de cámara...');
+    try {
+      // Se ejecuta dentro del clic del usuario para que Android/WebView pueda mostrar el permiso.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      if (!videoRef.current) {
+        releaseCamera();
+        setScanOpen(false);
+        setScanStatus('No se pudo preparar la vista de la cámara. Inténtalo nuevamente.');
+        return;
+      }
+
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setScannerReady(true);
+      setScanStatus('Apunta la cámara trasera al código de barras.');
+    } catch (error) {
+      releaseCamera();
+      setScannerReady(false);
+      setScanOpen(false);
+      setScanStatus(cameraErrorMessage(error));
+    }
+  }
+
   function stopScanner() {
-    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
+    releaseCamera();
+    setScannerReady(false);
     setScanOpen(false);
+    setScanStatus('');
   }
 
   useEffect(() => {
-    if (!scanOpen) return;
+    if (!scanOpen || !scannerReady || !videoRef.current || !('BarcodeDetector' in window)) return;
     let cancelled = false;
     let raf = 0;
-    async function startScanner() {
+    let detector;
+
+    async function detectLoop() {
       try {
-        if (!navigator.mediaDevices?.getUserMedia) { setScanStatus('Este navegador no permite usar la cámara. Usa lector físico o escribe el código.'); return; }
-        if (!('BarcodeDetector' in window)) { setScanStatus('Tu navegador no tiene lector de código por cámara. Usa Chrome/Android, lector físico USB/Bluetooth o escribe el código manualmente.'); return; }
-        setScanStatus('Solicitando permiso de cámara...');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-        if (cancelled) { stream.getTracks().forEach(track => track.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-        const supportedFormats = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : [];
-        const preferred = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','qr_code'];
-        const formats = supportedFormats.length ? preferred.filter(f => supportedFormats.includes(f)) : preferred;
-        const detector = new window.BarcodeDetector({ formats: formats.length ? formats : undefined });
-        setScanStatus('Apunta la cámara al código de barras.');
+        const supportedFormats = window.BarcodeDetector.getSupportedFormats
+          ? await window.BarcodeDetector.getSupportedFormats()
+          : [];
+        const preferred = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'qr_code'];
+        const formats = supportedFormats.length ? preferred.filter(format => supportedFormats.includes(format)) : preferred;
+        detector = new window.BarcodeDetector({ formats: formats.length ? formats : undefined });
+
         async function loop() {
-          if (cancelled || !videoRef.current) return;
-          try { const codes = await detector.detect(videoRef.current); if (codes?.length) { const raw = codes[0].rawValue || codes[0].rawData; if (raw) { processBarcode(raw, 'camera'); return; } } } catch (err) {}
-          raf = requestAnimationFrame(loop);
+          if (cancelled || !videoRef.current || videoRef.current.readyState < 2) {
+            if (!cancelled) raf = requestAnimationFrame(loop);
+            return;
+          }
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const raw = codes?.[0]?.rawValue || codes?.[0]?.rawData;
+            if (raw) {
+              processBarcode(raw, 'camera');
+              return;
+            }
+          } catch (error) {
+            // Un cuadro sin código no es un error; se continúa leyendo.
+          }
+          if (!cancelled) raf = requestAnimationFrame(loop);
         }
         loop();
-      } catch (err) { setScanStatus(`No se pudo abrir la cámara: ${err.message || err}`); }
+      } catch (error) {
+        if (!cancelled) setScanStatus('La cámara se abrió, pero este navegador no pudo iniciar la lectura de códigos. Usa Chrome actualizado o el lector físico.');
+      }
     }
-    startScanner();
-    return () => { cancelled = true; if (raf) cancelAnimationFrame(raf); if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; } };
-  }, [scanOpen]);
+
+    detectLoop();
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [scanOpen, scannerReady]);
+
+  useEffect(() => () => releaseCamera(), []);
 
   function updateQty(id, qty) { setCart(prev => prev.map(x => x.id === id ? { ...x, qty: Math.max(1, Math.min(asNum(x.stock), asNum(qty || 1))) } : x)); }
   function updateItemDiscount(id, value) { setCart(prev => prev.map(x => x.id === id ? { ...x, discount: Math.max(0, Math.min(lineBase(x), asNum(value))) } : x)); }
@@ -1044,7 +1154,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       {lastTicket && <LastReceiptBanner ticket={lastTicket} store={store} profile={profile} onOpen={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }} onGoReceipts={onGoReceipts} onDismiss={() => { setDismissedTicketId(lastTicket?.sale?.id || null); clearLastTicketBackup(); setLastTicket(null); setSaleModal(null); }} />}
       <div className="pos-layout">
         <section className="card compact-card">
-          <div className="barcode-tools"><div className="search-box barcode-search"><Search size={18}/><input ref={searchInputRef} value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div><button className="secondary-btn scan-btn" type="button" onClick={()=>setScanOpen(true)}>📷 Escanear con celular</button></div>
+          <div className="barcode-tools"><div className="search-box barcode-search"><Search size={18}/><input ref={searchInputRef} value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Buscar o escanear código de barras..." autoFocus /></div><button className="secondary-btn scan-btn" type="button" onClick={openScanner}>📷 Escanear con celular</button></div>
           <div className="scanner-help">Lector físico: enfoca el buscador y escanea. Cámara: abre el escáner y apunta al código.</div>
           {scanStatus && <div className="scan-status">{scanStatus}</div>}
           {scanOpen && <div className="scanner-panel"><div className="scanner-head"><strong>Escáner con cámara</strong><button className="icon-btn" type="button" onClick={stopScanner}>×</button></div><div className="scanner-frame"><video ref={videoRef} muted playsInline /></div><p className="muted">Usa la cámara trasera del celular. Si no detecta, escribe el código manualmente en el buscador.</p></div>}
