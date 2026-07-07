@@ -1078,6 +1078,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [showMorePaymentMethods, setShowMorePaymentMethods] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [mobileCheckoutStep, setMobileCheckoutStep] = useState('items');
   const [mixedPayments, setMixedPayments] = useState({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
   const [productView, setProductView] = useState('Todos');
   const [categoryFilter, setCategoryFilter] = useState('Todas');
@@ -1134,6 +1135,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   useEffect(() => { try { localStorage.setItem('clomar_pos_favorites_v322', JSON.stringify(favoriteIds)); } catch (_) {} }, [favoriteIds]);
   useEffect(() => { try { localStorage.setItem('clomar_pos_recent_v322', JSON.stringify(recentIds)); } catch (_) {} }, [recentIds]);
   useEffect(() => { if (menuOpen) setMobileCartOpen(false); }, [menuOpen]);
+  useEffect(() => { if (!mobileCartOpen) setMobileCheckoutStep('items'); }, [mobileCartOpen]);
   useEffect(() => {
     const shouldLock = mobileCartOpen || customerQuickOpen || customerPickerOpen || confirmOpen || Boolean(saleModal);
     const previousBodyOverflow = document.body.style.overflow;
@@ -1447,6 +1449,15 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     if (validateSaleBeforeConfirm()) { document.activeElement?.blur?.(); setMobileCartOpen(false); setConfirmOpen(true); }
   };
 
+  const handleCheckoutPrimary = () => {
+    if (!cart.length) return submitCheckout();
+    if (typeof window !== 'undefined' && window.innerWidth <= 720 && mobileCheckoutStep === 'items') {
+      setMobileCheckoutStep('payment');
+      return;
+    }
+    submitCheckout();
+  };
+
   return (
     <div className="page pos-page pos-pro-page">
       <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
@@ -1495,9 +1506,13 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             </button>;
           })}{!matches.length && <div className="pos-empty-products"><strong>{productView === 'Favoritos' ? 'Aún no tiene favoritos' : productView === 'Recientes' ? 'Aún no hay productos recientes' : 'No se encontraron productos'}</strong><span>{productView === 'Favoritos' ? 'Use la estrella de un producto para crear su acceso rápido.' : productView === 'Recientes' ? 'Los productos que agregue aparecerán aquí.' : 'Cambie el filtro o use otro término de búsqueda.'}</span></div>}</div>
         </section>
-        <aside className={`card compact-card cart-card pro-cart-card cart-mobile-sheet ${mobileCartOpen ? 'mobile-sheet-open' : ''}`}>
+        <aside className={`card compact-card cart-card pro-cart-card cart-mobile-sheet checkout-step-${mobileCheckoutStep} ${mobileCartOpen ? 'mobile-sheet-open' : ''}`}>
           <button className="sheet-close-btn cart-sheet-close" type="button" aria-label="Cerrar carrito" title="Cerrar carrito" onClick={() => setMobileCartOpen(false)}>×</button>
           <h3><ShoppingCart size={20}/> Carrito</h3>
+          <div className="mobile-checkout-steps" aria-label="Pasos de venta">
+            <button type="button" className={mobileCheckoutStep === 'items' ? 'active' : ''} onClick={() => setMobileCheckoutStep('items')}><span>1</span> Productos <b>{cart.length}</b></button>
+            <button type="button" className={mobileCheckoutStep === 'payment' ? 'active' : ''} onClick={() => cart.length && setMobileCheckoutStep('payment')} disabled={!cart.length}><span>2</span> Cliente y pago</button>
+          </div>
           <div className="checkout-sheet-scroll">
             {cart.length === 0 ? <div className="empty-checkout-state"><strong>Aún no hay productos</strong><span>Busca, escanea o toca un producto para armar la venta.</span><button type="button" className="secondary-btn" onClick={() => setMobileCartOpen(false)}>Agregar productos</button></div> : cart.map(item => (
               <article className="cart-item-premium" key={item.id}>
@@ -1524,7 +1539,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
                 <span>Total</span>
                 <strong>{money(total)}</strong>
               </div>
-              <button className="primary-btn checkout-submit-btn" disabled={saving} onClick={submitCheckout}>{checkoutButtonLabel}</button>
+              <button className="primary-btn checkout-submit-btn" disabled={saving} onClick={handleCheckoutPrimary}><span className="checkout-label-desktop">{checkoutButtonLabel}</span><span className="checkout-label-mobile">{mobileCheckoutStep === 'items' ? 'Continuar' : checkoutButtonLabel}</span></button>
             </div>
           </footer>
         </aside>
@@ -1532,7 +1547,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       {cart.length > 0 && !mobileCartOpen && !menuOpen && !customerQuickOpen && !customerPickerOpen && !confirmOpen && !saleModal && <div className="mobile-checkout-bar" role="status" aria-label={`${cart.length} producto(s) en el carrito por ${money(total)}`}>
         <div className="mobile-cart-summary"><small>Carrito activo</small><strong>{cart.length} producto(s) · {money(total)}</strong></div>
         <button type="button" className="mobile-cart-clear" onClick={clearCart}>Vaciar</button>
-        <button type="button" className="primary-btn mobile-cart-open-btn" onClick={() => setMobileCartOpen(true)}>Ver carrito</button>
+        <button type="button" className="primary-btn mobile-cart-open-btn" onClick={() => { setMobileCheckoutStep('items'); setMobileCartOpen(true); }}>Ver carrito</button>
       </div>}
     </div>
   );
@@ -3826,8 +3841,9 @@ function PublicCatalogApp() {
       <header className="catalog-public-header"><a className="catalog-public-brand" href="#/catalogo" onClick={closeProduct}><img src={publicAssetUrl(store?.logo_url || APP_ICON)} alt={store?.name || 'Clomar Store'}/><span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span></a><div className="catalog-public-header-actions"><a className="catalog-whatsapp-btn" href={publicWhatsAppLink(store?.whatsapp_number || store?.phone, 'Hola, deseo consultar el catálogo de productos.')} target="_blank" rel="noreferrer">WhatsApp</a><button type="button" className="catalog-cart-btn" onClick={()=>setCartOpen(true)}>Pedido <span>{cartQty}</span></button></div></header>
       <section className="catalog-public-hero"><div><span>Precios actualizados</span><h1>Encuentra lo que buscas</h1><p>Consulta productos, elige tus opciones y confirma tu pedido por WhatsApp.</p></div><div className="catalog-public-search"><Search size={20}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar ropa, talla, color o marca..." /></div></section>
       <nav className="catalog-public-categories">{categories.map(c=><button key={c} type="button" className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>)}</nav>
+      <section className="catalog-public-trust"><div><b>Precios visibles</b><span>Consulta antes de confirmar.</span></div><div><b>Pedido fácil</b><span>Arma tu pedido y continúa por WhatsApp.</span></div><div><b>Atención directa</b><span>Un asesor confirma disponibilidad.</span></div></section>
       {notice && <div className="catalog-toast">{notice}</div>}
-      <section className="catalog-public-grid">{visibleProducts.map(p => <article className="catalog-public-card" key={p.id}><button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/>{p.catalog_featured && <span className="catalog-featured-badge">Destacado</span>}<span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span></button><div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>consultProduct(p)}>Consultar</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar') : 'Agotado'}</button></div></div></article>)}{!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Pruebe otra búsqueda o consulte por WhatsApp.</p><a href={publicWhatsAppLink(store?.whatsapp_number || store?.phone,'Hola, deseo consultar por un producto que no encontré en el catálogo.')} target="_blank" rel="noreferrer">Consultar por WhatsApp</a></section>}</section>
+      <section className="catalog-public-grid">{visibleProducts.map(p => <article className="catalog-public-card" key={p.id}><button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/>{p.catalog_featured && <span className="catalog-featured-badge">Destacado</span>}<span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span></button><div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>consultProduct(p)}>Ver y consultar</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar') : 'Agotado'}</button></div></div></article>)}{visibleProducts.length > 0 && visibleProducts.length < 4 && <article className="catalog-assistance-card"><span>¿No encuentra lo que busca?</span><h2>Escríbanos por WhatsApp</h2><p>Le ayudamos a encontrar modelos, tallas o alternativas disponibles.</p><a href={publicWhatsAppLink(store?.whatsapp_number || store?.phone,'Hola, deseo consultar por más productos del catálogo.')} target="_blank" rel="noreferrer">Hablar con un asesor</a></article>}{!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Pruebe otra búsqueda o consulte por WhatsApp.</p><a href={publicWhatsAppLink(store?.whatsapp_number || store?.phone,'Hola, deseo consultar por un producto que no encontré en el catálogo.')} target="_blank" rel="noreferrer">Consultar por WhatsApp</a></section>}</section>
       {selected && <div className="catalog-detail-backdrop" onMouseDown={closeProduct}><article className="catalog-detail-modal" onMouseDown={e=>e.stopPropagation()}><button type="button" className="catalog-detail-close" onClick={closeProduct}>×</button><img src={selected.image_url || APP_ICON} alt={selected.name}/><div><span className={selected.availability==='Agotado'?'catalog-availability soldout':selected.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(selected.availability)}</span><p>{selected.category || 'General'}</p><h2>{selected.name}</h2><strong>{money(selected.price)}</strong><div className="catalog-detail-specs">{selected.brand && <span>Marca: {selected.brand}</span>}{selected.color && <span>Color: {selected.color}</span>}{selected.size && <span>Talla: {selected.size}</span>}{selected.code && <span>Código: {selected.code}</span>}</div><p className="catalog-detail-description">{selected.catalog_description || selected.description || 'Consulta disponibilidad y detalles por WhatsApp.'}</p><div className="catalog-detail-actions"><button className="secondary-btn" type="button" onClick={()=>consultProduct(selected)}>Consultar por WhatsApp</button><button className="primary-btn" type="button" disabled={!canOrder(selected)} onClick={()=>{addToCart(selected); setCartOpen(true);}}>{canOrder(selected)?'Agregar al pedido':'Agotado'}</button></div></div></article></div>}
       {cartOpen && <div className="catalog-cart-backdrop" onMouseDown={()=>setCartOpen(false)}><aside className="catalog-cart-drawer" onMouseDown={e=>e.stopPropagation()}><div className="catalog-cart-head"><div><span>Pedido por WhatsApp</span><h2>Tu selección</h2></div><button type="button" onClick={()=>setCartOpen(false)}>×</button></div>{cart.length ? <><div className="catalog-cart-lines">{cart.map(line=><article key={line.id}><img src={line.image_url || APP_ICON} alt={line.name}/><div><strong>{line.name}</strong><small>{[line.color,line.size,line.code].filter(Boolean).join(' · ')}</small><b>{money(line.price)}</b></div><div className="cart-qty-control"><button type="button" onClick={()=>changeCartQty(line.id,-1)}>−</button><span>{line.qty}</span><button type="button" onClick={()=>changeCartQty(line.id,1)}>+</button><button type="button" className="cart-remove" onClick={()=>removeCartLine(line.id)}>Quitar</button></div></article>)}</div><div className="catalog-cart-total"><span>Total referencial</span><strong>{money(cartTotal)}</strong></div><form className="catalog-order-form" onSubmit={submitOrder}><label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre y apellido" required /></label><label>Tu WhatsApp<input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} inputMode="tel" placeholder="999 999 999" required /></label><label>Nota opcional<textarea value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Color alternativo, entrega, consulta..." rows="3" /></label><p>Al enviar, registramos la solicitud y abrimos WhatsApp para confirmar disponibilidad y pago.</p><button type="submit" className="primary-btn" disabled={submitting}>{submitting ? 'Registrando...' : 'Enviar pedido por WhatsApp'}</button></form></> : <div className="catalog-cart-empty"><h3>Tu pedido está vacío</h3><p>Agregue productos del catálogo para enviarlos por WhatsApp.</p></div>}</aside></div>}
       <footer className="catalog-public-footer"><strong>{store?.name || 'Clomar Store'}</strong><span>Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</span></footer>
