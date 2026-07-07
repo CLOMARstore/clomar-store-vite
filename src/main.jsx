@@ -1084,6 +1084,16 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [categoryFilter, setCategoryFilter] = useState('Todas');
   const [favoriteIds, setFavoriteIds] = useState(() => { try { return JSON.parse(localStorage.getItem('clomar_pos_favorites_v322') || '[]'); } catch (_) { return []; } });
   const [recentIds, setRecentIds] = useState(() => { try { return JSON.parse(localStorage.getItem('clomar_pos_recent_v322') || '[]'); } catch (_) { return []; } });
+  useEffect(() => {
+    try {
+      const requested = sessionStorage.getItem('clomar_pos_assistant_search');
+      if (requested) {
+        setQuery(requested);
+        sessionStorage.removeItem('clomar_pos_assistant_search');
+        setTimeout(() => searchInputRef.current?.focus(), 120);
+      }
+    } catch (_) {}
+  }, []);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -1517,7 +1527,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             {cart.length === 0 ? <div className="empty-checkout-state"><strong>Aún no hay productos</strong><span>Busca, escanea o toca un producto para armar la venta.</span><button type="button" className="secondary-btn" onClick={() => setMobileCartOpen(false)}>Agregar productos</button></div> : cart.map(item => (
               <article className="cart-item-premium" key={item.id}>
                 <div className="cart-item-head"><div><strong>{item.name}</strong><small>{money(item.price)} c/u · Stock {asNum(item.stock)}</small></div><button type="button" className="cart-remove-btn" aria-label={`Quitar ${item.name}`} title="Quitar producto" onClick={()=>removeItem(item.id)}>×</button></div>
-                <div className="cart-item-controls"><div className="cart-control-field"><span>Cant.</span><div className="quantity-stepper"><button type="button" aria-label="Restar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)-1)}>−</button><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><button type="button" aria-label="Sumar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)+1)}>+</button></div></div>{showItemDiscounts || asNum(item.discount) > 0 ? <label className="cart-control-field">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label> : <button type="button" className="add-line-discount" onClick={()=>setShowItemDiscounts(true)}>Descuento ítem</button>}<div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
+                <div className="cart-item-controls"><div className="cart-control-field cart-qty-field"><span>Cant.</span><div className="quantity-stepper"><button type="button" aria-label="Restar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)-1)}>−</button><input type="number" value={item.qty} min="1" max={asNum(item.stock)} onChange={(e)=>updateQty(item.id, e.target.value)} /><button type="button" aria-label="Sumar unidad" onClick={()=>updateQty(item.id, asNum(item.qty)+1)}>+</button></div></div>{showItemDiscounts || asNum(item.discount) > 0 ? <label className="cart-control-field cart-discount-field">Desc.<input value={item.discount || ''} inputMode="decimal" onChange={(e)=>updateItemDiscount(item.id, e.target.value)} placeholder="0.00" /></label> : <button type="button" className="add-line-discount" onClick={()=>setShowItemDiscounts(true)}>Descuento ítem</button>}<div className="cart-item-total"><span>Importe</span><strong>{money(lineSubtotal(item))}</strong></div></div>
               </article>
             ))}
             <div className="sale-total-panel"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Desc. productos</span><strong>{money(itemDiscountTotal)}</strong></div>{showGlobalDiscount || saleDiscount > 0 ? <div className="global-discount-row"><div className="global-discount-copy"><span>Desc. general</span><button className="discount-clear-btn" type="button" onClick={()=>{ setGlobalDiscount('0'); setShowGlobalDiscount(false); }}>Quitar</button></div><input aria-label="Descuento general" value={globalDiscount} inputMode="decimal" onChange={e=>setGlobalDiscount(e.target.value)} /></div> : <button type="button" className="add-global-discount" onClick={()=>setShowGlobalDiscount(true)}>Descuento general</button>}<div className="final-total"><span>Total a cobrar</span><strong>{money(total)}</strong></div></div>
@@ -2258,22 +2268,22 @@ function Customers({ customers, reload, profile }) {
 function Inventory({ products }) {
   const [query, setQuery] = useState('');
   const [stockFilter, setStockFilter] = useState('Todos');
+  const [activeCategory, setActiveCategory] = useState('');
   const active = products.filter(p => p.active !== false);
   const lowStock = active.filter(p => asNum(p.stock) <= asNum(p.stock_min));
   const noStock = active.filter(p => asNum(p.stock) <= 0);
   const searched = active.filter(p => `${p.code || ''} ${p.barcode || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''}`.toLowerCase().includes(query.toLowerCase()));
   const filtered = searched.filter(p => stockFilter === 'Todos' || (stockFilter === 'Bajo stock' && asNum(p.stock) <= asNum(p.stock_min) && asNum(p.stock) > 0) || (stockFilter === 'Sin stock' && asNum(p.stock) <= 0));
   const byCat = filtered.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
-  const [activeCategory, setActiveCategory] = useState('');
   const inventoryCategories = Object.keys(byCat).sort((a, b) => a.localeCompare(b, 'es'));
   const visibleCategory = inventoryCategories.includes(activeCategory) ? activeCategory : (inventoryCategories[0] || '');
   const visibleCategoryItems = byCat[visibleCategory] || [];
+  const categoryRisk = (cat) => (byCat[cat] || []).filter(p => asNum(p.stock) <= asNum(p.stock_min)).length;
   return (
-    <div className="page inventory-page">
-      <div className="hero compact-hero"><h1>📘 Inventario</h1><p>Control compacto por categoría, stock disponible y alertas de reposición.</p></div>
-      <section className="card compact-card inventory-control-card">
+    <div className="page inventory-page inventory-v326-page">
+      <section className="card compact-card inventory-control-card inventory-v326-control">
         <div className="inventory-control-head">
-          <div><span className="eyebrow">Operación de almacén</span><h3>Inventario en tiempo real</h3><p className="muted">Filtre primero por riesgo y luego revise una categoría.</p></div>
+          <div><span className="eyebrow">Operación de almacén</span><h3>Inventario en tiempo real</h3><p className="muted">Elija una categoría y revise disponibilidad, reposición y productos agotados sin perder contexto.</p></div>
           <div className="inventory-control-search"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div><div className="inventory-stock-filter" aria-label="Filtro de inventario">{['Todos','Bajo stock','Sin stock'].map(option => <button key={option} type="button" className={stockFilter===option ? 'active' : ''} onClick={()=>setStockFilter(option)}>{option}</button>)}</div></div>
         </div>
         <div className="inventory-kpi-grid">
@@ -2283,29 +2293,36 @@ function Inventory({ products }) {
           <Kpi label="Categorías" value={Object.keys(byCat).length} helper="con resultados" />
         </div>
       </section>
-      {inventoryCategories.length > 0 && <section className="inventory-category-switcher"><div className="inventory-category-tabs">{inventoryCategories.map(cat => <button type="button" key={cat} className={visibleCategory === cat ? 'active' : ''} onClick={() => setActiveCategory(cat)}>{cat}<span>{byCat[cat].length}</span></button>)}</div></section>}
-      {visibleCategory && <section className="card compact-card inventory-block inventory-pro-block">
-        <div className="inventory-category-head"><div><span className="eyebrow">Categoría activa</span><h3>{visibleCategory}</h3></div><span>{visibleCategoryItems.length} producto(s)</span></div>
-        <div className="inventory-card-grid">
-          {visibleCategoryItems.map(p => {
-            const stock = asNum(p.stock);
-            const min = asNum(p.stock_min);
-            const out = stock <= 0;
-            const low = stock <= min && !out;
-            const state = out ? 'out' : low ? 'low' : 'ready';
-            const stateLabel = out ? 'Sin stock' : low ? 'Reponer' : 'Disponible';
-            return (
-              <article className={`inventory-card-pro inventory-${state}`} key={p.id}>
-                <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
-                <div className="inventory-card-info">
-                  <strong>{p.name}</strong>
-                  <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</small>
-                </div>
-                <div className={`stock-pill ${out || low ? 'stock-low' : ''}`}><span>{stateLabel}</span><b>{stock}</b><small>mín. {min}</small></div>
-              </article>
-            );
-          })}
-        </div>
+      {inventoryCategories.length > 0 && <section className="inventory-workspace-v326">
+        <aside className="card compact-card inventory-side-categories">
+          <div className="inventory-side-head"><div><span className="eyebrow">Navegación</span><h3>Categorías</h3></div><span>{inventoryCategories.length}</span></div>
+          <div className="inventory-category-menu" role="navigation" aria-label="Categorías de inventario">
+            {inventoryCategories.map(cat => {
+              const risk = categoryRisk(cat);
+              return <button type="button" key={cat} className={visibleCategory === cat ? 'active' : ''} onClick={() => setActiveCategory(cat)}><span><strong>{cat}</strong><small>{byCat[cat].length} producto(s){risk ? ` · ${risk} por reponer` : ''}</small></span><b>{byCat[cat].length}</b></button>;
+            })}
+          </div>
+        </aside>
+        <section className="card compact-card inventory-products-pane">
+          <div className="inventory-category-head inventory-v326-head"><div><span className="eyebrow">Categoría activa</span><h3>{visibleCategory}</h3><p>{visibleCategoryItems.length} producto(s) encontrados</p></div><span className="inventory-guide-badge">Imagen · detalle · stock</span></div>
+          <div className="inventory-card-grid inventory-v326-grid">
+            {visibleCategoryItems.map(p => {
+              const stock = asNum(p.stock);
+              const min = asNum(p.stock_min);
+              const out = stock <= 0;
+              const low = stock <= min && !out;
+              const state = out ? 'out' : low ? 'low' : 'ready';
+              const stateLabel = out ? 'Agotado' : low ? 'Reponer' : 'Disponible';
+              return (
+                <article className={`inventory-card-pro inventory-v326-card inventory-${state}`} key={p.id}>
+                  <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
+                  <div className="inventory-card-info"><strong>{p.name}</strong><small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</small></div>
+                  <div className={`stock-pill ${out || low ? 'stock-low' : ''}`}><span>{stateLabel}</span><b>{stock}</b><small>mín. {min}</small></div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
       </section>}
       {!filtered.length && <section className="card compact-card"><p className="muted">No se encontraron productos con ese criterio.</p></section>}
     </div>
@@ -3752,9 +3769,8 @@ function PublicCatalogApp() {
       supabase.rpc('clomar_public_catalog_store_v31', { p_store_id: DEFAULT_STORE_ID }),
       supabase.rpc('clomar_public_catalog_products_v31', { p_store_id: DEFAULT_STORE_ID, p_query: null, p_product_id: null }),
     ]);
-    if (storeRes.error || productsRes.error) {
-      setError([storeRes.error?.message, productsRes.error?.message].filter(Boolean).join(' · ') || 'No se pudo cargar el catálogo.');
-    } else {
+    if (storeRes.error || productsRes.error) setError([storeRes.error?.message, productsRes.error?.message].filter(Boolean).join(' · ') || 'No se pudo cargar el catálogo.');
+    else {
       const publicStore = Array.isArray(storeRes.data) ? storeRes.data[0] : storeRes.data;
       setStore(publicStore || { id: DEFAULT_STORE_ID, name: 'Clomar Store', whatsapp_number: CATALOG_WHATSAPP_FALLBACK });
       setProducts(productsRes.data || []);
@@ -3762,13 +3778,10 @@ function PublicCatalogApp() {
     setLoading(false);
   }
   useEffect(() => { loadCatalog(); }, []);
-  useEffect(() => {
-    const onHash = () => setSelectedId(catalogProductIdFromLocation());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  useEffect(() => { const onHash = () => setSelectedId(catalogProductIdFromLocation()); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash); }, []);
 
   const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General')))], [products]);
+  const categoryCounts = useMemo(() => products.reduce((acc,p) => { const key = p.category || 'General'; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [products]);
   const visibleProducts = useMemo(() => products.filter(p => {
     const q = normalizeText(query);
     const textMatch = !q || [p.name,p.category,p.subcategory,p.brand,p.color,p.size,p.code].some(v => normalizeText(v).includes(q));
@@ -3780,70 +3793,54 @@ function PublicCatalogApp() {
   const cartQty = cart.reduce((sum,line)=>sum+asNum(line.qty),0);
   const inCart = (id) => cart.find(line => line.id === id);
   const canOrder = (p) => catalogAvailabilityLabel(p.availability) !== 'Agotado';
+  const featuredProducts = useMemo(() => {
+    const featured = products.filter(p => p.catalog_featured);
+    return (featured.length ? featured : products).slice(0, 3);
+  }, [products]);
 
-  function selectProduct(p) {
-    setSelectedId(p.id);
-    window.history.replaceState(null, '', `#/catalogo?product=${encodeURIComponent(p.id)}`);
-  }
-  function closeProduct() {
-    setSelectedId('');
-    window.history.replaceState(null, '', '#/catalogo');
-  }
+  function selectProduct(p) { setSelectedId(p.id); window.history.replaceState(null, '', `#/catalogo?product=${encodeURIComponent(p.id)}`); }
+  function closeProduct() { setSelectedId(''); window.history.replaceState(null, '', '#/catalogo'); }
   function addToCart(p) {
     if (!canOrder(p)) return alert('Este producto está agotado. Puede consultar opciones similares por WhatsApp.');
-    setCart(prev => {
-      const exists = prev.find(line => line.id === p.id);
-      if (exists) return prev.map(line => line.id === p.id ? { ...line, qty: Math.min(10, asNum(line.qty) + 1) } : line);
-      return [...prev, { id:p.id, name:p.name, code:p.code, color:p.color, size:p.size, price:asNum(p.price), image_url:p.image_url, qty:1 }];
-    });
-    setNotice(`${p.name} se agregó al pedido.`);
-    setTimeout(() => setNotice(''), 1800);
+    setCart(prev => { const exists = prev.find(line => line.id === p.id); if (exists) return prev.map(line => line.id === p.id ? { ...line, qty: Math.min(10, asNum(line.qty) + 1) } : line); return [...prev, { id:p.id, name:p.name, code:p.code, color:p.color, size:p.size, price:asNum(p.price), image_url:p.image_url, qty:1 }]; });
+    setNotice(`${p.name} se agregó al pedido.`); setTimeout(() => setNotice(''), 1800);
   }
-  function changeCartQty(id, delta) {
-    setCart(prev => prev.map(line => line.id === id ? { ...line, qty: Math.max(1, Math.min(10, asNum(line.qty)+delta)) } : line));
-  }
+  function changeCartQty(id, delta) { setCart(prev => prev.map(line => line.id === id ? { ...line, qty: Math.max(1, Math.min(10, asNum(line.qty)+delta)) } : line)); }
   function removeCartLine(id) { setCart(prev => prev.filter(line => line.id !== id)); }
   function consultProduct(p) { window.open(publicWhatsAppLink(store?.whatsapp_number || store?.phone, catalogProductMessage(p, store)), '_blank', 'noopener,noreferrer'); }
+  function openWhatsAppCatalog() { window.open(publicWhatsAppLink(store?.whatsapp_number || store?.phone, 'Hola, deseo consultar el catálogo de productos.'), '_blank', 'noopener,noreferrer'); }
 
   async function submitOrder(e) {
     e.preventDefault();
     if (!cart.length) return;
     if (String(form.name || '').trim().length < 2) return alert('Indique su nombre para registrar el pedido.');
     if (String(form.phone || '').replace(/\D/g,'').length < 7) return alert('Indique un teléfono o WhatsApp válido.');
-    const popup = window.open('', '_blank');
-    setSubmitting(true);
-    const { data, error: orderError } = await supabase.rpc('clomar_create_catalog_order_v31', {
-      p_store_id: store?.id || DEFAULT_STORE_ID,
-      p_customer_name: form.name.trim(),
-      p_customer_phone: form.phone.trim(),
-      p_customer_note: form.note.trim() || null,
-      p_items: cart.map(line => ({ product_id: line.id, qty: asNum(line.qty) })),
-    });
+    const popup = window.open('', '_blank'); setSubmitting(true);
+    const { data, error: orderError } = await supabase.rpc('clomar_create_catalog_order_v31', { p_store_id: store?.id || DEFAULT_STORE_ID, p_customer_name: form.name.trim(), p_customer_phone: form.phone.trim(), p_customer_note: form.note.trim() || null, p_items: cart.map(line => ({ product_id: line.id, qty: asNum(line.qty) })) });
     setSubmitting(false);
-    if (orderError) {
-      if (popup) popup.close();
-      return alert(`No se pudo registrar el pedido: ${orderError.message}. Verifique disponibilidad y vuelva a intentarlo.`);
-    }
+    if (orderError) { if (popup) popup.close(); return alert(`No se pudo registrar el pedido: ${orderError.message}. Verifique disponibilidad y vuelva a intentarlo.`); }
     const order = Array.isArray(data) ? data[0] : data;
     const lines = cart.map(line => `${line.qty} × ${line.name}${line.color ? ` · ${line.color}` : ''}${line.size ? ` · ${line.size}` : ''} — ${money(asNum(line.price)*asNum(line.qty))}`);
     const message = ['Hola, deseo confirmar este pedido de catálogo:', `Pedido: ${order?.order_code || 'Solicitud web'}`, '', ...lines, '', `Total referencial: ${money(order?.total_amount || cartTotal)}`, 'Nombre: ' + form.name.trim(), 'Teléfono: ' + form.phone.trim(), form.note.trim() ? `Nota: ${form.note.trim()}` : ''].filter(Boolean).join('\n');
     const url = publicWhatsAppLink(store?.whatsapp_number || store?.phone, message);
     if (popup) popup.location.href = url; else window.location.href = url;
-    setCart([]); setCartOpen(false); setForm({ name:'', phone:'', note:'' });
-    setNotice(`Pedido ${order?.order_code || ''} registrado. Continúe en WhatsApp para confirmarlo.`);
+    setCart([]); setCartOpen(false); setForm({ name:'', phone:'', note:'' }); setNotice(`Pedido ${order?.order_code || ''} registrado. Continúe en WhatsApp para confirmarlo.`);
   }
 
   if (loading) return <main className="catalog-public-shell"><div className="catalog-public-loader">Cargando catálogo...</div></main>;
   if (error) return <main className="catalog-public-shell"><section className="catalog-public-error"><h1>Catálogo temporalmente no disponible</h1><p>{error}</p><button className="primary-btn" onClick={loadCatalog}>Reintentar</button></section></main>;
 
   return (
-    <main className="catalog-public-shell">
-      <header className="catalog-public-header"><a className="catalog-public-brand" href="#/catalogo" onClick={closeProduct}><img src={publicAssetUrl(store?.logo_url || APP_ICON)} alt={store?.name || 'Clomar Store'}/><span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span></a><div className="catalog-public-header-actions"><a className="catalog-whatsapp-btn" href={publicWhatsAppLink(store?.whatsapp_number || store?.phone, 'Hola, deseo consultar el catálogo de productos.')} target="_blank" rel="noreferrer">WhatsApp</a><button type="button" className="catalog-cart-btn" onClick={()=>setCartOpen(true)}>Pedido <span>{cartQty}</span></button></div></header>
-      <section className="catalog-public-hero"><div><span>Precios actualizados</span><h1>Encuentra lo que buscas</h1><p>Consulta productos, elige tus opciones y confirma tu pedido por WhatsApp.</p></div><div className="catalog-public-search"><Search size={20}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar ropa, talla, color o marca..." /></div></section>
-      <nav className="catalog-public-categories">{categories.map(c=><button key={c} type="button" className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>)}</nav>
-      <section className="catalog-public-trust"><div><b>Precios visibles</b><span>Consulta antes de confirmar.</span></div><div><b>Pedido fácil</b><span>Arma tu pedido y continúa por WhatsApp.</span></div><div><b>Atención directa</b><span>Un asesor confirma disponibilidad.</span></div></section>
+    <main className="catalog-public-shell catalog-v326-shell">
+      <header className="catalog-public-header"><a className="catalog-public-brand" href="#/catalogo" onClick={closeProduct}><img src={publicAssetUrl(store?.logo_url || APP_ICON)} alt={store?.name || 'Clomar Store'}/><span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span></a><div className="catalog-public-header-actions"><button type="button" className="catalog-whatsapp-btn" onClick={openWhatsAppCatalog}>WhatsApp</button><button type="button" className="catalog-cart-btn" onClick={()=>setCartOpen(true)}>Pedido <span>{cartQty}</span></button></div></header>
+      <section className="catalog-public-hero catalog-v326-hero">
+        <div className="catalog-hero-copy"><span className="catalog-kicker">Compra simple · atención rápida</span><h1>Encuentra productos para tu día a día.</h1><p>Revisa precios, elige tus opciones y confirma tu pedido directamente por WhatsApp.</p><div className="catalog-hero-actions"><button type="button" className="primary-btn" onClick={()=>document.getElementById('catalog-products')?.scrollIntoView({behavior:'smooth'})}>Ver productos</button><button type="button" className="secondary-btn" onClick={openWhatsAppCatalog}>Consultar por WhatsApp</button></div><div className="catalog-hero-points"><span>✓ Precios visibles</span><span>✓ Pedido sin complicaciones</span><span>✓ Atención personalizada</span></div></div>
+        <div className="catalog-hero-showcase"><div className="catalog-hero-showcase-top"><span>CATÁLOGO ACTUALIZADO</span><b>{products.length} producto(s) disponibles</b></div><div className="catalog-hero-mini-products">{featuredProducts.map(p=><button type="button" key={p.id} onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/><span><strong>{p.name}</strong><small>{money(p.price)}</small></span></button>)}{!featuredProducts.length && <div className="catalog-hero-empty">Pronto habrá productos disponibles.</div>}</div></div>
+      </section>
+      <section className="catalog-category-rail-wrap"><div className="catalog-category-rail">{categories.map(c=><button key={c} type="button" className={category===c?'active':''} onClick={()=>setCategory(c)}><span>{c}</span><b>{c === 'Todas' ? products.length : categoryCounts[c] || 0}</b></button>)}</div></section>
+      <section className="catalog-public-trust catalog-v326-trust"><div><span>01</span><b>Compra con confianza</b><small>Verá precio y disponibilidad antes de consultar.</small></div><div><span>02</span><b>Pedido por WhatsApp</b><small>Envíe su selección y reciba confirmación personal.</small></div><div><span>03</span><b>Atención directa</b><small>Un asesor confirma talla, color y entrega.</small></div></section>
       {notice && <div className="catalog-toast">{notice}</div>}
-      <section className="catalog-public-grid">{visibleProducts.map(p => <article className="catalog-public-card" key={p.id}><button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/>{p.catalog_featured && <span className="catalog-featured-badge">Destacado</span>}<span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span></button><div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>consultProduct(p)}>Ver y consultar</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar') : 'Agotado'}</button></div></div></article>)}{visibleProducts.length > 0 && visibleProducts.length < 4 && <article className="catalog-assistance-card"><span>¿No encuentra lo que busca?</span><h2>Escríbanos por WhatsApp</h2><p>Le ayudamos a encontrar modelos, tallas o alternativas disponibles.</p><a href={publicWhatsAppLink(store?.whatsapp_number || store?.phone,'Hola, deseo consultar por más productos del catálogo.')} target="_blank" rel="noreferrer">Hablar con un asesor</a></article>}{!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Pruebe otra búsqueda o consulte por WhatsApp.</p><a href={publicWhatsAppLink(store?.whatsapp_number || store?.phone,'Hola, deseo consultar por un producto que no encontré en el catálogo.')} target="_blank" rel="noreferrer">Consultar por WhatsApp</a></section>}</section>
+      <section className="catalog-products-section" id="catalog-products"><div className="catalog-products-head"><div><span className="catalog-kicker">Explorar</span><h2>{category === 'Todas' ? 'Productos disponibles' : category}</h2><p>{visibleProducts.length} resultado(s) · use la búsqueda para filtrar por marca, color, talla o nombre.</p></div><div className="catalog-public-search"><Search size={20}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, talla, color o marca..." /></div></div><section className="catalog-public-grid catalog-v326-grid">{visibleProducts.map(p => <article className="catalog-public-card catalog-v326-card" key={p.id}><button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/>{p.catalog_featured && <span className="catalog-featured-badge">Recomendado</span>}<span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span></button><div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>consultProduct(p)}>Consultar</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar al pedido') : 'Agotado'}</button></div></div></article>)}{visibleProducts.length > 0 && visibleProducts.length < 4 && <article className="catalog-assistance-card catalog-v326-assistance"><span>¿Necesita otra opción?</span><h2>Le ayudamos por WhatsApp</h2><p>Consulte por modelos, tallas, colores o productos similares disponibles.</p><button type="button" onClick={openWhatsAppCatalog}>Hablar con un asesor</button></article>}{!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Pruebe otra búsqueda o consulte por WhatsApp.</p><button type="button" onClick={openWhatsAppCatalog}>Consultar por WhatsApp</button></section>}</section></section>
       {selected && <div className="catalog-detail-backdrop" onMouseDown={closeProduct}><article className="catalog-detail-modal" onMouseDown={e=>e.stopPropagation()}><button type="button" className="catalog-detail-close" onClick={closeProduct}>×</button><img src={selected.image_url || APP_ICON} alt={selected.name}/><div><span className={selected.availability==='Agotado'?'catalog-availability soldout':selected.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(selected.availability)}</span><p>{selected.category || 'General'}</p><h2>{selected.name}</h2><strong>{money(selected.price)}</strong><div className="catalog-detail-specs">{selected.brand && <span>Marca: {selected.brand}</span>}{selected.color && <span>Color: {selected.color}</span>}{selected.size && <span>Talla: {selected.size}</span>}{selected.code && <span>Código: {selected.code}</span>}</div><p className="catalog-detail-description">{selected.catalog_description || selected.description || 'Consulta disponibilidad y detalles por WhatsApp.'}</p><div className="catalog-detail-actions"><button className="secondary-btn" type="button" onClick={()=>consultProduct(selected)}>Consultar por WhatsApp</button><button className="primary-btn" type="button" disabled={!canOrder(selected)} onClick={()=>{addToCart(selected); setCartOpen(true);}}>{canOrder(selected)?'Agregar al pedido':'Agotado'}</button></div></div></article></div>}
       {cartOpen && <div className="catalog-cart-backdrop" onMouseDown={()=>setCartOpen(false)}><aside className="catalog-cart-drawer" onMouseDown={e=>e.stopPropagation()}><div className="catalog-cart-head"><div><span>Pedido por WhatsApp</span><h2>Tu selección</h2></div><button type="button" onClick={()=>setCartOpen(false)}>×</button></div>{cart.length ? <><div className="catalog-cart-lines">{cart.map(line=><article key={line.id}><img src={line.image_url || APP_ICON} alt={line.name}/><div><strong>{line.name}</strong><small>{[line.color,line.size,line.code].filter(Boolean).join(' · ')}</small><b>{money(line.price)}</b></div><div className="cart-qty-control"><button type="button" onClick={()=>changeCartQty(line.id,-1)}>−</button><span>{line.qty}</span><button type="button" onClick={()=>changeCartQty(line.id,1)}>+</button><button type="button" className="cart-remove" onClick={()=>removeCartLine(line.id)}>Quitar</button></div></article>)}</div><div className="catalog-cart-total"><span>Total referencial</span><strong>{money(cartTotal)}</strong></div><form className="catalog-order-form" onSubmit={submitOrder}><label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre y apellido" required /></label><label>Tu WhatsApp<input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} inputMode="tel" placeholder="999 999 999" required /></label><label>Nota opcional<textarea value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Color alternativo, entrega, consulta..." rows="3" /></label><p>Al enviar, registramos la solicitud y abrimos WhatsApp para confirmar disponibilidad y pago.</p><button type="submit" className="primary-btn" disabled={submitting}>{submitting ? 'Registrando...' : 'Enviar pedido por WhatsApp'}</button></form></> : <div className="catalog-cart-empty"><h3>Tu pedido está vacío</h3><p>Agregue productos del catálogo para enviarlos por WhatsApp.</p></div>}</aside></div>}
       <footer className="catalog-public-footer"><strong>{store?.name || 'Clomar Store'}</strong><span>Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</span></footer>
@@ -3851,25 +3848,52 @@ function PublicCatalogApp() {
   );
 }
 
-function MobileBottomNav({ current, setCurrent, role, menuOpen = false }) {
+function MobileQuickAssistant({ open, onClose, products = [], setCurrent }) {
+  const [query, setQuery] = useState('');
+  const [mode, setMode] = useState('buscar');
+  useEffect(() => { if (!open) { setQuery(''); setMode('buscar'); } }, [open]);
+  if (!open) return null;
+  const rows = products.filter(p => {
+    if (p.active === false) return false;
+    const match = !query.trim() || `${p.name || ''} ${p.code || ''} ${p.category || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.trim().toLowerCase());
+    const modeMatch = mode !== 'low' || asNum(p.stock) <= asNum(p.stock_min);
+    return match && modeMatch;
+  }).slice(0, 6);
+  const chooseProduct = (p) => {
+    try { sessionStorage.setItem('clomar_pos_assistant_search', p.code || p.name || ''); } catch (_) {}
+    setCurrent('ventas'); onClose();
+  };
+  return (
+    <div className="mobile-ai-backdrop" role="dialog" aria-modal="true" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <section className="mobile-ai-sheet" onMouseDown={e => e.stopPropagation()}>
+        <div className="mobile-ai-handle" />
+        <header><div><span>ASISTENTE EXPRESS</span><h3>¿Qué necesita revisar?</h3><p>Consulta productos y stock con información real del ERP.</p></div><button type="button" aria-label="Cerrar asistente" onClick={onClose}>×</button></header>
+        <div className="mobile-ai-quick"><button type="button" className={mode === 'buscar' ? 'active' : ''} onClick={() => setMode('buscar')}>Buscar producto</button><button type="button" className={mode === 'low' ? 'active' : ''} onClick={() => setMode('low')}>Stock bajo</button><button type="button" onClick={() => { setCurrent('pedidos'); onClose(); }}>Pedidos web</button></div>
+        <div className="mobile-ai-search"><Search size={18}/><input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={mode === 'low' ? 'Buscar entre productos por reponer...' : 'Nombre, código, talla o color'} /></div>
+        <div className="mobile-ai-results">{rows.length ? rows.map(p => { const low = asNum(p.stock) <= asNum(p.stock_min); return <button type="button" className="mobile-ai-result" key={p.id} onClick={() => chooseProduct(p)}><img src={productImageSrc(p)} alt={p.name}/><span><strong>{p.name}</strong><small>{p.code || 'Sin código'} · {p.color || p.category || 'General'}</small></span><b className={low ? 'low' : ''}>{low ? `Reponer ${asNum(p.stock)}` : `Stock ${asNum(p.stock)}`}</b></button>; }) : <div className="mobile-ai-empty">No encontramos productos con ese criterio.</div>}</div>
+        <footer><button type="button" className="secondary-btn" onClick={() => { setCurrent('ia'); onClose(); }}>Abrir asistente completo</button></footer>
+      </section>
+    </div>
+  );
+}
+
+function MobileBottomNav({ current, setCurrent, role, menuOpen = false, onAssistant }) {
   const labelMap = {
-    panel: ['📊', 'Inicio'], ia: ['🤖', 'IA'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], catalogo: ['🛍️', 'Catálogo'], pedidos: ['📬', 'Pedidos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
+    panel: ['📊', 'Inicio'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], catalogo: ['🛍️', 'Catálogo'], pedidos: ['📬', 'Pedidos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], creditos: ['💳', 'Créditos']
   };
   const preferred = role === 'almacen'
-    ? ['productos', 'inventario', 'ingreso', 'etiquetas']
+    ? ['productos', 'inventario', 'ingreso', 'catalogo']
     : role === 'cajero'
       ? ['ventas', 'comprobantes', 'caja', 'creditos']
       : role === 'lectura'
         ? ['panel', 'reportes', 'inventario']
-        : ['panel', 'ventas', 'reportes', 'caja', 'herramientas'];
-  const items = preferred.filter(key => canAccess(role, key) && labelMap[key]).slice(0, 5);
+        : ['panel', 'ventas', 'caja', 'pedidos'];
+  const items = preferred.filter(key => canAccess(role, key) && labelMap[key]).slice(0, 4);
   if (!items.length || menuOpen) return null;
   return (
-    <nav className="mobile-bottom-nav" aria-label="Navegación móvil principal">
-      {items.map(key => {
-        const [icon, label] = labelMap[key];
-        return <button key={key} type="button" className={current === key ? 'active' : ''} onClick={() => setCurrent(key)}><span>{icon}</span><small>{label}</small></button>;
-      })}
+    <nav className="mobile-bottom-nav mobile-bottom-nav-v326" aria-label="Navegación móvil principal">
+      {items.map(key => { const [icon, label] = labelMap[key]; return <button key={key} type="button" className={current === key ? 'active' : ''} onClick={() => setCurrent(key)}><span>{icon}</span><small>{label}</small></button>; })}
+      <button type="button" className="mobile-assistant-nav" onClick={onAssistant}><span>✦</span><small>Asistente</small></button>
     </nav>
   );
 }
@@ -3879,6 +3903,7 @@ function AppShell({ session }) {
     try { return localStorage.getItem('clomar_last_module') || 'ventas'; } catch (err) { return 'ventas'; }
   });
   const [open, setOpen] = useState(false);
+  const [mobileAssistantOpen, setMobileAssistantOpen] = useState(false);
   const { profile, store, loading: profileLoading, reload: reloadProfile } = useUserProfile(session);
   const { products, loading, reload } = useProducts(profile);
   const { customers, reload: reloadCustomers } = useCustomers(profile);
@@ -3918,7 +3943,8 @@ function AppShell({ session }) {
       <button className={`sidebar-scrim ${open ? 'show' : ''}`} type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} />
       <Sidebar current={current} setCurrent={setCurrent} open={open} setOpen={setOpen} session={session} profile={profile} store={store}/>
       <main className="main main-pro"><Header setOpen={setOpen} current={current} profile={profile} store={store} setCurrent={setCurrent}/>{loading ? <div className="loader">Cargando...</div> : content}</main>
-      <MobileBottomNav current={current} setCurrent={setCurrent} role={profile?.role || 'cajero'} menuOpen={open} />
+      <MobileBottomNav current={current} setCurrent={setCurrent} role={profile?.role || 'cajero'} menuOpen={open} onAssistant={() => setMobileAssistantOpen(true)} />
+      <MobileQuickAssistant open={mobileAssistantOpen} onClose={() => setMobileAssistantOpen(false)} products={products} setCurrent={setCurrent} />
     </div>
   );
 }
