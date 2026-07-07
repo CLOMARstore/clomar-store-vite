@@ -1,4 +1,4 @@
-/* Clomar Store V03.0-R1 — Recuperación segura y compatible */
+/* Clomar Store V03.0-R2 — Caja y reportes corregidos */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.0-R1 · Modo seguro';
+const APP_VERSION = 'V03.0-R2 · Caja y reportes';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -674,39 +674,53 @@ function useCategories(profile) {
 function useSales(profile) {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   async function loadSales(limit = 50) {
     if (!hasSupabaseConfig) return;
     setLoading(true);
+    setLoadError('');
     const { data, error } = await supabase
       .from('sales')
       .select('*')
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('created_at', { ascending: false })
       .limit(limit);
-    if (!error) setSales(data || []);
+    if (error) {
+      console.error('No se pudieron cargar ventas:', error);
+      setLoadError(error.message || 'No se pudieron cargar las ventas.');
+    } else {
+      setSales(data || []);
+    }
     setLoading(false);
   }
   useEffect(() => { loadSales(); }, [profile?.store_id]);
-  return { sales, loading, reload: loadSales };
+  return { sales, loading, loadError, reload: loadSales };
 }
 
 function useCashMovements(profile) {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(false);
-  async function loadMovements(limit = 80) {
+  const [loadError, setLoadError] = useState('');
+  async function loadMovements(limit = 120) {
     if (!hasSupabaseConfig) return;
     setLoading(true);
+    setLoadError('');
     const { data, error } = await supabase
       .from('cash_movements')
       .select('*')
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .order('created_at', { ascending: false })
       .limit(limit);
-    if (!error) setMovements(data || []);
+    if (error) {
+      console.error('No se pudieron cargar movimientos de caja:', error);
+      setLoadError(error.message || 'No se pudieron cargar los movimientos de caja.');
+    } else {
+      setMovements(data || []);
+    }
     setLoading(false);
   }
   useEffect(() => { loadMovements(); }, [profile?.store_id]);
-  return { movements, loading, reload: loadMovements };
+  return { movements, loading, loadError, reload: loadMovements };
 }
 
 function useStockMovements(profile) {
@@ -1117,15 +1131,24 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta ${receiptNumber(sale)}${item.discount ? ` · Desc. ${money(item.discount)}` : ''}`, ...meta });
     }
     const discountNote = (itemDiscountTotal || saleDiscount) ? ` · Descuentos: productos ${money(itemDiscountTotal)}, venta ${money(saleDiscount)}` : '';
+    const cashErrors = [];
     if (method === 'Mixto') {
       const parts = Object.entries(mixedPayments).filter(([,amount]) => asNum(amount) > 0);
-      for (const [payMethod, amount] of parts) await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: payMethod, amount: asNum(amount), note: `Venta mixta ${receiptNumber(sale)}${discountNote}`, ...meta });
+      for (const [payMethod, amount] of parts) {
+        const { error: cashError } = await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: payMethod, amount: asNum(amount), note: `Venta mixta ${receiptNumber(sale)}${discountNote}`, ...meta });
+        if (cashError) cashErrors.push(`${payMethod}: ${cashError.message}`);
+      }
     } else {
-      await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
+      const { error: cashError } = await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
+      if (cashError) cashErrors.push(cashError.message);
     }
     const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalStatus, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: cleanDocument(customerDocNumber) }, items };
     openCompletedSale(completedSale);
-    setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: documentType === 'Interno' ? `Comprobante interno listo por ${money(total)}.` : `${fiscalMeta.label} guardada como pre-emisión; todavía no se envió a SUNAT.` });
+    if (cashErrors.length) {
+      setNotice({ type: 'warning', icon: '⚠️', title: `Venta ${receiptNumber(sale)} registrada con observación`, message: `La venta quedó guardada, pero Caja no pudo registrar el movimiento: ${cashErrors.join(' | ')}. Ejecuta el SQL R2 y luego usa “Sincronizar ventas” en Caja.` });
+    } else {
+      setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: documentType === 'Interno' ? `Comprobante interno y movimiento de caja listos por ${money(total)}.` : `${fiscalMeta.label} guardada como pre-emisión; todavía no se envió a SUNAT.` });
+    }
     setCart([]); setCustomer('Consumidor final'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setShowItemDiscounts(false); setShowGlobalDiscount(false); setShowMorePaymentMethods(false); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
     await reloadProducts();
     setTimeout(() => searchInputRef.current?.focus(), 250);
@@ -1983,9 +2006,11 @@ function StockEntry({ products, reloadProducts, profile }) {
 }
 
 function CashPage({ profile }) {
-  const { movements, reload } = useCashMovements(profile);
+  const { movements, reload, loading, loadError } = useCashMovements(profile);
   const [form, setForm] = useState({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' });
   const [closeDate, setCloseDate] = useState(todayISO());
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
   const dayMovs = movements.filter(m => String(m.created_at || '').slice(0,10) === closeDate);
   const ingresosList = dayMovs.filter(m => ['Ingreso','Apertura'].includes(m.type));
   const egresosList = dayMovs.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
@@ -1997,12 +2022,57 @@ function CashPage({ profile }) {
   const cajaNeta = ingresos - egresos;
   const byMethod = dayMovs.reduce((acc,m)=>{ const k=m.payment_method || 'Sin método'; acc[k]=(acc[k]||0)+asNum(m.amount); return acc; },{});
   const groupByType = dayMovs.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + asNum(m.amount); return acc; }, {});
+  const storeId = profile?.store_id || DEFAULT_STORE_ID;
+
   async function save(e) {
     e.preventDefault();
     if (asNum(form.amount) <= 0) return alert('El monto debe ser mayor a cero.');
-    const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    if (error) alert(error.message); else { setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' }); reload(); }
+    const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note, store_id: storeId, user_id: profile?.id || null });
+    if (error) alert(`No se pudo registrar el movimiento: ${error.message}`); else { setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' }); await reload(); }
   }
+
+  async function syncSalesToCash() {
+    setSyncMessage('');
+    setSyncing(true);
+    const { data: salesData, error: salesError } = await supabase
+      .from('sales')
+      .select('id,receipt_number,created_at,total,payment_method,status,customer_name')
+      .eq('store_id', storeId)
+      .gte('created_at', closeDate)
+      .lt('created_at', `${closeDate}T23:59:59.999Z`)
+      .order('created_at', { ascending: true });
+    if (salesError) { setSyncMessage(`No se pudieron consultar las ventas: ${salesError.message}`); setSyncing(false); return; }
+
+    const existingNotes = (movements || []).map(m => String(m.note || '')).join(' || ');
+    const candidates = (salesData || []).filter(s => {
+      const method = String(s.payment_method || '');
+      const ref = receiptNumber(s);
+      return !method.includes('Crédito') && method !== 'Mixto' && !String(s.status || '').toLowerCase().includes('anulad') && !existingNotes.includes(ref);
+    });
+    if (!candidates.length) {
+      setSyncMessage('No hay ventas simples pendientes de sincronizar para la fecha seleccionada. Las ventas mixtas deben revisarse manualmente.');
+      setSyncing(false);
+      return;
+    }
+    if (!confirm(`Se registrarán ${candidates.length} movimiento(s) faltantes de Caja para ${closeDate}. Solo se crearán movimientos de ventas simples que aún no tengan comprobante en Caja. ¿Continuar?`)) { setSyncing(false); return; }
+    let created = 0; const errors = [];
+    for (const sale of candidates) {
+      const { error } = await supabase.from('cash_movements').insert({
+        type: 'Ingreso',
+        payment_method: sale.payment_method || 'Efectivo',
+        amount: asNum(sale.total),
+        note: `Conciliación V03-R2 · Venta ${receiptNumber(sale)}${sale.customer_name ? ` · ${sale.customer_name}` : ''}`,
+        store_id: storeId,
+        user_id: profile?.id || null,
+        created_at: sale.created_at,
+      });
+      if (error) errors.push(`${receiptNumber(sale)}: ${error.message}`); else created += 1;
+    }
+    await reload(250);
+    setSyncMessage(errors.length ? `Se sincronizaron ${created} movimiento(s). Errores: ${errors.join(' | ')}` : `Se sincronizaron ${created} movimiento(s) de ventas pendientes.`);
+    setSyncing(false);
+  }
+
   function printClose() {
     const rows = dayMovs.map(m=>`<tr><td>${escapeHtml(fmtDate(m.created_at))}</td><td>${escapeHtml(m.type)}</td><td>${escapeHtml(m.payment_method || '')}</td><td>${escapeHtml(m.note || '')}</td><td>${money(m.amount)}</td></tr>`).join('');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cierre de caja ${closeDate}</title><style>body{font-family:Arial;padding:24px;color:#111827}h1{margin:0}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.kpi{border:1px solid #ddd;border-radius:12px;padding:12px}.kpi span{display:block;color:#64748b;font-size:11px;text-transform:uppercase}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #eee;padding:7px;text-align:left;font-size:12px}</style></head><body><h1>Cierre de caja — Clomar Store</h1><p>Fecha: ${closeDate}</p><section class="kpis"><div class="kpi"><span>Ingresos</span><strong>${money(ingresos)}</strong></div><div class="kpi"><span>Egresos</span><strong>${money(egresos)}</strong></div><div class="kpi"><span>Créditos</span><strong>${money(creditos)}</strong></div><div class="kpi"><span>Caja neta</span><strong>${money(cajaNeta)}</strong></div></section><h2>Movimientos</h2><table><thead><tr><th>Hora</th><th>Tipo</th><th>Método</th><th>Nota</th><th>Monto</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
@@ -2017,9 +2087,12 @@ function CashPage({ profile }) {
   }
   return (
     <div className="page cash-pro-page">
-      <div className="hero compact-hero"><h1>💰 Caja y cierre diario</h1><p>Ingresos, egresos, compras, créditos, abonos y cierre imprimible del día.</p></div>
-      <section className="card compact-card close-cash-card"><div className="report-filter-head"><div><h3>Cierre de caja</h3><p className="muted">Selecciona fecha, revisa totales y guarda PDF o TXT.</p></div><div className="report-actions"><input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} /><button className="secondary-btn" type="button" onClick={exportCloseTxt}>TXT</button><button className="primary-btn" type="button" onClick={printClose}>PDF / Imprimir</button></div></div></section>
+      <div className="hero compact-hero"><h1>💰 Caja y cierre diario</h1><p>Ingresos, egresos, compras, créditos, abonos y conciliación de ventas.</p></div>
+      {loadError && <div className="data-error"><strong>No se pudo leer Caja:</strong> {loadError}. Ejecute el SQL R2 y pulse Actualizar.</div>}
+      {syncMessage && <div className="data-status">{syncMessage}</div>}
+      <section className="card compact-card close-cash-card"><div className="report-filter-head"><div><h3>Cierre de caja</h3><p className="muted">Selecciona fecha, revisa totales y guarda PDF o TXT.</p></div><div className="report-actions"><input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} /><button className="secondary-btn" type="button" onClick={()=>reload()}>{loading ? 'Actualizando...' : 'Actualizar'}</button><button className="secondary-btn" type="button" onClick={exportCloseTxt}>TXT</button><button className="primary-btn" type="button" onClick={printClose}>PDF / Imprimir</button></div></div></section>
       <div className="kpi-grid"><Kpi label="Ingresos" value={money(ingresos)} helper="Ventas, abonos y entradas" /><Kpi label="Egresos" value={money(egresos)} helper="Compras, retiros y salidas" /><Kpi label="Créditos" value={money(creditos)} helper="Ventas por cobrar" /><Kpi label="Caja neta" value={money(cajaNeta)} helper="Ingresos - egresos" /></div>
+      <section className="card compact-card extra-row"><div className="report-filter-head"><div><h3>Conciliar ventas pendientes</h3><p className="muted">Corrige movimientos de caja omitidos por la versión anterior. Solo toma ventas simples de la fecha seleccionada y nunca duplica una venta que ya tenga referencia.</p></div><button className="secondary-btn" type="button" disabled={syncing} onClick={syncSalesToCash}>{syncing ? 'Sincronizando...' : 'Sincronizar ventas de la fecha'}</button></div></section>
       <div className="two-col"><form className="card form-grid" onSubmit={save}><h3>Movimiento manual</h3><label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Ingreso</option><option>Egreso</option><option>Apertura</option><option>Retiro</option><option>Compra</option></select></label><label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label><label>Monto<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" /></label><label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Concepto del movimiento" /></label><button className="primary-btn">Registrar movimiento</button></form><section className="card compact-card"><h3>Resumen por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos en la fecha.</p>}</section></div>
       <div className="two-col extra-row"><section className="card compact-card"><h3>Resumen por tipo</h3>{Object.entries(groupByType).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos.</p>}</section><section className="card compact-card"><h3>Movimientos de la fecha</h3>{dayMovs.slice(0,18).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}{!dayMovs.length && <p className="muted">No hay movimientos registrados.</p>}</section></div>
     </div>
@@ -2103,6 +2176,7 @@ function Reports({ products, profile }) {
   const [payments, setPayments] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadErrors, setLoadErrors] = useState([]);
   const [startDate, setStartDate] = useState(todayISO());
   const [endDate, setEndDate] = useState(todayISO());
   const [methodFilter, setMethodFilter] = useState('todos');
@@ -2170,6 +2244,14 @@ function Reports({ products, profile }) {
       profilesQuery,
     ]);
 
+    const errors = [
+      ['Ventas', salesRes.error],
+      ['Detalle de ventas', itemsRes.error],
+      ['Caja', movementsRes.error],
+      ['Créditos', paymentsRes.error],
+      ['Usuarios', profilesRes.error],
+    ].filter(([, err]) => err).map(([label, err]) => `${label}: ${err.message || 'error de consulta'}`);
+    setLoadErrors(errors);
     setSales(salesRes.data || []);
     setItems(itemsRes.data || []);
     setMovements(movementsRes.data || []);
@@ -2329,6 +2411,7 @@ function Reports({ products, profile }) {
         <h1>📈 Reportes profesionales</h1>
         <p>Ventas, ganancias, vendedores, productos, categorías, caja y créditos con filtros comerciales.</p>
       </div>
+      {loadErrors.length > 0 && <div className="data-error"><strong>Hay datos que no se pudieron leer:</strong> {loadErrors.join(' · ')}. Ejecute el SQL R2 y pulse Actualizar.</div>}
 
       <section className="card compact-card report-filters">
         <div className="report-filter-head">

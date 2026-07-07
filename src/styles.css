@@ -2436,3 +2436,7 @@ html:has(body.clomar-modal-open){overflow:hidden!important;overscroll-behavior:n
   .sidebar-scrim,
   .mobile-checkout-bar { display: none !important; }
 }
+
+
+/* V03.0-R2: visibilidad de errores de sincronización */
+.data-error,.data-status{margin:0 0 14px;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.45}.data-error{background:#fff1f2;border:1px solid #fecdd3;color:#9f1239}.data-status{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}
