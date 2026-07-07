@@ -1,4 +1,4 @@
-/* V02.2M Checkout Footer & Discount Polish */
+/* V03.0 — Núcleo Profesional de Clomar Store */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V02.2M Checkout Footer & Discount Polish';
+const APP_VERSION = 'V03.0 · Núcleo profesional';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -485,7 +485,11 @@ function Login() {
     if (!hasSupabaseConfig) return;
     setLoading(true);
     const { error: signError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signError) setError('Correo o contraseña incorrectos.');
+    if (signError) {
+      const raw = String(signError.message || '').toLowerCase();
+      const unavailable = raw.includes('fetch') || raw.includes('network') || raw.includes('failed to connect') || raw.includes('service unavailable') || raw.includes('database');
+      setError(unavailable ? 'El servicio de datos no está disponible temporalmente. Verifique Supabase e intente nuevamente.' : 'Correo o contraseña incorrectos.');
+    }
     setLoading(false);
   }
 
@@ -573,7 +577,7 @@ function Header({ setOpen, current, profile, store }) {
       <button className="ghost mobile-only menu-toggle-pro" type="button" onClick={() => setOpen(true)}><Menu/></button>
       <div className="header-brand-mobile"><img src={logoSrc(store)} alt="Logo tienda" /></div>
       <div className="header-title-block"><h2>{titleMap[current]}</h2><p>{store?.name || 'Clomar Store Pro'} · {roleMeta(profile)}</p></div>
-      <div className="header-status-chip"><span className="status-dot" /><small>{APP_VERSION}</small></div>
+      <div className="header-status-chip"><span className="status-dot" /><small>Sistema en línea</small></div>
     </header>
   );
 }
@@ -590,7 +594,7 @@ function useProducts(profile) {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active,price_status,margin_target,min_price,price_notes,price_updated_at,price_updated_by')
+      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active,price_status,margin_target,min_price,price_notes,price_updated_at,price_updated_by,variant_group,catalog_title,web_description,public_visible')
       .eq('status', 'Activo')
       .eq('active', true)
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
@@ -703,6 +707,35 @@ function useCashMovements(profile) {
   return { movements, loading, reload: loadMovements };
 }
 
+
+function useCashSession(profile) {
+  const [cashSession, setCashSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function loadCashSession() {
+    if (!hasSupabaseConfig || !profile?.id) {
+      setCashSession(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('cash_sessions')
+      .select('*')
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
+      .eq('opened_by', profile.id)
+      .eq('status', 'Abierta')
+      .order('opened_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error) setCashSession(data || null);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadCashSession(); }, [profile?.id, profile?.store_id]);
+  return { cashSession, loading, reload: loadCashSession };
+}
+
 function useStockMovements(profile) {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -732,9 +765,9 @@ function Panel({ products, profile }) {
   const stockCritico = products.filter(p => asNum(p.stock) <= asNum(p.stock_min ?? 2));
   const sinPrecio = products.filter(p => asNum(p.price) <= 0 || productPriceStatus(p) !== 'Validado');
   const today = todayISO();
-  const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today);
+  const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today && s.status !== 'Anulada');
   const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); })();
-  const salesYesterday = sales.filter(s => String(s.created_at || '').slice(0,10) === yesterday);
+  const salesYesterday = sales.filter(s => String(s.created_at || '').slice(0,10) === yesterday && s.status !== 'Anulada');
   const ingresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Ingreso','Apertura'].includes(m.type));
   const egresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
   const totalVentas = salesToday.reduce((s, v) => s + asNum(v.total), 0);
@@ -808,6 +841,10 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [mixedPayments, setMixedPayments] = useState({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
+  const [creditDueDate, setCreditDueDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10);
+  });
+  const { cashSession, loading: cashSessionLoading, reload: reloadCashSession } = useCashSession(profile);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -1052,6 +1089,14 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
 
   function validateSaleBeforeConfirm() {
     if (!cart.length || saving) return false;
+    if (cashSessionLoading) {
+      setNotice({ type: 'info', icon: '⌛', title: 'Validando caja', message: 'Espere un momento mientras verificamos la caja activa.' });
+      return false;
+    }
+    if (!cashSession?.id) {
+      setNotice({ type: 'warning', icon: '💰', title: 'Caja cerrada', message: 'Abra una caja antes de registrar ventas, créditos o movimientos. Ingrese a Caja y registre el monto inicial.' });
+      return false;
+    }
     const invalidPrice = cart.find(item => asNum(item.price) <= 0 || productPriceStatus(item) !== 'Validado');
     if (invalidPrice) { setNotice({ type: 'warning', icon: '💰', title: 'No se puede cobrar todavía', message: `Revisa y valida el precio de ${invalidPrice.name} antes de finalizar la venta.` }); return false; }
     if (total <= 0) { setNotice({ type: 'warning', icon: '📉', title: 'Total inválido', message: 'El total de la venta debe ser mayor a cero.' }); return false; }
@@ -1064,6 +1109,16 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       }
     }
     if (documentType === 'Boleta' && doc && ![8, 11].includes(doc.replace(/\D/g, '').length)) { setNotice({ type: 'warning', icon: '🧾', title: 'Documento incompleto', message: 'Revisa el DNI/RUC del cliente o deja la boleta sin documento.' }); return false; }
+    if (method === 'Crédito') {
+      if (!selectedCustomerId || String(selectedCustomerId).startsWith('quick-') || isDefaultCheckoutCustomer) {
+        setNotice({ type: 'warning', icon: '💳', title: 'Cliente obligatorio para crédito', message: 'Seleccione un cliente registrado con límite de crédito antes de continuar.' });
+        return false;
+      }
+      if (!creditDueDate) {
+        setNotice({ type: 'warning', icon: '📅', title: 'Falta fecha de vencimiento', message: 'Seleccione la fecha máxima de pago del crédito.' });
+        return false;
+      }
+    }
     return true;
   }
 
@@ -1074,54 +1129,56 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
     setMobileCartOpen(false);
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
-    const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
     const saleMethod = method === 'Mixto' ? 'Mixto' : method;
     const fiscalStatus = documentType === 'Interno' ? 'Interno' : 'Pre-emisión';
-    const salePayload = {
-      customer_name: customer || 'Consumidor final',
-      customer_id: selectedCustomerId && !String(selectedCustomerId).startsWith('quick-') ? selectedCustomerId : null,
-      payment_method: saleMethod,
-      total,
-      status: method === 'Crédito' ? 'Crédito' : 'Pagado',
-      document_type: documentType,
-      fiscal_series: fiscalMeta.series,
-      fiscal_correlative: null,
-      sunat_status: fiscalStatus,
-      customer_doc_type: documentType === 'Interno' ? null : customerDocType,
-      customer_doc_number: documentType === 'Interno' ? null : cleanDocument(customerDocNumber),
-      electronic_provider: null,
-      ...meta,
-    };
-    const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
-    if (error) { setNotice({ type: 'warning', icon: '⚠️', title: 'No se pudo registrar la venta', message: `${error.message}. Ejecuta primero el SQL de V02.2J si faltan columnas fiscales.` }); setSaving(false); return; }
-    const items = cart.map(item => {
+    const rpcItems = cart.map(item => {
       const qty = asNum(item.qty);
       const afterLine = lineSubtotal(item);
       const globalShare = afterItemDiscount > 0 ? saleDiscount * (afterLine / afterItemDiscount) : 0;
       const finalSubtotal = Math.max(0, afterLine - globalShare);
       const finalPrice = qty > 0 ? finalSubtotal / qty : 0;
-      const unitCost = asNum(item.cost);
-      const unitProfit = finalPrice - unitCost;
-      return { sale_id: sale.id, product_id: item.id, product_name: item.name, qty, price: finalPrice, unit_cost: unitCost, subtotal: finalSubtotal, profit: unitProfit * qty, margin_percent: finalPrice > 0 ? (unitProfit / finalPrice) * 100 : 0, store_id: profile?.store_id || DEFAULT_STORE_ID };
+      return { product_id: item.id, qty, final_unit_price: finalPrice };
     });
-    const itemsInsert = await supabase.from('sale_items').insert(items);
-    if (itemsInsert.error) { setNotice({ type: 'warning', icon: '⚠️', title: 'Venta parcialmente registrada', message: 'La venta se creó pero no se pudieron guardar todos los productos. Revisa Comprobantes antes de repetir la operación.' }); setSaving(false); return; }
-    for (const item of cart) {
-      await supabase.from('products').update({ stock: asNum(item.stock) - asNum(item.qty) }).eq('id', item.id);
-      await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta ${receiptNumber(sale)}${item.discount ? ` · Desc. ${money(item.discount)}` : ''}`, ...meta });
+    const mixedPayload = method === 'Mixto'
+      ? Object.entries(mixedPayments).filter(([, amount]) => asNum(amount) > 0).map(([payment_method, amount]) => ({ payment_method, amount: asNum(amount) }))
+      : [];
+    const { data, error } = await supabase.rpc('clomar_register_sale_v03', {
+      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+      p_customer_id: selectedCustomerId && !String(selectedCustomerId).startsWith('quick-') ? selectedCustomerId : null,
+      p_customer_name: customer || 'Consumidor final',
+      p_payment_method: saleMethod,
+      p_document_type: documentType,
+      p_items: rpcItems,
+      p_mixed_payments: mixedPayload,
+      p_due_date: method === 'Crédito' ? creditDueDate : null,
+      p_customer_doc_type: documentType === 'Interno' ? null : customerDocType,
+      p_customer_doc_number: documentType === 'Interno' ? null : cleanDocument(customerDocNumber),
+      p_discount_total: itemDiscountTotal + saleDiscount,
+      p_note: null,
+    });
+    if (error || !data?.sale) {
+      setNotice({ type: 'warning', icon: '⚠️', title: 'Venta no registrada', message: error?.message || 'No se recibió una confirmación de la operación. No repita el cobro hasta revisar Comprobantes.' });
+      setSaving(false);
+      return;
     }
-    const discountNote = (itemDiscountTotal || saleDiscount) ? ` · Descuentos: productos ${money(itemDiscountTotal)}, venta ${money(saleDiscount)}` : '';
-    if (method === 'Mixto') {
-      const parts = Object.entries(mixedPayments).filter(([,amount]) => asNum(amount) > 0);
-      for (const [payMethod, amount] of parts) await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: payMethod, amount: asNum(amount), note: `Venta mixta ${receiptNumber(sale)}${discountNote}`, ...meta });
-    } else {
-      await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
-    }
-    const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalStatus, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: cleanDocument(customerDocNumber) }, items };
+    const completedSale = { sale: data.sale, items: data.items || [] };
     openCompletedSale(completedSale);
-    setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: documentType === 'Interno' ? `Comprobante interno listo por ${money(total)}.` : `${fiscalMeta.label} guardada como pre-emisión; todavía no se envió a SUNAT.` });
-    setCart([]); setCustomer('Consumidor final'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setShowItemDiscounts(false); setShowGlobalDiscount(false); setShowMorePaymentMethods(false); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
-    await reloadProducts();
+    setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(data.sale)} registrada`, message: `${documentType === 'Interno' ? 'Comprobante interno' : fiscalMeta.label} guardado por ${money(data.sale.total)}. Stock, caja y auditoría se actualizaron juntos.` });
+    setCart([]);
+    setCustomer('Consumidor final');
+    setSelectedCustomerId('');
+    setCustomerDocNumber('');
+    setCustomerDocType('DNI');
+    setMethod('Efectivo');
+    setDocumentType('Interno');
+    setGlobalDiscount('0');
+    setShowItemDiscounts(false);
+    setShowGlobalDiscount(false);
+    setShowMorePaymentMethods(false);
+    setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
+    const nextDue = new Date(); nextDue.setDate(nextDue.getDate() + 30); setCreditDueDate(nextDue.toISOString().slice(0, 10));
+    setSaving(false);
+    await Promise.all([reloadProducts(), reloadCashSession()]);
     setTimeout(() => searchInputRef.current?.focus(), 250);
   }
 
@@ -1133,6 +1190,10 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
   return (
     <div className="page pos-page pos-pro-page">
       <FriendlyNotice notice={notice} onClose={()=>setNotice(null)} />
+      <div className={`cash-live-strip ${cashSession?.id ? 'open' : 'closed'}`}>
+        <span className="cash-live-dot" />
+        <div><strong>{cashSession?.id ? 'Caja abierta' : 'Caja cerrada'}</strong><small>{cashSession?.id ? `Apertura: ${money(cashSession.opening_amount)} · ${fmtDate(cashSession.opened_at)}` : 'Abra caja antes de registrar una venta.'}</small></div>
+      </div>
       <CustomerQuickModal
         open={customerQuickOpen}
         onClose={() => setCustomerQuickOpen(false)}
@@ -1192,6 +1253,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
             {documentType !== 'Interno' && <section className="fiscal-client-panel fiscal-client-compact"><div className="fiscal-client-title"><div><span className="eyebrow">Datos fiscales</span><strong>{documentType === 'Factura' ? 'RUC y razón social' : 'Documento opcional para boleta'}</strong></div><button type="button" className="fiscal-edit-btn" onClick={openQuickCustomer}>Editar</button></div><div className="sunat-client-grid"><select value={documentType === 'Factura' ? 'RUC' : customerDocType} disabled={documentType === 'Factura'} onChange={e=>setCustomerDocType(e.target.value)}><option>DNI</option><option>RUC</option><option>CE</option><option>Sin documento</option></select><input value={customerDocNumber} inputMode="numeric" onChange={e=>setCustomerDocNumber(cleanDocument(e.target.value))} placeholder={documentType === 'Factura' ? 'RUC de 11 dígitos' : 'Número opcional'} /></div></section>}
             <div className="payment-section"><span className="eyebrow payment-label">Método de pago</span><div className="payment-fast-row"><button type="button" className={method==='Efectivo'?'active':''} onClick={()=>{setMethod('Efectivo');setShowMorePaymentMethods(false);}}>Efectivo</button><button type="button" className={method==='Yape'?'active':''} onClick={()=>{setMethod('Yape');setShowMorePaymentMethods(false);}}>Yape</button><button type="button" className={method==='Plin'?'active':''} onClick={()=>{setMethod('Plin');setShowMorePaymentMethods(false);}}>Plin</button><button type="button" className={method==='Mixto'?'active':''} onClick={()=>{setMethod('Mixto');setShowMorePaymentMethods(false);}}>Mixto</button></div><button type="button" className="other-payment-toggle" onClick={()=>setShowMorePaymentMethods(v=>!v)}>{showMorePaymentMethods ? 'Ocultar otros métodos' : 'Otros métodos'}</button>{showMorePaymentMethods && <div className="additional-payment-row"><button type="button" className={method==='Tarjeta'?'active':''} onClick={()=>setMethod('Tarjeta')}>Tarjeta</button><button type="button" className={method==='Transferencia'?'active':''} onClick={()=>setMethod('Transferencia')}>Transferencia</button><button type="button" className={method==='Crédito'?'active':''} onClick={()=>setMethod('Crédito')}>Crédito</button></div>}</div>
             {method === 'Mixto' && <div className="mixed-payment-box"><h4>Pago mixto</h4>{Object.keys(mixedPayments).map(pay => <div className="mixed-row" key={pay}><span>{pay}</span><input value={mixedPayments[pay]} inputMode="decimal" onChange={e=>setMixed(pay, e.target.value)} placeholder="0.00" /><button type="button" onClick={()=>fillMixed(pay)}>Completar</button></div>)}<div className={paymentOk ? 'mixed-ok' : 'mixed-pending'}>{paymentOk ? 'Pagos cuadrados' : `Falta/cuadra: ${money(Math.abs(mixedBalance))}`}</div></div>}
+            {method === 'Crédito' && <div className="credit-checkout-box"><strong>Crédito controlado</strong><small>Se valida el límite registrado del cliente antes de aprobar la venta.</small><label>Vence el<input type="date" value={creditDueDate} min={todayISO()} onChange={e=>setCreditDueDate(e.target.value)} /></label></div>}
           </div>
           <footer className="checkout-footer" aria-label="Resumen final de la venta">
             <div className="checkout-footer-action">
@@ -1404,6 +1466,8 @@ function ReceiptsPage({ profile, store }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [loadingItems, setLoadingItems] = useState(false);
+  const [voiding, setVoiding] = useState(false);
+  const canVoid = ['dueno','admin'].includes(profile?.role || '');
 
   const filteredSales = useMemo(() => sales.filter(s => {
     const text = `${receiptNumber(s)} ${s.customer_name || ''} ${s.payment_method || ''} ${s.status || ''} ${s.document_type || ''} ${s.sunat_status || ''}`.toLowerCase();
@@ -1417,64 +1481,31 @@ function ReceiptsPage({ profile, store }) {
     setItems([]);
     if (!hasSupabaseConfig || !sale?.id) return;
     setLoadingItems(true);
-    const { data, error } = await supabase
-      .from('sale_items')
-      .select('*')
-      .eq('sale_id', sale.id)
-      .order('created_at', { ascending: true });
+    const { data, error } = await supabase.from('sale_items').select('*').eq('sale_id', sale.id).order('created_at', { ascending: true });
     if (!error) setItems(data || []);
     setLoadingItems(false);
   }
-
-  useEffect(() => {
-    if (!selectedSale && filteredSales.length) selectSale(filteredSales[0]);
-  }, [filteredSales.length]);
-
+  async function voidSale() {
+    if (!selectedSale?.id || selectedSale.status === 'Anulada') return;
+    const reason = prompt(`Motivo obligatorio para anular ${receiptNumber(selectedSale)}:`);
+    if (!reason || !reason.trim()) return;
+    setVoiding(true);
+    const { error } = await supabase.rpc('clomar_void_sale_v03', { p_sale_id: selectedSale.id, p_reason: reason.trim() });
+    setVoiding(false);
+    if (error) return alert(error.message || 'No se pudo anular la venta.');
+    alert('Venta anulada. El stock y los movimientos asociados fueron revertidos.');
+    await reload();
+    setSelectedSale({ ...selectedSale, status: 'Anulada' });
+  }
+  useEffect(() => { if (!selectedSale && filteredSales.length) selectSale(filteredSales[0]); }, [filteredSales.length]);
   const today = todayISO();
-  const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today);
+  const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today && s.status !== 'Anulada');
   const totalToday = salesToday.reduce((sum, sale) => sum + asNum(sale.total), 0);
   const creditToday = salesToday.filter(s => s.payment_method === 'Crédito' || s.status === 'Crédito').reduce((sum, sale) => sum + asNum(sale.total), 0);
-
   return (
-    <div className="page receipts-page">
-      <div className="hero compact-hero"><h1>🧾 Comprobantes</h1><p>Reimprime tickets internos, vouchers y PDF A4 con logo, tienda, vendedor, cliente y detalle de venta.</p></div>
-      <div className="kpi-grid">
-        <Kpi label="Comprobantes hoy" value={salesToday.length} helper="ventas registradas" />
-        <Kpi label="Total hoy" value={money(totalToday)} helper="monto vendido" />
-        <Kpi label="Crédito hoy" value={money(creditToday)} helper="por cobrar" />
-        <Kpi label="Historial cargado" value={sales.length} helper="últimas ventas" />
-      </div>
-      <div className="receipt-workspace">
-        <section className="card compact-card receipt-list-card">
-          <div className="card-head-line"><h3>Historial de comprobantes</h3><button className="secondary-btn" onClick={reload} disabled={loading}>{loading ? 'Cargando...' : 'Actualizar'}</button></div>
-          <div className="receipt-filters">
-            <label>Buscar<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="B123, cliente, método..." /></label>
-            <label>Estado<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>Todos</option><option>Pagado</option><option>Crédito</option><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Interno</option><option>Pre-emisión</option></select></label>
-          </div>
-          <div className="receipt-list">
-            {filteredSales.map(sale => (
-              <button key={sale.id} className={`receipt-row ${selectedSale?.id === sale.id ? 'active' : ''}`} onClick={()=>selectSale(sale)}>
-                <div><strong>{receiptNumber(sale)} · {sale.customer_name || 'Cliente'}</strong><small>{fmtDate(sale.created_at)} · {sale.payment_method || 'Efectivo'} · {sale.document_type || 'Interno'} · {sale.sunat_status || sale.status || 'Pagado'}</small></div>
-                <b>{money(sale.total)}</b>
-              </button>
-            ))}
-            {!filteredSales.length && <p className="muted">No hay comprobantes con esos filtros.</p>}
-          </div>
-        </section>
-        <section className="card compact-card receipt-detail-card">
-          <div className="card-head-line"><h3>Vista e impresión</h3><span className="result-pill">{selectedSale ? receiptNumber(selectedSale) : 'Sin selección'}</span></div>
-          <div className="receipt-print-controls">
-            <label>Formato<select value={format} onChange={e=>setFormat(e.target.value)}><option value="80mm">Ticket 80mm</option><option value="58mm">Ticket 58mm</option><option value="a4">PDF A4</option></select></label>
-            <button className="primary-btn" disabled={!selectedSale || loadingItems} onClick={()=>printReceipt({ sale: selectedSale, items, store, profile, format })}>Imprimir / Guardar PDF</button>
-            <button className="secondary-btn" disabled={!selectedSale} onClick={()=>downloadText(`comprobante-${receiptNumber(selectedSale)}.txt`, ticketText(selectedSale, items))}>Descargar TXT</button>
-          </div>
-          {loadingItems ? <div className="loader">Cargando detalle...</div> : <ReceiptMiniPreview sale={selectedSale || { total: 0 }} items={items} store={store} profile={profile} format={format} />}
-        </section>
-      </div>
-    </div>
+    <div className="page receipts-page"><div className="hero compact-hero"><h1>🧾 Comprobantes y devoluciones</h1><p>Reimprima comprobantes y anule ventas con autorización, motivo y reversión de stock.</p></div><div className="kpi-grid"><Kpi label="Comprobantes hoy" value={salesToday.length} helper="ventas válidas" /><Kpi label="Total hoy" value={money(totalToday)} helper="monto vendido" /><Kpi label="Crédito hoy" value={money(creditToday)} helper="por cobrar" /><Kpi label="Historial cargado" value={sales.length} helper="últimas ventas" /></div><div className="receipt-workspace"><section className="card compact-card receipt-list-card"><div className="card-head-line"><h3>Historial de comprobantes</h3><button className="secondary-btn" onClick={reload} disabled={loading}>{loading ? 'Cargando...' : 'Actualizar'}</button></div><div className="receipt-filters"><label>Buscar<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="B123, cliente, método..." /></label><label>Estado<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>Todos</option><option>Pagado</option><option>Crédito</option><option>Anulada</option><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Interno</option><option>Pre-emisión</option></select></label></div><div className="receipt-list">{filteredSales.map(sale=><button key={sale.id} className={`receipt-row ${selectedSale?.id === sale.id ? 'active' : ''}`} onClick={()=>selectSale(sale)}><div><strong>{receiptNumber(sale)} · {sale.customer_name || 'Cliente'}</strong><small>{fmtDate(sale.created_at)} · {sale.payment_method || 'Efectivo'} · {sale.document_type || 'Interno'} · {sale.status || 'Pagado'}</small></div><b className={sale.status === 'Anulada' ? 'muted' : ''}>{money(sale.total)}</b></button>)}{!filteredSales.length && <p className="muted">No hay comprobantes con esos filtros.</p>}</div></section><section className="card compact-card receipt-detail-card"><div className="card-head-line"><h3>Vista e impresión</h3><span className="result-pill">{selectedSale ? receiptNumber(selectedSale) : 'Sin selección'}</span></div><div className="receipt-print-controls"><label>Formato<select value={format} onChange={e=>setFormat(e.target.value)}><option value="80mm">Ticket 80mm</option><option value="58mm">Ticket 58mm</option><option value="a4">PDF A4</option></select></label><button className="primary-btn" disabled={!selectedSale || loadingItems} onClick={()=>printReceipt({ sale: selectedSale, items, store, profile, format })}>Imprimir / Guardar PDF</button><button className="secondary-btn" disabled={!selectedSale} onClick={()=>downloadText(`comprobante-${receiptNumber(selectedSale)}.txt`, ticketText(selectedSale, items))}>Descargar TXT</button>{canVoid && <button className="danger-btn" disabled={!selectedSale || selectedSale.status === 'Anulada' || voiding} onClick={voidSale}>{voiding ? 'Anulando...' : 'Anular venta'}</button>}</div>{loadingItems ? <div className="loader">Cargando detalle...</div> : <ReceiptMiniPreview sale={selectedSale || { total: 0 }} items={items} store={store} profile={profile} format={format} />}</section></div></div>
   );
 }
-
 
 function CategoriesAdmin({ profile, categories = [], subcategories = [], products = [], reloadCategories }) {
   const [form, setForm] = useState({ name: '', type: 'principal', parent_id: '', description: '', sort_order: '100' });
@@ -1654,7 +1685,7 @@ function CategoryDetailSheet({ category, subcategories = [], productCountFor, on
 }
 
 function Products({ products, reload, profile, categories = [], subcategories = [], reloadCategories }) {
-  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'', price_status:'Pendiente', margin_target:'50', min_price:'0', price_notes:'' };
+  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', variant_group:'', catalog_title:'', web_description:'', public_visible:true, price:'', cost:'', stock:'0', stock_min:'2', image_url:'', price_status:'Pendiente', margin_target:'50', min_price:'0', price_notes:'' };
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -1715,6 +1746,10 @@ function Products({ products, reload, profile, categories = [], subcategories = 
         size: form.size.trim(),
         color: form.color.trim(),
         description: form.description.trim(),
+        variant_group: form.variant_group.trim(),
+        catalog_title: form.catalog_title.trim() || form.name.trim(),
+        web_description: form.web_description.trim(),
+        public_visible: Boolean(form.public_visible),
         price: asNum(form.price),
         cost: asNum(form.cost),
         price_status: form.price_status || 'Pendiente',
@@ -1753,6 +1788,25 @@ function Products({ products, reload, profile, categories = [], subcategories = 
     if (error) alert(error.message); else reload();
   }
 
+  function createVariant(product) {
+    setForm({
+      ...emptyForm,
+      name: product.name || '',
+      category_id: product.category_id || '', category: product.category || '',
+      subcategory_id: product.subcategory_id || '', subcategory: product.subcategory || '',
+      brand: product.brand || '', description: product.description || '',
+      variant_group: product.variant_group || product.catalog_title || product.name || '',
+      catalog_title: product.catalog_title || product.name || '',
+      web_description: product.web_description || '', public_visible: product.public_visible !== false,
+      price: String(product.price || ''), cost: String(product.cost || ''),
+      stock_min: String(product.stock_min ?? 2), price_status: product.price_status || 'Pendiente',
+      margin_target: String(product.margin_target ?? 50), min_price: String(product.min_price ?? 0),
+      price_notes: product.price_notes || '', image_url: product.image_url || '',
+    });
+    setImageFile(null);
+    setFormOpen(true);
+  }
+
   return (
     <div className="page products-page">
       <div className="hero compact-hero"><h1>📦 Productos con imágenes</h1><p>Crea artículos visuales con marca, talla, color, código de barras y foto.</p></div>
@@ -1777,6 +1831,10 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             <label>Código de barras<input value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Escanea o escribe el código" /></label>
           </div>
           <label>Nombre del producto<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre comercial del producto" /></label>
+          <div className="variant-form-note">Cada talla/color debe tener su propio código, código de barras y stock. Use el mismo grupo de variante para reunirlas.</div>
+          <div className="form-split"><label>Grupo de variante<input value={form.variant_group} onChange={e=>setForm({...form,variant_group:e.target.value})} placeholder="Ej.: Polo Urban 2026" /></label><label>Título para catálogo<input value={form.catalog_title} onChange={e=>setForm({...form,catalog_title:e.target.value})} placeholder="Nombre público" /></label></div>
+          <label>Descripción para catálogo<input value={form.web_description} onChange={e=>setForm({...form,web_description:e.target.value})} placeholder="Descripción comercial visible al cliente" /></label>
+          <label className="check-row"><input type="checkbox" checked={Boolean(form.public_visible)} onChange={e=>setForm({...form,public_visible:e.target.checked})} /> Preparar esta variante para el catálogo público</label>
           <div className="form-split">
             <label>Categoría
               <select value={form.category_id} onChange={e=>setCategoryById(e.target.value)}>
@@ -1826,13 +1884,13 @@ function Products({ products, reload, profile, categories = [], subcategories = 
                 <div>
                   <strong>{p.name}</strong>
                   <small>{p.code || 'Sin código'} · {p.barcode || 'Sin barcode'} · {p.category || 'General'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small>
-                  <small>{p.brand || 'Sin marca'} · {p.size || 'Sin talla'} · {p.color || 'Sin color'}</small>
+                  <small>{p.brand || 'Sin marca'} · {p.size || 'Sin talla'} · {p.color || 'Sin color'}{p.variant_group ? ` · Grupo: ${p.variant_group}` : ''}</small>
                   <small><span className={priceBadgeClass(productPriceStatus(p))}>{productPriceStatus(p)}</span> · Ganancia {money(productProfit(p))} · Margen precio {productMarginPercent(p).toFixed(1)}%</small>{p.description && <small>{p.description}</small>}
                 </div>
                 <div className="product-card-actions">
                   <b>{money(p.price)}</b>
                   <small>Stock {asNum(p.stock)}</small>
-                  <button type="button" className="secondary-btn" onClick={()=>deactivateProduct(p)}>Desactivar</button>
+                  <button type="button" className="secondary-btn" onClick={()=>createVariant(p)}>+ Variante</button><button type="button" className="secondary-btn" onClick={()=>deactivateProduct(p)}>Desactivar</button>
                 </div>
               </div>
             ))}
@@ -1845,7 +1903,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
 }
 
 function Customers({ customers, reload, profile }) {
-  const [form, setForm] = useState({ name:'', phone:'', document:'', address:'', credit_limit:'0' });
+  const [form, setForm] = useState({ name:'', phone:'', document:'', address:'', credit_limit:'0', credit_blocked:false });
   const [query, setQuery] = useState('');
   const filtered = customers.filter(c => `${c.name} ${c.phone} ${c.document}`.toLowerCase().includes(query.toLowerCase()));
   async function save(e) {
@@ -1853,7 +1911,7 @@ function Customers({ customers, reload, profile }) {
     if (!form.name.trim()) return alert('Coloca el nombre del cliente.');
     const payload = { ...form, credit_limit: asNum(form.credit_limit), status: 'Activo', store_id: profile?.store_id || DEFAULT_STORE_ID, created_by: profile?.id || null };
     const { error } = await supabase.from('customers').insert(payload);
-    if (error) alert(error.message); else { setForm({ name:'', phone:'', document:'', address:'', credit_limit:'0' }); reload(); }
+    if (error) alert(error.message); else { setForm({ name:'', phone:'', document:'', address:'', credit_limit:'0', credit_blocked:false }); reload(); }
   }
   return (
     <div className="page">
@@ -1865,12 +1923,13 @@ function Customers({ customers, reload, profile }) {
           <label>Documento<input value={form.document} onChange={e=>setForm({...form,document:e.target.value})} placeholder="DNI / RUC / documento" /></label>
           <label>Dirección<input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Dirección o referencia" /></label>
           <label>Límite de crédito<input value={form.credit_limit} onChange={e=>setForm({...form,credit_limit:e.target.value})} inputMode="decimal" placeholder="0.00" /></label>
+          <label className="check-row"><input type="checkbox" checked={Boolean(form.credit_blocked)} onChange={e=>setForm({...form,credit_blocked:e.target.checked})} /> Bloquear nuevas ventas a crédito</label>
           <button className="primary-btn">Guardar cliente</button>
         </form>
         <section className="card compact-card">
           <h3>Lista de clientes</h3>
           <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar cliente..." /></div>
-          {filtered.map(c => <div className="list-row" key={c.id}><span>{c.name}<small>{c.phone || 'Sin teléfono'} · {c.document || 'Sin documento'}</small></span><strong>{money(c.credit_limit)}</strong></div>)}
+          {filtered.map(c => <div className="list-row" key={c.id}><span>{c.name}<small>{c.phone || 'Sin teléfono'} · {c.document || 'Sin documento'}{c.credit_blocked ? ' · Crédito bloqueado' : ''}</small></span><strong>{money(c.credit_limit)}</strong></div>)}
           {!filtered.length && <p className="muted">No hay clientes registrados.</p>}
         </section>
       </div>
@@ -1878,23 +1937,49 @@ function Customers({ customers, reload, profile }) {
   );
 }
 
-function Inventory({ products }) {
+function Inventory({ products, profile, reloadProducts }) {
   const [query, setQuery] = useState('');
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({ product_id:'', mode:'Aumentar', qty:'1', reason:'' });
+  const [adjusting, setAdjusting] = useState(false);
   const active = products.filter(p => p.active !== false);
   const lowStock = active.filter(p => asNum(p.stock) <= asNum(p.stock_min));
   const noStock = active.filter(p => asNum(p.stock) <= 0);
   const filtered = active.filter(p => `${p.code || ''} ${p.barcode || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''}`.toLowerCase().includes(query.toLowerCase()));
   const byCat = filtered.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
+  const canAdjust = ['dueno','admin','almacen'].includes(profile?.role || '');
+  function openAdjustment(product) {
+    setAdjustForm({ product_id: product.id, mode:'Aumentar', qty:'1', reason:'' });
+    setAdjustOpen(true);
+  }
+  async function saveAdjustment(e) {
+    e.preventDefault();
+    const qty = asNum(adjustForm.qty);
+    if (!adjustForm.product_id || qty <= 0 || !adjustForm.reason.trim()) return alert('Seleccione el producto, cantidad y motivo del ajuste.');
+    const delta = adjustForm.mode === 'Reducir' ? -qty : qty;
+    setAdjusting(true);
+    const { error } = await supabase.rpc('clomar_adjust_stock_v03', {
+      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+      p_product_id: adjustForm.product_id,
+      p_qty_delta: delta,
+      p_reason: adjustForm.reason.trim(),
+    });
+    setAdjusting(false);
+    if (error) return alert(error.message || 'No se pudo registrar el ajuste.');
+    setAdjustOpen(false);
+    setAdjustForm({ product_id:'', mode:'Aumentar', qty:'1', reason:'' });
+    await reloadProducts?.();
+  }
   return (
     <div className="page inventory-page">
-      <div className="hero compact-hero"><h1>📘 Inventario</h1><p>Control compacto por categoría, stock disponible y alertas de reposición.</p></div>
+      <div className="hero compact-hero"><h1>📘 Inventario</h1><p>Control por SKU, talla, color, stock disponible y ajustes auditables.</p></div>
       <section className="card compact-card inventory-control-card">
         <div className="inventory-control-head">
-          <div><h3>Resumen de inventario</h3><p className="muted">Busca, revisa stock bajo y valida disponibilidad por categoría.</p></div>
+          <div><h3>Resumen de inventario</h3><p className="muted">Cada variante maneja stock individual. Todo ajuste exige un motivo y queda en trazabilidad.</p></div>
           <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div>
         </div>
         <div className="inventory-kpi-grid">
-          <Kpi label="Productos" value={active.length} helper="activos" />
+          <Kpi label="SKU activos" value={active.length} helper="variantes vendibles" />
           <Kpi label="Stock bajo" value={lowStock.length} helper="requieren revisión" />
           <Kpi label="Sin stock" value={noStock.length} helper="reposición urgente" />
           <Kpi label="Categorías" value={Object.keys(byCat).length} helper="con resultados" />
@@ -1902,18 +1987,15 @@ function Inventory({ products }) {
       </section>
       {Object.entries(byCat).map(([cat, items]) => (
         <section className="card compact-card inventory-block inventory-pro-block" key={cat}>
-          <div className="inventory-category-head"><h3>{cat}</h3><span>{items.length} producto(s)</span></div>
+          <div className="inventory-category-head"><h3>{cat}</h3><span>{items.length} SKU(s)</span></div>
           <div className="inventory-card-grid">
             {items.map(p => {
               const low = asNum(p.stock) <= asNum(p.stock_min);
               return (
                 <article className="inventory-card-pro" key={p.id}>
                   <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
-                  <div className="inventory-card-info">
-                    <strong>{p.name}</strong>
-                    <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}</small>
-                  </div>
-                  <div className={low ? 'stock-pill stock-low' : 'stock-pill'}>Stock {asNum(p.stock)}</div>
+                  <div className="inventory-card-info"><strong>{p.name}</strong><small>{p.code || 'Sin código'} · {p.size || 'Sin talla'}{p.color ? ` · ${p.color}` : ''}</small></div>
+                  <div className="inventory-card-side"><div className={low ? 'stock-pill stock-low' : 'stock-pill'}>Stock {asNum(p.stock)}</div>{canAdjust && <button type="button" className="tiny-action" onClick={()=>openAdjustment(p)}>Ajustar</button>}</div>
                 </article>
               );
             })}
@@ -1921,6 +2003,7 @@ function Inventory({ products }) {
         </section>
       ))}
       {!filtered.length && <section className="card compact-card"><p className="muted">No se encontraron productos con ese criterio.</p></section>}
+      {adjustOpen && <div className="modal-backdrop"><form className="modal-card form-grid" onSubmit={saveAdjustment}><div className="customer-modal-head"><div><span className="eyebrow">Inventario seguro</span><h3>Ajustar stock</h3><p>El ajuste se registrará con usuario, fecha y motivo.</p></div><button className="sheet-x-btn" type="button" onClick={()=>setAdjustOpen(false)}>×</button></div><label>Producto<select value={adjustForm.product_id} onChange={e=>setAdjustForm({...adjustForm,product_id:e.target.value})}>{active.map(p=><option key={p.id} value={p.id}>{p.code} · {p.name} · {p.size || '—'} {p.color || ''} · Stock {asNum(p.stock)}</option>)}</select></label><div className="form-split"><label>Acción<select value={adjustForm.mode} onChange={e=>setAdjustForm({...adjustForm,mode:e.target.value})}><option>Aumentar</option><option>Reducir</option></select></label><label>Cantidad<input value={adjustForm.qty} onChange={e=>setAdjustForm({...adjustForm,qty:e.target.value})} inputMode="decimal" /></label></div><label>Motivo obligatorio<input value={adjustForm.reason} onChange={e=>setAdjustForm({...adjustForm,reason:e.target.value})} placeholder="Ej.: conteo físico, merma, devolución" /></label><button className="primary-btn" disabled={adjusting}>{adjusting ? 'Registrando...' : 'Registrar ajuste'}</button></form></div>}
     </div>
   );
 }
@@ -1943,16 +2026,21 @@ function StockEntry({ products, reloadProducts, profile }) {
     e.preventDefault();
     if (!selected) return alert('Selecciona un producto.');
     if (asNum(form.qty) <= 0) return alert('La cantidad debe ser mayor a cero.');
-    const newStock = asNum(selected.stock) + asNum(form.qty);
-    const { error: prodError } = await supabase.from('products').update({ stock: newStock, cost: asNum(form.cost) }).eq('id', selected.id);
-    if (prodError) return alert(prodError.message);
-    const note = `Proveedor: ${form.provider || 'Sin proveedor'} · Doc: ${form.invoice || 'Sin documento'} · Método: ${form.method} · ${form.note || ''}`;
-    await supabase.from('stock_movements').insert({ product_id: selected.id, type: 'Entrada', qty: asNum(form.qty), note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    await supabase.from('cash_movements').insert({ type: form.method === 'Crédito' ? 'Compra crédito' : 'Compra', payment_method: form.method, amount: asNum(form.paid || total), note: `Compra mercadería: ${selected.name}. ${note}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    alert(`Compra registrada. Nuevo stock: ${newStock}`);
+    const { data, error } = await supabase.rpc('clomar_register_purchase_v03', {
+      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+      p_product_id: selected.id,
+      p_supplier_name: form.provider || 'Sin proveedor',
+      p_qty: asNum(form.qty),
+      p_unit_cost: asNum(form.cost),
+      p_payment_method: form.method,
+      p_amount_paid: asNum(form.paid || total),
+      p_document_number: form.invoice || null,
+      p_note: form.note || null,
+    });
+    if (error) return alert(error.message || 'No se pudo registrar la compra. Verifique que la caja esté abierta.');
+    alert(`Compra registrada. Nuevo stock: ${asNum(data?.new_stock)}`);
     setForm({ product_id: selected.id, provider:'', qty:'1', cost:String(form.cost || selected.cost || 0), method:'Efectivo', paid:'0', invoice:'', note:'' });
-    await reloadProducts();
-    await reloadMovements();
+    await Promise.all([reloadProducts(), reloadMovements()]);
   }
   return (
     <div className="page purchases-page">
@@ -1977,10 +2065,17 @@ function StockEntry({ products, reloadProducts, profile }) {
 }
 
 function CashPage({ profile }) {
-  const { movements, reload } = useCashMovements(profile);
+  const { movements, reload: reloadMovements } = useCashMovements(profile);
+  const { cashSession, loading: sessionLoading, reload: reloadSession } = useCashSession(profile);
   const [form, setForm] = useState({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' });
+  const [openingAmount, setOpeningAmount] = useState('0');
+  const [openingNote, setOpeningNote] = useState('');
+  const [countedAmount, setCountedAmount] = useState('0');
+  const [closingNote, setClosingNote] = useState('');
   const [closeDate, setCloseDate] = useState(todayISO());
+  const [busy, setBusy] = useState(false);
   const dayMovs = movements.filter(m => String(m.created_at || '').slice(0,10) === closeDate);
+  const sessionMovs = cashSession?.id ? movements.filter(m => m.cash_session_id === cashSession.id) : [];
   const ingresosList = dayMovs.filter(m => ['Ingreso','Apertura'].includes(m.type));
   const egresosList = dayMovs.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
   const creditosList = dayMovs.filter(m => String(m.type).includes('Crédito'));
@@ -1991,11 +2086,38 @@ function CashPage({ profile }) {
   const cajaNeta = ingresos - egresos;
   const byMethod = dayMovs.reduce((acc,m)=>{ const k=m.payment_method || 'Sin método'; acc[k]=(acc[k]||0)+asNum(m.amount); return acc; },{});
   const groupByType = dayMovs.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + asNum(m.amount); return acc; }, {});
+
+  async function openSession(e) {
+    e.preventDefault();
+    if (asNum(openingAmount) < 0) return alert('El monto inicial no puede ser negativo.');
+    setBusy(true);
+    const { error } = await supabase.rpc('clomar_open_cash_session_v03', { p_store_id: profile?.store_id || DEFAULT_STORE_ID, p_opening_amount: asNum(openingAmount), p_note: openingNote || null });
+    setBusy(false);
+    if (error) return alert(error.message || 'No se pudo abrir caja.');
+    setOpeningAmount('0'); setOpeningNote('');
+    await Promise.all([reloadSession(), reloadMovements()]);
+  }
+  async function closeSession(e) {
+    e.preventDefault();
+    if (!cashSession?.id) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc('clomar_close_cash_session_v03', { p_cash_session_id: cashSession.id, p_counted_amount: asNum(countedAmount), p_note: closingNote || null });
+    setBusy(false);
+    if (error) return alert(error.message || 'No se pudo cerrar caja.');
+    alert(`Caja cerrada. Esperado: ${money(data?.expected_amount)} · Contado: ${money(data?.counted_amount)} · Diferencia: ${money(data?.difference_amount)}`);
+    setCountedAmount('0'); setClosingNote('');
+    await Promise.all([reloadSession(), reloadMovements()]);
+  }
   async function save(e) {
     e.preventDefault();
+    if (!cashSession?.id) return alert('Abra una caja antes de registrar movimientos.');
     if (asNum(form.amount) <= 0) return alert('El monto debe ser mayor a cero.');
-    const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    if (error) alert(error.message); else { setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' }); reload(); }
+    setBusy(true);
+    const { error } = await supabase.rpc('clomar_register_cash_movement_v03', { p_store_id: profile?.store_id || DEFAULT_STORE_ID, p_type: form.type, p_payment_method: form.method, p_amount: asNum(form.amount), p_note: form.note || null });
+    setBusy(false);
+    if (error) return alert(error.message || 'No se pudo registrar el movimiento.');
+    setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' });
+    await reloadMovements();
   }
   function printClose() {
     const rows = dayMovs.map(m=>`<tr><td>${escapeHtml(fmtDate(m.created_at))}</td><td>${escapeHtml(m.type)}</td><td>${escapeHtml(m.payment_method || '')}</td><td>${escapeHtml(m.note || '')}</td><td>${money(m.amount)}</td></tr>`).join('');
@@ -2011,10 +2133,13 @@ function CashPage({ profile }) {
   }
   return (
     <div className="page cash-pro-page">
-      <div className="hero compact-hero"><h1>💰 Caja y cierre diario</h1><p>Ingresos, egresos, compras, créditos, abonos y cierre imprimible del día.</p></div>
-      <section className="card compact-card close-cash-card"><div className="report-filter-head"><div><h3>Cierre de caja</h3><p className="muted">Selecciona fecha, revisa totales y guarda PDF o TXT.</p></div><div className="report-actions"><input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} /><button className="secondary-btn" type="button" onClick={exportCloseTxt}>TXT</button><button className="primary-btn" type="button" onClick={printClose}>PDF / Imprimir</button></div></div></section>
+      <div className="hero compact-hero"><h1>💰 Caja por turno</h1><p>Apertura, movimientos, arqueo y cierre con diferencia registrada por usuario.</p></div>
+      {!sessionLoading && !cashSession && <form className="card compact-card cash-session-start" onSubmit={openSession}><div><span className="eyebrow">Operación obligatoria</span><h3>Abrir caja</h3><p className="muted">No se podrán registrar ventas, créditos, compras ni retiros hasta abrir un turno.</p></div><div className="cash-session-form"><label>Monto inicial<input value={openingAmount} onChange={e=>setOpeningAmount(e.target.value)} inputMode="decimal" /></label><label>Observación<input value={openingNote} onChange={e=>setOpeningNote(e.target.value)} placeholder="Ej.: fondo de caja" /></label><button className="primary-btn" disabled={busy}>{busy ? 'Abriendo...' : 'Abrir caja'}</button></div></form>}
+      {!sessionLoading && cashSession && <section className="card compact-card cash-session-open"><div><span className="eyebrow">Turno activo</span><h3>Caja abierta</h3><p className="muted">Abierta {fmtDate(cashSession.opened_at)} · Monto inicial {money(cashSession.opening_amount)}</p></div><div className="cash-session-summary"><strong>{sessionMovs.length}</strong><small>movimientos de este turno</small></div></section>}
+      {cashSession && <form className="card compact-card cash-close-form" onSubmit={closeSession}><div><h3>Cerrar y arquear caja</h3><p className="muted">Cuente solo el efectivo físico; el sistema comparará contra los movimientos en efectivo del turno.</p></div><div className="cash-session-form"><label>Efectivo contado<input value={countedAmount} onChange={e=>setCountedAmount(e.target.value)} inputMode="decimal" /></label><label>Motivo / observación<input value={closingNote} onChange={e=>setClosingNote(e.target.value)} placeholder="Obligatorio si existe diferencia" /></label><button className="danger-btn" disabled={busy}>{busy ? 'Cerrando...' : 'Cerrar caja'}</button></div></form>}
+      <section className="card compact-card close-cash-card"><div className="report-filter-head"><div><h3>Historial diario</h3><p className="muted">Seleccione fecha, revise totales y guarde PDF o TXT.</p></div><div className="report-actions"><input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} /><button className="secondary-btn" type="button" onClick={exportCloseTxt}>TXT</button><button className="primary-btn" type="button" onClick={printClose}>PDF / Imprimir</button></div></div></section>
       <div className="kpi-grid"><Kpi label="Ingresos" value={money(ingresos)} helper="Ventas, abonos y entradas" /><Kpi label="Egresos" value={money(egresos)} helper="Compras, retiros y salidas" /><Kpi label="Créditos" value={money(creditos)} helper="Ventas por cobrar" /><Kpi label="Caja neta" value={money(cajaNeta)} helper="Ingresos - egresos" /></div>
-      <div className="two-col"><form className="card form-grid" onSubmit={save}><h3>Movimiento manual</h3><label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Ingreso</option><option>Egreso</option><option>Apertura</option><option>Retiro</option><option>Compra</option></select></label><label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label><label>Monto<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" /></label><label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Concepto del movimiento" /></label><button className="primary-btn">Registrar movimiento</button></form><section className="card compact-card"><h3>Resumen por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos en la fecha.</p>}</section></div>
+      <div className="two-col"><form className="card form-grid" onSubmit={save}><h3>Movimiento manual</h3><label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Ingreso</option><option>Egreso</option><option>Retiro</option></select></label><label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label><label>Monto<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" /></label><label>Motivo obligatorio<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Concepto del movimiento" /></label><button className="primary-btn" disabled={!cashSession?.id || busy}>{busy ? 'Registrando...' : 'Registrar movimiento'}</button></form><section className="card compact-card"><h3>Resumen por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos en la fecha.</p>}</section></div>
       <div className="two-col extra-row"><section className="card compact-card"><h3>Resumen por tipo</h3>{Object.entries(groupByType).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos.</p>}</section><section className="card compact-card"><h3>Movimientos de la fecha</h3>{dayMovs.slice(0,18).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}{!dayMovs.length && <p className="muted">No hay movimientos registrados.</p>}</section></div>
     </div>
   );
@@ -2026,6 +2151,7 @@ function Credits({ profile }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ sale_id:'', amount:'0', method:'Efectivo', note:'' });
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const { cashSession } = useCashSession(profile);
   async function loadCredits() {
     if (!hasSupabaseConfig) return;
     setLoading(true);
@@ -2035,7 +2161,7 @@ function Credits({ profile }) {
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
       .or('status.eq.Crédito,payment_method.eq.Crédito')
       .order('created_at', { ascending: false });
-    setSales(creditSales || []);
+    setSales((creditSales || []).filter(s => s.status !== 'Anulada'));
     const { data: pays, error: payError } = await supabase
       .from('credit_payments')
       .select('*')
@@ -2044,51 +2170,36 @@ function Credits({ profile }) {
     if (!payError) setPayments(pays || []);
     setLoading(false);
   }
-  useEffect(() => { loadCredits(); }, []);
+  useEffect(() => { loadCredits(); }, [profile?.store_id]);
   const paidBySale = payments.reduce((acc, p) => { acc[p.sale_id] = (acc[p.sale_id] || 0) + asNum(p.amount); return acc; }, {});
   const rows = sales.map(s => ({ ...s, paid: paidBySale[s.id] || 0, balance: Math.max(0, asNum(s.total) - (paidBySale[s.id] || 0)) })).filter(s => s.balance > 0.009);
   const totalPending = rows.reduce((s,v)=>s+asNum(v.balance),0);
   const selected = rows.find(r => r.id === form.sale_id) || rows[0];
+  const daysToDue = (date) => { if (!date) return null; const diff = Math.ceil((new Date(`${date}T00:00:00`) - new Date(`${todayISO()}T00:00:00`)) / 86400000); return diff; };
   async function savePayment(e) {
     e.preventDefault();
+    if (!cashSession?.id) return alert('Abra una caja antes de registrar un abono.');
     if (!selected) return alert('No hay crédito seleccionado.');
     const amount = Math.min(asNum(form.amount), asNum(selected.balance));
     if (amount <= 0) return alert('El abono debe ser mayor a cero.');
-    const payload = { sale_id: selected.id, customer_name: selected.customer_name || 'Cliente', amount, method: form.method, note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
-    const { error } = await supabase.from('credit_payments').insert(payload);
-    if (error) return alert('Falta ejecutar la actualización SQL de V01.4: tabla credit_payments.');
-    await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: form.method, amount, note: `Abono crédito B${selected.receipt_number}. ${form.note || ''}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    if (amount >= asNum(selected.balance)) await supabase.from('sales').update({ status: 'Pagado' }).eq('id', selected.id);
+    const { error } = await supabase.rpc('clomar_register_credit_payment_v03', { p_sale_id: selected.id, p_amount: amount, p_payment_method: form.method, p_note: form.note || null });
+    if (error) return alert(error.message || 'No se pudo registrar el abono.');
     setForm({ sale_id:'', amount:'0', method:'Efectivo', note:'' });
     setPaymentOpen(false);
     loadCredits();
   }
   const byClient = rows.reduce((acc, s) => { acc[s.customer_name || 'Cliente'] = (acc[s.customer_name || 'Cliente'] || 0) + asNum(s.balance); return acc; }, {});
+  const overdue = rows.filter(s => daysToDue(s.due_date) !== null && daysToDue(s.due_date) < 0);
   return (
     <div className="page">
-      <div className="hero compact-hero"><h1>💳 Créditos</h1><p>Control de deuda, abonos y saldo real por cliente.</p></div>
-      <div className="kpi-grid credit-compact-kpis"><Kpi label="Saldo pendiente" value={money(totalPending)} helper={`${rows.length} comprobantes`} /><Kpi label="Clientes" value={Object.keys(byClient).length} helper="Con deuda" /><Kpi label="Abonado" value={money(payments.reduce((s,p)=>s+asNum(p.amount),0))} helper="Historial" /><Kpi label="Estado" value={loading ? 'Cargando' : 'Activo'} helper="Supabase" /></div>
-      <div className="mobile-page-actions">
-        <button type="button" className="primary-btn" onClick={() => setPaymentOpen(true)} disabled={!rows.length}>+ Registrar abono</button>
-        <span>{rows.length} crédito(s) pendiente(s)</span>
-      </div>
-      <div className="two-col credit-layout-pro">
-        <section className="card compact-card"><h3>Deuda por cliente</h3>{Object.entries(byClient).map(([client, amount])=><div className="list-row" key={client}><span>{client}</span><strong>{money(amount)}</strong></div>)}{!rows.length && <p className="muted">No hay créditos pendientes.</p>}</section>
-        <form className={`card form-grid credit-payment-sheet ${paymentOpen ? 'form-open' : ''}`} onSubmit={savePayment}>
-          <button className="sheet-close-btn form-sheet-close" type="button" onClick={() => setPaymentOpen(false)}>Cerrar ×</button>
-          <h3>Registrar abono</h3>
-          <label>Crédito<select value={form.sale_id || selected?.id || ''} onChange={e=>setForm({...form,sale_id:e.target.value})}>{rows.map(s=><option key={s.id} value={s.id}>B{s.receipt_number} · {s.customer_name} · Saldo {money(s.balance)}</option>)}</select></label>
-          <label>Monto del abono<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" placeholder="Monto recibido" /></label>
-          <label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label>
-          <label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Observación del abono" /></label>
-          <button className="primary-btn" disabled={!rows.length}>Guardar abono</button>
-        </form>
-      </div>
-      <section className="card compact-card extra-row"><h3>Comprobantes pendientes</h3>{rows.map(s=><div className="list-row" key={s.id}><span>B{s.receipt_number} · {s.customer_name || 'Cliente'}<small>Total {money(s.total)} · Abonado {money(s.paid)} · {fmtDate(s.created_at)}</small></span><strong>{money(s.balance)}</strong></div>)}{!rows.length && <p className="muted">Sin comprobantes pendientes.</p>}</section>
+      <div className="hero compact-hero"><h1>💳 Créditos controlados</h1><p>Límite por cliente, vencimiento, abonos con caja activa y saldo real.</p></div>
+      <div className="kpi-grid credit-compact-kpis"><Kpi label="Saldo pendiente" value={money(totalPending)} helper={`${rows.length} comprobantes`} /><Kpi label="Vencidos" value={overdue.length} helper="requieren cobro" /><Kpi label="Abonado" value={money(payments.reduce((s,p)=>s+asNum(p.amount),0))} helper="Historial" /><Kpi label="Caja" value={cashSession?.id ? 'Abierta' : 'Cerrada'} helper="para registrar abonos" /></div>
+      <div className="mobile-page-actions"><button type="button" className="primary-btn" onClick={() => setPaymentOpen(true)} disabled={!rows.length || !cashSession?.id}>+ Registrar abono</button><span>{rows.length} crédito(s) pendiente(s)</span></div>
+      <div className="two-col credit-layout-pro"><section className="card compact-card"><h3>Deuda por cliente</h3>{Object.entries(byClient).map(([client, amount])=><div className="list-row" key={client}><span>{client}</span><strong>{money(amount)}</strong></div>)}{!rows.length && <p className="muted">No hay créditos pendientes.</p>}</section><form className={`card form-grid credit-payment-sheet ${paymentOpen ? 'form-open' : ''}`} onSubmit={savePayment}><button className="sheet-close-btn form-sheet-close" type="button" onClick={() => setPaymentOpen(false)}>Cerrar ×</button><h3>Registrar abono</h3><label>Crédito<select value={form.sale_id || selected?.id || ''} onChange={e=>setForm({...form,sale_id:e.target.value})}>{rows.map(s=><option key={s.id} value={s.id}>B{s.receipt_number} · {s.customer_name} · Saldo {money(s.balance)}</option>)}</select></label><label>Monto del abono<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" placeholder="Monto recibido" /></label><label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label><label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Observación del abono" /></label><button className="primary-btn" disabled={!rows.length || !cashSession?.id}>Guardar abono</button></form></div>
+      <section className="card compact-card extra-row"><h3>Comprobantes pendientes</h3>{rows.map(s=>{ const days=daysToDue(s.due_date); return <div className="list-row" key={s.id}><span>B{s.receipt_number} · {s.customer_name || 'Cliente'}<small>Total {money(s.total)} · Abonado {money(s.paid)} · Vence {s.due_date || 'Sin fecha'}{days !== null ? ` · ${days < 0 ? `${Math.abs(days)} día(s) vencido` : `${days} día(s) restantes`}` : ''}</small></span><strong className={days !== null && days < 0 ? 'danger-text' : ''}>{money(s.balance)}</strong></div>})}{!rows.length && <p className="muted">Sin comprobantes pendientes.</p>}</section>
     </div>
   );
 }
-
 
 function Reports({ products, profile }) {
   const [sales, setSales] = useState([]);
@@ -2120,6 +2231,7 @@ function Reports({ products, profile }) {
       .from('sales')
       .select('*')
       .eq('store_id', storeId)
+      .neq('status', 'Anulada')
       .gte('created_at', from)
       .lt('created_at', to)
       .order('created_at', { ascending: false })
@@ -3055,7 +3167,7 @@ function AppShell({ session }) {
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
     categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
     etiquetas: <LabelsAdmin products={products} categories={categories} subcategories={subcategories} store={store}/>,
-    inventario: <Inventory products={products}/>,
+    inventario: <Inventory products={products} profile={profile} reloadProducts={reload}/>,
     reportes: <Reports products={products} profile={profile}/>,
     creditos: <Credits profile={profile}/>,
     caja: <CashPage profile={profile} />,
