@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.2 · Control gerencial e IA comercial';
+const APP_VERSION = 'V03.2.1 · UX operativo';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -531,27 +531,29 @@ function Login() {
 function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }) {
   const role = profile?.role || 'cajero';
   const sections = [
-    { title: 'Gestionar negocio', items: [
-      ['panel', '📊', 'Panel dueño'],
-      ['ventas', '🧾', 'Ventas'],
-      ['comprobantes', '🧾', 'Comprobantes'],
-      ['creditos', '💳', 'Créditos'],
-      ['caja', '💰', 'Caja'],
-      ['reportes', '📈', 'Reportes'],
-      ['ia', '🤖', 'Asistente IA'],
-    ]},
-    { title: 'Productos e inventario', items: [
-      ['productos', '📦', 'Productos'],
-      ['catalogo', '🛍️', 'Catálogo público'],
+    { title: 'Operación diaria', items: [
+      ['ventas', '🧾', 'Nueva venta'],
+      ['caja', '💰', 'Caja por turno'],
       ['pedidos', '📬', 'Pedidos web'],
-      ['precios', '💰', 'Precios'],
-      ['categorias', '🏷️', 'Categorías'],
-      ['etiquetas', '🏷️', 'Etiquetas'],
+      ['comprobantes', '📄', 'Comprobantes'],
+      ['creditos', '💳', 'Créditos'],
+    ]},
+    { title: 'Catálogo e inventario', items: [
+      ['productos', '📦', 'Productos'],
       ['inventario', '📘', 'Inventario'],
       ['ingreso', '📥', 'Ingreso mercadería'],
+      ['precios', '🏷️', 'Precios'],
+      ['etiquetas', '🔖', 'Etiquetas'],
+      ['catalogo', '🛍️', 'Catálogo público'],
+      ['categorias', '🗂️', 'Categorías'],
     ]},
-    { title: 'Contactos', items: [['clientes', '👥', 'Clientes']]},
-    { title: 'Administración', items: [
+    { title: 'Control y clientes', items: [
+      ['panel', '📊', 'Panel del dueño'],
+      ['reportes', '📈', 'Reportes'],
+      ['ia', '🤖', 'Asistente IA'],
+      ['clientes', '👥', 'Clientes'],
+    ]},
+    { title: 'Configuración', items: [
       ['usuarios', '🧑‍💼', 'Usuarios'],
       ['tienda', '🏪', 'Tienda'],
       ['herramientas', '🛠️', 'Herramientas'],
@@ -565,33 +567,33 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
           <strong>{store?.name || 'Clomar Store Pro'}</strong>
           <small>{profile?.full_name || session?.user?.email || 'Usuario'} · {roleMeta(profile)}</small>
         </div>
-        <button className="ghost mobile-only" onClick={() => setOpen(false)}><X size={18}/></button>
+        <button className="ghost mobile-only" type="button" onClick={() => setOpen(false)}><X size={18}/></button>
       </div>
+      <div className="sidebar-context"><span className="status-dot" /><span>Operación activa</span></div>
       {sections.map((section) => (
         <div key={section.title} className="menu-section">
           <span>{section.title}</span>
           {section.items.map(([key, icon, label]) => (
             <button key={key} className={current === key ? 'active' : ''} onClick={() => { setCurrent(key); setOpen(false); }}>
-              <span>{icon}</span>{label}
+              <span className="nav-icon">{icon}</span><span>{label}</span>
             </button>
           ))}
         </div>
       ))}
-      <button className="logout" onClick={() => supabase?.auth.signOut()}><LogOut size={16}/> Cerrar sesión</button>
+      <button className="logout" type="button" onClick={() => supabase?.auth.signOut()}><LogOut size={16}/> Cerrar sesión</button>
     </aside>
   );
 }
-
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Control gerencial', ia: 'Asistente IA', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'Pedidos web', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel del dueño', ia: 'Asistente IA', ventas: 'Nueva venta', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja por turno', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'Pedidos web', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header app-header-pro">
       <button className="ghost mobile-only menu-toggle-pro" type="button" onClick={() => setOpen(true)}><Menu/></button>
       <div className="header-brand-mobile"><img src={logoSrc(store)} alt="Logo tienda" /></div>
       <div className="header-title-block"><h2>{titleMap[current]}</h2><p>{store?.name || 'Clomar Store Pro'} · {roleMeta(profile)}</p></div>
-      <div className="header-status-chip"><span className="status-dot" /><small>{APP_VERSION}</small></div>
+      <div className="header-status-chip" title={APP_VERSION}><span className="status-dot" /><small>Sistema en línea</small></div>
     </header>
   );
 }
@@ -971,49 +973,63 @@ function AssistantAI({ profile, products = [], store }) {
   const [commercialText, setCommercialText] = useState('');
 
   async function askAssistant(rawQuestion, forcedIntent = null) {
-    const text = String(rawQuestion || question || '').trim();
-    if (!text && !forcedIntent) return;
+    const prompt = String(rawQuestion || question || '').trim();
+    if (!prompt && !forcedIntent) return;
     setAsking(true);
     setNotice('');
     const { data, error } = await supabase.rpc('clomar_management_assistant_v32', {
       p_store_id: profile?.store_id || DEFAULT_STORE_ID,
-      p_intent: forcedIntent || inferAssistantIntent(text),
+      p_intent: forcedIntent || inferAssistantIntent(prompt),
       p_days: Number(days || 30),
     });
     if (error) {
       setAnswer(null);
       setNotice(error.message || 'No se pudo obtener la respuesta del asistente.');
     } else {
-      setAnswer({ ...data, question: text || 'Consulta rápida' });
+      setAnswer({ ...data, question: prompt || 'Consulta rápida' });
     }
     setAsking(false);
   }
 
   const selectedProduct = products.find(p => p.id === selectedProductId) || null;
   function generateCommercialReply() {
-    if (!selectedProduct) { setNotice('Seleccione un producto para generar una respuesta comercial.'); return; }
+    if (!selectedProduct) { setNotice('Seleccione un producto para preparar una respuesta comercial.'); return; }
     const availability = asNum(selectedProduct.stock) <= 0 ? 'En este momento figura agotado' : asNum(selectedProduct.stock) <= asNum(selectedProduct.stock_min || 2) ? 'Quedan últimas unidades' : 'Está disponible';
     const detail = [selectedProduct.brand, selectedProduct.color ? `color ${selectedProduct.color}` : '', selectedProduct.size ? `talla ${selectedProduct.size}` : ''].filter(Boolean).join(' · ');
     const greeting = commercialTone === 'Formal' ? 'Hola, gracias por escribir a Clomar Store.' : commercialTone === 'Breve' ? 'Hola 👋' : 'Hola, gracias por comunicarte con Clomar Store 😊';
     const closing = commercialTone === 'Formal' ? '¿Desea que verifiquemos la disponibilidad final o le ayudamos con otra talla/color?' : commercialTone === 'Breve' ? '¿Te lo reservo?' : '¿Deseas que te lo reservemos o revisar otra talla/color?';
-    const text = `${greeting}\n\n${selectedProduct.name}${detail ? ` (${detail})` : ''}\nPrecio: ${money(selectedProduct.price)}\n${availability}.\nCódigo: ${selectedProduct.code || selectedProduct.barcode || '—'}\n\n${closing}`;
-    setCommercialText(text);
-    setNotice('Respuesta comercial preparada con datos reales del producto. Revísela antes de enviarla.');
+    setCommercialText(`${greeting}\n\n${selectedProduct.name}${detail ? ` (${detail})` : ''}\nPrecio: ${money(selectedProduct.price)}\n${availability}.\nCódigo: ${selectedProduct.code || selectedProduct.barcode || '—'}\n\n${closing}`);
+    setNotice('Mensaje preparado con información real del ERP. Revíselo antes de enviarlo.');
   }
 
   return (
-    <div className="page ai-assistant-page">
-      <div className="hero compact-hero ai-hero"><div><span className="eyebrow">IA guiada por datos reales</span><h1>🤖 Asistente comercial y gerencial</h1><p>Responde con información de ventas, inventario, caja y créditos. No modifica precios, stock, pagos ni operaciones.</p></div><label>Periodo<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">7 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label></div>
-      <section className="ai-safety-strip"><strong>Controlado:</strong> utiliza el ERP como fuente de verdad; no inventa productos, precios, stock ni descuentos. Las respuestas comerciales se preparan para revisión humana antes de enviarlas por WhatsApp.</section>
+    <div className="page ai-assistant-page ai-v321-page">
+      <div className="hero compact-hero ai-hero ai-v321-hero">
+        <div><span className="eyebrow">Decisiones y atención comercial</span><h1>Asistente IA</h1><p>Analiza información real de ventas, inventario, caja y créditos. No realiza cambios en el negocio.</p></div>
+        <label>Periodo de análisis<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="90">Últimos 90 días</option></select></label>
+      </div>
+      <section className="ai-safety-strip ai-v321-safety"><strong>Datos verificados:</strong> precios, disponibilidad y respuestas se basan en el ERP. Los descuentos, créditos y pagos siempre requieren aprobación humana.</section>
       {notice && <div className="catalog-toast ai-toast">{notice}</div>}
-      <div className="ai-layout-grid">
-        <section className="card compact-card ai-question-card"><span className="eyebrow">Decisiones del negocio</span><h3>Pregunte al asistente</h3><div className="ai-question-box"><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="4" placeholder="Ej.: ¿Qué debo reponer esta semana?" /><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando...' : 'Analizar datos'}</button></div><div className="ai-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} className="secondary-btn" onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>{answer && <article className="ai-answer-card"><div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Resultado'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answer.answer); setNotice('Respuesta copiada.'); }}>⧉</button></div><p>{answer.answer || 'No se encontraron datos suficientes para esta consulta.'}</p>{Array.isArray(answer.data) && answer.data.length > 0 && <div className="ai-result-list">{answer.data.slice(0, 8).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div>}</article>}</section>
-        <section className="card compact-card ai-commercial-card"><span className="eyebrow">Atención comercial</span><h3>Preparar respuesta para WhatsApp</h3><p className="muted">Elija un producto del ERP; se genera un mensaje con precio y datos reales para revisar y copiar.</p><label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label><label>Tono<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label><button type="button" className="primary-btn" onClick={generateCommercialReply}>Generar respuesta comercial</button>{commercialText && <div className="commercial-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="10" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar mensaje</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div>}</section>
+      <div className="ai-layout-grid ai-v321-grid">
+        <section className="card compact-card ai-question-card ai-v321-question">
+          <div className="assistant-section-head"><div><span className="eyebrow">Control del negocio</span><h3>¿Qué necesita decidir hoy?</h3></div><span className="assistant-state-pill">Solo lectura</span></div>
+          <div className="ai-question-box"><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="4" placeholder="Ej.: ¿Qué productos debo reponer esta semana?" /><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando datos...' : 'Analizar mi negocio'}</button></div>
+          <div className="assistant-quick-title">Consultas rápidas</div>
+          <div className="ai-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} className="secondary-btn" onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
+          {answer ? <article className="ai-answer-card"><div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Resultado'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answer.answer); setNotice('Respuesta copiada.'); }}>⧉</button></div><p>{answer.answer || 'No se encontraron datos suficientes para esta consulta.'}</p>{Array.isArray(answer.data) && answer.data.length > 0 && <div className="ai-result-list">{answer.data.slice(0, 8).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div>}</article> : <div className="assistant-empty-state"><span>✦</span><div><strong>El análisis aparecerá aquí</strong><small>Use una consulta rápida o escriba una pregunta sobre ventas, stock, caja, créditos o rentabilidad.</small></div></div>}
+        </section>
+        <section className="card compact-card ai-commercial-card ai-v321-commercial">
+          <div className="assistant-section-head"><div><span className="eyebrow">Atención por WhatsApp</span><h3>Prepare una respuesta comercial</h3></div><span className="assistant-state-pill verified">Con datos reales</span></div>
+          <p className="muted">Seleccione el producto y el tono. El mensaje puede copiarse o abrirse directamente en el WhatsApp oficial.</p>
+          <label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label>
+          <label>Tono de respuesta<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label>
+          <button type="button" className="primary-btn" onClick={generateCommercialReply}>Preparar mensaje</button>
+          {commercialText ? <div className="commercial-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="10" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar mensaje</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div> : <div className="commercial-empty-state"><span>💬</span><strong>Sin mensaje preparado</strong><small>El sistema completará precio, código y disponibilidad al elegir un producto.</small></div>}
+        </section>
       </div>
     </div>
   );
 }
-
 function POS({ products, reloadProducts, customers, profile, store, onGoReceipts, cashSession, menuOpen = false }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
@@ -1411,7 +1427,7 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
       />
       <SaleConfirmModal open={confirmOpen} onClose={()=>setConfirmOpen(false)} onConfirm={checkout} saving={saving} subtotal={subtotal} itemDiscountTotal={itemDiscountTotal} saleDiscount={saleDiscount} total={total} method={method} mixedPayments={mixedPayments} mixedTotal={mixedTotal} customer={customer} cart={cart} documentType={documentType} customerDocType={customerDocType} customerDocNumber={customerDocNumber} />
       <SaleCompleteModal ticket={saleModal} store={store} profile={profile} onClose={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setTimeout(() => searchInputRef.current?.focus(), 100); }} onNewSale={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); setQuery(''); setScanStatus(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} onGoReceipts={() => { setDismissedTicketId(saleModal?.sale?.id || null); clearLastTicketBackup(); setSaleModal(null); onGoReceipts?.(); }} />
-      <div className="hero compact-hero"><h1>🧾 Checkout fiscal</h1><p>Venta interna, boleta y factura preparadas para una futura integración segura con PSE/OSE.</p></div>
+      <div className="hero compact-hero pos-operation-hero"><div><span className="eyebrow">Punto de venta</span><h1>Nueva venta</h1><p>Busque, escanee y cobre. El inventario, caja y reportes se actualizan al confirmar.</p></div><span className={cashSession?.session ? 'pos-cash-status ready' : 'pos-cash-status blocked'}>{cashSession?.session ? 'Caja abierta' : 'Abra caja para vender'}</span></div>
       {lastTicket && <LastReceiptBanner ticket={lastTicket} store={store} profile={profile} onOpen={() => { setDismissedTicketId(null); setSaleModal(lastTicket); }} onGoReceipts={onGoReceipts} onDismiss={() => { setDismissedTicketId(lastTicket?.sale?.id || null); clearLastTicketBackup(); setLastTicket(null); setSaleModal(null); }} />}
       <div className="pos-layout">
         <section className="card compact-card">
@@ -2356,9 +2372,9 @@ function CashPage({ profile, cashSession }) {
       {movementsError && <div className="data-error"><strong>No se pudieron leer algunos movimientos:</strong> {movementsError}</div>}
       {!session ? (
         <section className="card compact-card cash-open-card">
-          <div className="cash-state-copy"><span className="eyebrow">Inicio de turno</span><h3>Abra caja antes de vender</h3><p className="muted">El fondo inicial quedará registrado y toda venta posterior se asociará a este turno.</p></div>
+          <div className="cash-state-copy"><span className="eyebrow">Inicio de turno</span><h3>Inicie su turno de venta</h3><p className="muted">Registre el fondo inicial. Desde este momento, cada venta quedará asociada automáticamente a este turno.</p></div>
           <form className="form-grid cash-open-form" onSubmit={openCash}>
-            <label>Fondo inicial en efectivo<input value={opening.amount} onChange={e => setOpening({ ...opening, amount: e.target.value })} inputMode="decimal" placeholder="0.00" /></label>
+            <label>Fondo inicial en efectivo<input value={opening.amount} onChange={e => setOpening({ ...opening, amount: e.target.value })} inputMode="decimal" placeholder="S/ 0.00" /></label>
             <label>Nota de apertura<input value={opening.note} onChange={e => setOpening({ ...opening, note: e.target.value })} placeholder="Ej. Fondo de cambio" /></label>
             <button className="primary-btn" disabled={working === 'open'}>{working === 'open' ? 'Abriendo...' : 'Abrir caja'}</button>
           </form>
@@ -3410,6 +3426,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   const [drafts, setDrafts] = useState({});
   const [savingId, setSavingId] = useState('');
   const [copied, setCopied] = useState(false);
+  const [editingId, setEditingId] = useState('');
 
   const rows = useMemo(() => products.filter((p) => {
     const search = normalizeText(query);
@@ -3436,7 +3453,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   async function saveProductCatalog(p) {
     const draft = draftFor(p);
     if (draft.public_visible && draft.catalog_status === 'Publicado' && !readyForPublic(p)) {
-      return alert('Para publicar, el producto debe estar activo y tener precio validado mayor a cero. Corrija Precio antes de publicar.');
+      return alert('Para publicar, el producto debe estar activo y tener un precio validado mayor a cero. Corrija el precio antes de publicar.');
     }
     setSavingId(p.id);
     const payload = {
@@ -3447,54 +3464,51 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
       catalog_position: Math.max(0, Math.trunc(asNum(draft.catalog_position || 999))),
       catalog_updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase
-      .from('products')
-      .update(payload)
-      .eq('id', p.id)
-      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID);
+    const { error } = await supabase.from('products').update(payload).eq('id', p.id).eq('store_id', profile?.store_id || DEFAULT_STORE_ID);
     setSavingId('');
     if (error) return alert(`No se pudo actualizar el catálogo: ${error.message}`);
+    setEditingId('');
     await reload?.();
   }
 
   async function copyCatalogLink() {
-    try {
-      await navigator.clipboard.writeText(catalogBaseUrl());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch (_) {
-      window.prompt('Copia este enlace del catálogo:', catalogBaseUrl());
-    }
+    try { await navigator.clipboard.writeText(catalogBaseUrl()); setCopied(true); setTimeout(() => setCopied(false), 1600); }
+    catch (_) { window.prompt('Copia este enlace del catálogo:', catalogBaseUrl()); }
   }
 
   return (
-    <div className="page catalog-admin-page">
-      <div className="hero compact-hero catalog-admin-hero">
-        <div><span className="eyebrow">Canal comercial</span><h1>Catálogo público</h1><p>Publique solo productos con precio validado. El cliente verá precio, foto y disponibilidad, nunca costos ni stock exacto.</p></div>
-        <div className="catalog-link-actions"><button type="button" className="secondary-btn" onClick={copyCatalogLink}>{copied ? 'Enlace copiado' : 'Copiar enlace público'}</button><button type="button" className="primary-btn" onClick={() => window.open(catalogBaseUrl(), '_blank', 'noopener,noreferrer')}>Abrir catálogo</button></div>
+    <div className="page catalog-admin-page catalog-v321-page">
+      <div className="hero compact-hero catalog-admin-hero catalog-v321-hero">
+        <div><span className="eyebrow">Canal comercial</span><h1>Catálogo público</h1><p>Controle qué productos ve el cliente. Publicar no descuenta stock ni modifica precios.</p></div>
+        <div className="catalog-link-actions"><button type="button" className="secondary-btn" onClick={copyCatalogLink}>{copied ? '✓ Enlace copiado' : 'Copiar enlace'}</button><button type="button" className="primary-btn" onClick={() => window.open(catalogBaseUrl(), '_blank', 'noopener,noreferrer')}>Ver catálogo</button></div>
       </div>
+      <section className="catalog-workflow-strip"><span>1. Valide precio</span><span>2. Active publicación</span><span>3. Revise vista pública</span><span>4. Atienda pedidos por WhatsApp</span></section>
       <section className="card compact-card catalog-summary-card">
-        <div className="catalog-summary-grid"><Kpi label="Publicados" value={publishedCount} helper="visibles para clientes" /><Kpi label="Borradores" value={products.filter(p => !p.public_visible || p.catalog_status === 'Borrador').length} helper="aún no visibles" /><Kpi label="Agotados" value={products.filter(p => p.public_visible && asNum(p.stock) <= 0).length} helper="se muestran como agotados" /><Kpi label="WhatsApp" value={normalizeWhatsappNumber(store?.whatsapp_number || store?.phone)} helper="canal oficial" /></div>
+        <div className="catalog-summary-grid"><Kpi label="Publicados" value={publishedCount} helper="visibles para clientes" /><Kpi label="Borradores" value={products.filter(p => !p.public_visible || p.catalog_status === 'Borrador').length} helper="aún no visibles" /><Kpi label="Agotados" value={products.filter(p => p.public_visible && asNum(p.stock) <= 0).length} helper="se muestran como agotados" /><Kpi label="WhatsApp" value="Canal activo" helper={normalizeWhatsappNumber(store?.whatsapp_number || store?.phone)} /></div>
       </section>
-      <section className="card compact-card catalog-filter-card">
-        <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por producto, código, marca o color..." /></div>
-        <div className="catalog-filter-tabs">{[['todos','Todos'],['publicados','Publicados'],['borradores','Borradores'],['agotados','Agotados'],['pendientes_precio','Pendientes de precio']].map(([key,label]) => <button key={key} type="button" className={filter===key?'active':''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+      <section className="card compact-card catalog-filter-card catalog-v321-filter">
+        <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código, marca o color..." /></div>
+        <div className="catalog-filter-tabs">{[['todos','Todos'],['publicados','Publicados'],['borradores','Borradores'],['agotados','Agotados'],['pendientes_precio','Precio pendiente']].map(([key,label]) => <button key={key} type="button" className={filter===key?'active':''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
       </section>
-      <section className="catalog-admin-list">
+      <div className="catalog-results-line"><strong>{rows.length} producto(s)</strong><span>Seleccione “Editar publicación” solo en el producto que desea gestionar.</span></div>
+      <section className="catalog-admin-list catalog-v321-list">
         {rows.map(p => {
           const draft = draftFor(p);
           const availability = asNum(p.stock) <= 0 ? 'Agotado' : asNum(p.stock) <= asNum(p.stock_min) ? 'Últimas unidades' : 'Disponible';
           const publicNow = Boolean(p.public_visible) && p.catalog_status === 'Publicado';
-          return <article className="card catalog-admin-product" key={p.id}>
-            <div className="catalog-admin-product-main"><img src={productImageSrc(p)} alt={p.name}/><div><div className="catalog-product-title"><h3>{p.name}</h3><span className={publicNow ? 'catalog-public-pill published' : 'catalog-public-pill draft'}>{publicNow ? 'Publicado' : 'No publicado'}</span></div><p>{p.code || 'Sin código'} · {p.category || 'General'}{p.brand ? ` · ${p.brand}` : ''}</p><div className="catalog-meta-row"><strong>{money(p.price)}</strong><span className={availability === 'Agotado' ? 'availability-pill soldout' : availability === 'Últimas unidades' ? 'availability-pill low' : 'availability-pill available'}>{availability}</span><small>{productPriceStatus(p)} · stock interno {asNum(p.stock)}</small></div>{!readyForPublic(p) && <div className="catalog-warning">No se puede publicar: valide el precio y confirme que el producto esté activo.</div>}</div></div>
-            <div className="catalog-admin-form">
-              <label className="check-row"><input type="checkbox" checked={Boolean(draft.public_visible)} onChange={e=>updateDraft(p,{public_visible:e.target.checked, catalog_status:e.target.checked && draft.catalog_status==='Borrador' ? 'Publicado' : draft.catalog_status})} /> Visible en catálogo</label>
+          const isEditing = editingId === p.id;
+          return <article className={`card catalog-admin-product catalog-v321-product ${isEditing ? 'is-editing' : ''}`} key={p.id}>
+            <div className="catalog-admin-product-main"><img src={productImageSrc(p)} alt={p.name}/><div className="catalog-product-content"><div className="catalog-product-title"><h3>{p.name}</h3><span className={publicNow ? 'catalog-public-pill published' : 'catalog-public-pill draft'}>{publicNow ? 'Publicado' : 'Borrador'}</span></div><p>{p.code || 'Sin código'} · {p.category || 'General'}{p.brand ? ` · ${p.brand}` : ''}</p><div className="catalog-meta-row"><strong>{money(p.price)}</strong><span className={availability === 'Agotado' ? 'availability-pill soldout' : availability === 'Últimas unidades' ? 'availability-pill low' : 'availability-pill available'}>{availability}</span><small>{productPriceStatus(p) === 'Validado' ? 'Precio validado' : 'Precio pendiente'}</small></div>{!readyForPublic(p) && <div className="catalog-warning">No se puede publicar hasta validar el precio.</div>}</div></div>
+            <div className="catalog-card-actions"><button type="button" className={isEditing ? 'secondary-btn' : 'primary-btn'} onClick={()=>setEditingId(isEditing ? '' : p.id)}>{isEditing ? 'Cerrar edición' : 'Editar publicación'}</button>{publicNow && <button type="button" className="secondary-btn" onClick={()=>window.open(catalogProductUrl(p), '_blank', 'noopener,noreferrer')}>Ver ficha pública</button>}</div>
+            {isEditing && <div className="catalog-admin-form catalog-v321-form">
+              <div className="catalog-edit-heading"><div><span className="eyebrow">Configuración de publicación</span><strong>{p.name}</strong></div><span className="result-pill">{publicNow ? 'Visible' : 'No visible'}</span></div>
+              <label className="check-row"><input type="checkbox" checked={Boolean(draft.public_visible)} onChange={e=>updateDraft(p,{public_visible:e.target.checked, catalog_status:e.target.checked && draft.catalog_status==='Borrador' ? 'Publicado' : draft.catalog_status})} /> Mostrar en el catálogo público</label>
               <label>Estado<select value={draft.catalog_status} onChange={e=>updateDraft(p,{catalog_status:e.target.value})} disabled={!draft.public_visible}><option>Borrador</option><option>Publicado</option><option>Oculto</option></select></label>
-              <label className="check-row"><input type="checkbox" checked={Boolean(draft.catalog_featured)} onChange={e=>updateDraft(p,{catalog_featured:e.target.checked})} /> Destacado</label>
-              <label>Orden<input value={draft.catalog_position} inputMode="numeric" onChange={e=>updateDraft(p,{catalog_position:e.target.value})} /></label>
-              <label className="catalog-description-field">Descripción para cliente<input value={draft.catalog_description} onChange={e=>updateDraft(p,{catalog_description:e.target.value})} placeholder={p.description || 'Material, uso o detalle principal'} /></label>
-              <button type="button" className="primary-btn" disabled={savingId===p.id} onClick={()=>saveProductCatalog(p)}>{savingId===p.id ? 'Guardando...' : 'Guardar publicación'}</button>
-            </div>
+              <label className="check-row"><input type="checkbox" checked={Boolean(draft.catalog_featured)} onChange={e=>updateDraft(p,{catalog_featured:e.target.checked})} /> Mostrar como destacado</label>
+              <label>Orden de aparición<input value={draft.catalog_position} inputMode="numeric" onChange={e=>updateDraft(p,{catalog_position:e.target.value})} /></label>
+              <label className="catalog-description-field">Descripción para el cliente<textarea value={draft.catalog_description} onChange={e=>updateDraft(p,{catalog_description:e.target.value})} placeholder={p.description || 'Material, uso o detalle principal'} rows="3" /></label>
+              <div className="catalog-form-actions"><button type="button" className="secondary-btn" onClick={()=>setEditingId('')}>Cancelar</button><button type="button" className="primary-btn" disabled={savingId===p.id} onClick={()=>saveProductCatalog(p)}>{savingId===p.id ? 'Guardando...' : 'Guardar cambios'}</button></div>
+            </div>}
           </article>;
         })}
         {!rows.length && <section className="card compact-card"><p className="muted">No hay productos que coincidan con el filtro.</p></section>}
@@ -3502,7 +3516,6 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
     </div>
   );
 }
-
 function CatalogOrders({ profile, store }) {
   const [orders, setOrders] = useState([]);
   const [items, setItems] = useState([]);
