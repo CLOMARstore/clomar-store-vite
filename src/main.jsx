@@ -975,7 +975,74 @@ function copyTextToClipboard(value) {
   return true;
 }
 
-function AssistantAI({ profile, products = [], store }) {
+
+function cleanAssistantLine(value = '') {
+  return String(value || '')
+    .replace(/\r/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^>\s*/, '')
+    .trim();
+}
+
+function parseAssistantAnswer(value = '') {
+  const lines = String(value || '').replace(/\r/g, '').split('\n');
+  const intro = [];
+  const sections = [];
+  let current = null;
+  const isHeading = (line) => {
+    const plain = cleanAssistantLine(line);
+    if (!plain || plain.length > 92) return false;
+    return /^(?:\d+[.)]\s*)?(?:diagn[oó]stico|prioridades?|acciones?|datos\s+faltantes|resumen|riesgos?|plan|recomendaciones?|conclusi[oó]n|siguiente\s+paso)/i.test(plain);
+  };
+  for (const rawLine of lines) {
+    const line = cleanAssistantLine(rawLine);
+    if (!line) continue;
+    if (isHeading(line)) {
+      const title = line.replace(/^\d+[.)]\s*/, '').replace(/:$/, '').trim();
+      current = { title, items: [] };
+      sections.push(current);
+      continue;
+    }
+    const bullet = line.replace(/^(?:[-•*]+|\d+[.)])\s*/, '').trim();
+    if (current) current.items.push(bullet);
+    else intro.push(bullet);
+  }
+  if (!sections.length && intro.length) {
+    const text = intro.join(' ');
+    return { intro: '', sections: [{ title: 'Análisis', items: [text] }] };
+  }
+  return { intro: intro.join(' '), sections };
+}
+
+function assistantActionItems(intent = '', question = '') {
+  const value = normalizeText(`${intent} ${question}`);
+  const items = [];
+  const push = (key, label, target, focus = '') => {
+    if (!items.some(item => item.key === key)) items.push({ key, label, target, focus });
+  };
+  if (/(reponer|reposicion|stock|faltante|inventario)/.test(value)) push('stock', 'Ver stock crítico', 'inventario', 'Bajo stock');
+  if (/(lento|rotacion|sin vender|promocion)/.test(value)) push('products', 'Revisar productos', 'productos');
+  if (/(cobranza|credito|deuda|vencid)/.test(value)) push('credits', 'Abrir créditos', 'creditos');
+  if (/(venta|pago|rentab|utilidad|margen|vendedor|resumen)/.test(value)) push('reports', 'Ver reportes', 'reportes');
+  if (!items.length) push('dashboard', 'Abrir panel dueño', 'panel');
+  return items.slice(0, 3);
+}
+
+function assistantAnswerToText(answer, parsed) {
+  const rows = [];
+  if (answer?.question) rows.push(answer.question);
+  if (parsed?.intro) rows.push(parsed.intro);
+  (parsed?.sections || []).forEach(section => {
+    rows.push(`${section.title}:`);
+    (section.items || []).forEach(item => rows.push(`• ${item}`));
+  });
+  return rows.join('\n').trim();
+}
+
+
+function AssistantAI({ profile, products = [], store, onNavigate }) {
   const [days, setDays] = useState(30);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState(null);
@@ -985,11 +1052,14 @@ function AssistantAI({ profile, products = [], store }) {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [commercialTone, setCommercialTone] = useState('Cercano');
   const [commercialText, setCommercialText] = useState('');
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('clomar_ai_history_v327') || '[]'); } catch (_) { return []; }
+    try { return JSON.parse(localStorage.getItem('clomar_ai_history_v328') || localStorage.getItem('clomar_ai_history_v327') || '[]'); } catch (_) { return []; }
   });
 
-  useEffect(() => { try { localStorage.setItem('clomar_ai_history_v327', JSON.stringify(history.slice(0, 8))); } catch (_) {} }, [history]);
+  useEffect(() => { try { localStorage.setItem('clomar_ai_history_v328', JSON.stringify(history.slice(0, 8))); } catch (_) {} }, [history]);
+  useEffect(() => () => { try { recognitionRef.current?.stop?.(); } catch (_) {} }, []);
 
   async function askAssistant(rawQuestion, forcedIntent = null) {
     const prompt = String(rawQuestion || question || '').trim();
@@ -1009,13 +1079,13 @@ function AssistantAI({ profile, products = [], store }) {
       });
       if (!error && data?.answer) {
         handledByGemini = true;
-        const nextAnswer = { ...data, question: prompt || 'Consulta rápida', title: data.title || 'Asistente IA · Datos reales' };
+        const nextAnswer = { ...data, question: prompt || 'Consulta rápida', intent, title: data.title || 'Asistente IA · Datos reales' };
         setAnswer(nextAnswer);
         setAiMode(data.mode === 'gemini' ? 'gemini' : 'erp');
         if (data.notice) setNotice(data.notice);
       }
     } catch (_) {
-      // La app mantiene el análisis ERP si la función aún no fue desplegada.
+      // Mantiene el análisis ERP de respaldo si la función no está disponible.
     }
 
     if (!handledByGemini) {
@@ -1028,14 +1098,44 @@ function AssistantAI({ profile, products = [], store }) {
         setAnswer(null);
         setNotice(error.message || 'No se pudo obtener la respuesta del asistente.');
       } else {
-        setAnswer({ ...data, question: prompt || 'Consulta rápida', title: data?.title || 'Análisis ERP' });
+        setAnswer({ ...data, question: prompt || 'Consulta rápida', intent, title: data?.title || 'Análisis ERP' });
         setAiMode('erp');
-        setNotice('Análisis ERP disponible. Para respuestas generativas, active la función clomar-ai de esta versión.');
+        setNotice('Análisis ERP disponible. La respuesta generativa se reintentará cuando Gemini esté disponible.');
       }
     }
 
     setHistory(prev => [{ id: `${Date.now()}-${intent}`, question: prompt || 'Consulta rápida', intent, created_at: new Date().toISOString() }, ...prev.filter(item => item.question !== (prompt || 'Consulta rápida'))].slice(0, 8));
     setAsking(false);
+  }
+
+  function startVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setNotice('El dictado por voz no está disponible en este navegador. Use Chrome en Android o escriba la consulta.');
+      return;
+    }
+    try { recognitionRef.current?.stop?.(); } catch (_) {}
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-PE';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => { setListening(false); setNotice('No se pudo captar el audio. Revise el permiso del micrófono e inténtelo otra vez.'); };
+    recognition.onresult = (event) => {
+      const text = event?.results?.[0]?.[0]?.transcript || '';
+      setQuestion(prev => `${prev ? `${prev} ` : ''}${text}`.trim());
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function goTo(target, focus = '') {
+    try {
+      if (target === 'inventario' && focus) sessionStorage.setItem('clomar_inventory_filter_v328', focus);
+      if (target === 'productos' && focus) sessionStorage.setItem('clomar_products_focus_v328', focus);
+    } catch (_) {}
+    onNavigate?.(target);
   }
 
   const selectedProduct = products.find(p => p.id === selectedProductId) || null;
@@ -1046,46 +1146,57 @@ function AssistantAI({ profile, products = [], store }) {
     const greeting = commercialTone === 'Formal' ? 'Hola, gracias por escribir a Clomar Store.' : commercialTone === 'Breve' ? 'Hola 👋' : 'Hola, gracias por comunicarte con Clomar Store 😊';
     const closing = commercialTone === 'Formal' ? '¿Desea que verifiquemos la disponibilidad final o le ayudamos con otra talla/color?' : commercialTone === 'Breve' ? '¿Te lo reservo?' : '¿Deseas que te lo reservemos o revisar otra talla/color?';
     setCommercialText(`${greeting}\n\n${selectedProduct.name}${detail ? ` (${detail})` : ''}\nPrecio: ${money(selectedProduct.price)}\n${availability}.\nCódigo: ${selectedProduct.code || selectedProduct.barcode || '—'}\n\n${closing}`);
-    setNotice('Mensaje preparado con información real del ERP. Revíselo antes de enviarlo.');
+    setNotice('Mensaje verificado preparado con información real del ERP. Revíselo antes de enviarlo.');
   }
 
-  const modeText = aiMode === 'gemini' ? 'Gemini + ERP' : 'ERP verificado';
+  const modeText = aiMode === 'gemini' ? 'Gemini + ERP conectado' : 'ERP verificado';
+  const parsed = answer ? parseAssistantAnswer(answer.answer) : null;
+  const answerActions = answer ? assistantActionItems(answer.intent || inferAssistantIntent(answer.question || ''), answer.question || '') : [];
+  const answerText = answer ? assistantAnswerToText(answer, parsed) : '';
+
   return (
-    <div className="page ai-assistant-page ai-v327-page">
-      <section className="ai-v327-commandbar">
-        <div>
-          <span className="eyebrow">Decisiones y atención comercial</span>
-          <h1>Asistente Clomar</h1>
-          <p>Pregunta con lenguaje natural y recibe recomendaciones basadas en ventas, inventario, caja y créditos.</p>
+    <div className="page ai-assistant-page ai-v328-page">
+      <section className="ai-v328-commandbar">
+        <div className="ai-v328-brandcopy">
+          <span className="eyebrow">Centro de decisiones</span>
+          <h1>Asistente IA</h1>
+          <p>Analiza datos reales del ERP y los convierte en acciones claras. No realiza cambios operativos.</p>
         </div>
         <div className={`ai-engine-badge ${aiMode === 'gemini' ? 'online' : ''}`}><span></span>{modeText}</div>
         <label className="ai-period-compact">Periodo<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">7 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label>
       </section>
-      <section className="ai-safety-strip ai-v327-safety"><strong>Datos controlados:</strong> la IA interpreta información que sale del ERP. No puede cambiar precios, stock, pagos, créditos, caja ni comprobantes.</section>
+      <section className="ai-safety-strip ai-v328-safety"><strong>Datos controlados:</strong> la IA usa ventas, inventario, caja y créditos del ERP. No puede cambiar precios, stock, pagos, créditos ni comprobantes.</section>
       {notice && <div className="catalog-toast ai-toast">{notice}</div>}
-      <div className="ai-v327-workspace">
-        <section className="card compact-card ai-chat-card">
-          <div className="assistant-section-head"><div><span className="eyebrow">Consulta operativa</span><h3>¿Qué necesita revisar hoy?</h3></div><span className="assistant-state-pill">Solo lectura</span></div>
-          <div className="ai-chat-composer">
+      <div className="ai-v328-workspace">
+        <section className="card compact-card ai-v328-chat-card">
+          <header className="assistant-section-head ai-v328-section-head"><div><span className="eyebrow">Consulta operativa</span><h3>¿Qué necesita decidir hoy?</h3></div><button type="button" className="ai-daily-brief" onClick={() => askAssistant('Genera mi resumen operativo de hoy con ventas, caja, stock crítico, créditos y una acción prioritaria.', 'resumen')}>Resumen del día</button></header>
+          <div className="ai-v328-composer">
             <textarea value={question} onChange={e => setQuestion(e.target.value)} rows="3" placeholder="Ej.: ¿Qué productos debo reponer esta semana y por qué?" />
-            <button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando…' : 'Preguntar al asistente'}</button>
+            <div className="ai-v328-composer-actions"><button type="button" className={`secondary-btn ai-voice-btn ${listening ? 'listening' : ''}`} onClick={startVoiceInput}>{listening ? 'Escuchando…' : 'Dictar'}</button><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando…' : 'Analizar'}</button></div>
           </div>
-          <div className="ai-quick-grid ai-v327-quick">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} className="secondary-btn" onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
-          {answer ? <article className="ai-answer-card ai-v327-answer"><div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Respuesta'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answer.answer); setNotice('Respuesta copiada.'); }}>⧉</button></div><p>{answer.answer || 'No se encontraron datos suficientes para esta consulta.'}</p>{Array.isArray(answer.data) && answer.data.length > 0 && <div className="ai-result-list">{answer.data.slice(0, 6).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div>}</article> : <div className="assistant-empty-state ai-v327-empty"><span>✦</span><div><strong>Listo para analizar su negocio</strong><small>Puede preguntar por stock, ventas, cobranza, utilidad, vendedores, pagos o preparar una respuesta comercial.</small></div></div>}
-          {history.length > 0 && <div className="assistant-history ai-v327-history"><div><span>Recientes</span><button type="button" onClick={() => setHistory([])}>Limpiar</button></div><section>{history.map(item => <button type="button" key={item.id} onClick={() => { setQuestion(item.question); askAssistant(item.question, item.intent); }}><span>{item.question}</span><small>{fmtDate(item.created_at)}</small></button>)}</section></div>}
+          <div className="ai-v328-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
+          {answer ? <article className="ai-v328-answer-card">
+            <div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Respuesta verificada'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answerText); setNotice('Respuesta copiada.'); }}>⧉</button></div>
+            {parsed?.intro && <p className="ai-v328-answer-intro">{parsed.intro}</p>}
+            <div className="ai-v328-sections">{(parsed?.sections || []).map((section, idx) => <section className="ai-v328-section" key={`${section.title}-${idx}`}><header><span>{String(idx + 1).padStart(2, '0')}</span><h4>{section.title}</h4></header><div>{(section.items || []).map((item, itemIdx) => <p key={itemIdx}>{item}</p>)}</div></section>)}</div>
+            {Array.isArray(answer.data) && answer.data.length > 0 && <details className="ai-v328-evidence"><summary>Ver datos del ERP utilizados</summary><div className="ai-result-list">{answer.data.slice(0, 6).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div></details>}
+            <footer className="ai-v328-actionbar"><span>Acciones sugeridas</span><div>{answerActions.map(action => <button type="button" className="secondary-btn" key={action.key} onClick={() => goTo(action.target, action.focus)}>{action.label} →</button>)}</div></footer>
+          </article> : <div className="assistant-empty-state ai-v328-empty"><span>✦</span><div><strong>Listo para ayudarle a decidir</strong><small>Pregunte por reposición, ventas, rentabilidad, cobranza, caja o productos lentos.</small></div></div>}
+          {history.length > 0 && <div className="assistant-history ai-v328-history"><div><span>Consultas recientes</span><button type="button" onClick={() => setHistory([])}>Limpiar</button></div><section>{history.map(item => <button type="button" key={item.id} onClick={() => { setQuestion(item.question); askAssistant(item.question, item.intent); }}><span>{item.question}</span><small>{fmtDate(item.created_at)}</small></button>)}</section></div>}
         </section>
-        <section className="card compact-card ai-commercial-card ai-v327-commercial">
-          <div className="assistant-section-head"><div><span className="eyebrow">WhatsApp oficial</span><h3>Respuesta comercial verificada</h3></div><span className="assistant-state-pill verified">Precio real</span></div>
-          <p className="muted">Elija un producto. El sistema incluye precio, código y disponibilidad antes de abrir WhatsApp.</p>
+        <aside className="card compact-card ai-v328-commercial">
+          <header className="assistant-section-head ai-v328-section-head"><div><span className="eyebrow">WhatsApp oficial</span><h3>Respuesta comercial</h3></div><span className="assistant-state-pill verified">Datos reales</span></header>
+          <p className="muted">Prepare una respuesta con precio, código y disponibilidad desde el ERP. El mensaje siempre requiere revisión humana.</p>
           <label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label>
           <label>Tono<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label>
           <button type="button" className="primary-btn" onClick={generateCommercialReply}>Preparar mensaje</button>
-          {commercialText ? <div className="commercial-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="8" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div> : <div className="commercial-empty-state"><span>💬</span><strong>Mensaje comercial listo al elegir un producto</strong><small>La IA no inventa precio, descuento ni disponibilidad.</small></div>}
-        </section>
+          {commercialText ? <div className="commercial-preview ai-v328-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="7" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div> : <div className="commercial-empty-state ai-v328-commercial-empty"><span>💬</span><div><strong>Mensaje listo al elegir un producto</strong><small>Incluye solo información validada: precio, código y disponibilidad.</small></div></div>}
+        </aside>
       </div>
     </div>
   );
 }
+
 
 function POS({ products, reloadProducts, customers, profile, store, onGoReceipts, cashSession, menuOpen = false }) {
   const [query, setQuery] = useState('');
@@ -2304,8 +2415,9 @@ function Customers({ customers, reload, profile }) {
 
 function Inventory({ products }) {
   const [query, setQuery] = useState('');
-  const [stockFilter, setStockFilter] = useState('Todos');
+  const [stockFilter, setStockFilter] = useState(() => { try { return sessionStorage.getItem('clomar_inventory_filter_v328') || 'Todos'; } catch (_) { return 'Todos'; } });
   const [activeCategory, setActiveCategory] = useState('');
+  useEffect(() => { try { sessionStorage.removeItem('clomar_inventory_filter_v328'); } catch (_) {} }, []);
   const active = products.filter(p => p.active !== false);
   const lowStock = active.filter(p => asNum(p.stock) <= asNum(p.stock_min));
   const noStock = active.filter(p => asNum(p.stock) <= 0);
@@ -3933,7 +4045,7 @@ function AppShell({ session }) {
 
   const contentMap = {
     panel: <Panel products={products} profile={profile} setCurrent={setCurrent}/>,
-    ia: <AssistantAI profile={profile} products={products} store={store}/>,
+    ia: <AssistantAI profile={profile} products={products} store={store} onNavigate={setCurrent}/>,
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} cashSession={cashSession} menuOpen={open} onGoReceipts={() => setCurrent('comprobantes')}/>,
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
