@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.2.4 · Operación visual refinada';
+const APP_VERSION = 'V03.2.7 · IA real + operación compacta';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -981,32 +981,60 @@ function AssistantAI({ profile, products = [], store }) {
   const [answer, setAnswer] = useState(null);
   const [asking, setAsking] = useState(false);
   const [notice, setNotice] = useState('');
+  const [aiMode, setAiMode] = useState('erp');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [commercialTone, setCommercialTone] = useState('Cercano');
   const [commercialText, setCommercialText] = useState('');
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('clomar_ai_history_v322') || '[]'); } catch (_) { return []; }
+    try { return JSON.parse(localStorage.getItem('clomar_ai_history_v327') || '[]'); } catch (_) { return []; }
   });
-  useEffect(() => { try { localStorage.setItem('clomar_ai_history_v322', JSON.stringify(history.slice(0, 6))); } catch (_) {} }, [history]);
+
+  useEffect(() => { try { localStorage.setItem('clomar_ai_history_v327', JSON.stringify(history.slice(0, 8))); } catch (_) {} }, [history]);
 
   async function askAssistant(rawQuestion, forcedIntent = null) {
     const prompt = String(rawQuestion || question || '').trim();
     if (!prompt && !forcedIntent) return;
+    const intent = forcedIntent || inferAssistantIntent(prompt);
     setAsking(true);
     setNotice('');
-    const { data, error } = await supabase.rpc('clomar_management_assistant_v32', {
-      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
-      p_intent: forcedIntent || inferAssistantIntent(prompt),
-      p_days: Number(days || 30),
-    });
-    if (error) {
-      setAnswer(null);
-      setNotice(error.message || 'No se pudo obtener la respuesta del asistente.');
-    } else {
-      const nextAnswer = { ...data, question: prompt || 'Consulta rápida' };
-      setAnswer(nextAnswer);
-      setHistory(prev => [{ id: `${Date.now()}-${forcedIntent || inferAssistantIntent(prompt)}`, question: nextAnswer.question, intent: forcedIntent || inferAssistantIntent(prompt), created_at: new Date().toISOString() }, ...prev.filter(item => item.question !== nextAnswer.question)].slice(0, 6));
+    let handledByGemini = false;
+    try {
+      const { data, error } = await supabase.functions.invoke('clomar-ai', {
+        body: {
+          question: prompt || 'Consulta rápida',
+          intent,
+          days: Number(days || 30),
+          store_id: profile?.store_id || DEFAULT_STORE_ID,
+        },
+      });
+      if (!error && data?.answer) {
+        handledByGemini = true;
+        const nextAnswer = { ...data, question: prompt || 'Consulta rápida', title: data.title || 'Asistente IA · Datos reales' };
+        setAnswer(nextAnswer);
+        setAiMode(data.mode === 'gemini' ? 'gemini' : 'erp');
+        if (data.notice) setNotice(data.notice);
+      }
+    } catch (_) {
+      // La app mantiene el análisis ERP si la función aún no fue desplegada.
     }
+
+    if (!handledByGemini) {
+      const { data, error } = await supabase.rpc('clomar_management_assistant_v32', {
+        p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+        p_intent: intent,
+        p_days: Number(days || 30),
+      });
+      if (error) {
+        setAnswer(null);
+        setNotice(error.message || 'No se pudo obtener la respuesta del asistente.');
+      } else {
+        setAnswer({ ...data, question: prompt || 'Consulta rápida', title: data?.title || 'Análisis ERP' });
+        setAiMode('erp');
+        setNotice('Análisis ERP disponible. Para respuestas generativas, active la función clomar-ai de esta versión.');
+      }
+    }
+
+    setHistory(prev => [{ id: `${Date.now()}-${intent}`, question: prompt || 'Consulta rápida', intent, created_at: new Date().toISOString() }, ...prev.filter(item => item.question !== (prompt || 'Consulta rápida'))].slice(0, 8));
     setAsking(false);
   }
 
@@ -1021,35 +1049,44 @@ function AssistantAI({ profile, products = [], store }) {
     setNotice('Mensaje preparado con información real del ERP. Revíselo antes de enviarlo.');
   }
 
+  const modeText = aiMode === 'gemini' ? 'Gemini + ERP' : 'ERP verificado';
   return (
-    <div className="page ai-assistant-page ai-v321-page">
-      <div className="hero compact-hero ai-hero ai-v321-hero">
-        <div><span className="eyebrow">Decisiones y atención comercial</span><h1>Asistente IA</h1><p>Analiza información real de ventas, inventario, caja y créditos. No realiza cambios en el negocio.</p></div>
-        <label>Periodo de análisis<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="90">Últimos 90 días</option></select></label>
-      </div>
-      <section className="ai-safety-strip ai-v321-safety"><strong>Datos verificados:</strong> precios, disponibilidad y respuestas se basan en el ERP. Los descuentos, créditos y pagos siempre requieren aprobación humana.</section>
+    <div className="page ai-assistant-page ai-v327-page">
+      <section className="ai-v327-commandbar">
+        <div>
+          <span className="eyebrow">Decisiones y atención comercial</span>
+          <h1>Asistente Clomar</h1>
+          <p>Pregunta con lenguaje natural y recibe recomendaciones basadas en ventas, inventario, caja y créditos.</p>
+        </div>
+        <div className={`ai-engine-badge ${aiMode === 'gemini' ? 'online' : ''}`}><span></span>{modeText}</div>
+        <label className="ai-period-compact">Periodo<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">7 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label>
+      </section>
+      <section className="ai-safety-strip ai-v327-safety"><strong>Datos controlados:</strong> la IA interpreta información que sale del ERP. No puede cambiar precios, stock, pagos, créditos, caja ni comprobantes.</section>
       {notice && <div className="catalog-toast ai-toast">{notice}</div>}
-      <div className="ai-layout-grid ai-v321-grid">
-        <section className="card compact-card ai-question-card ai-v321-question">
-          <div className="assistant-section-head"><div><span className="eyebrow">Control del negocio</span><h3>¿Qué necesita decidir hoy?</h3></div><span className="assistant-state-pill">Solo lectura</span></div>
-          <div className="ai-question-box"><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="4" placeholder="Ej.: ¿Qué productos debo reponer esta semana?" /><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando datos...' : 'Analizar mi negocio'}</button></div>
-          <div className="assistant-quick-title">Consultas rápidas</div>
-          <div className="ai-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} className="secondary-btn" onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
-          {history.length > 0 && <div className="assistant-history"><div><span>Consultas recientes</span><button type="button" onClick={() => setHistory([])}>Limpiar</button></div><section>{history.map(item => <button type="button" key={item.id} onClick={() => { setQuestion(item.question); askAssistant(item.question, item.intent); }}><span>{item.question}</span><small>{fmtDate(item.created_at)}</small></button>)}</section></div>}
-          {answer ? <article className="ai-answer-card"><div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Resultado'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answer.answer); setNotice('Respuesta copiada.'); }}>⧉</button></div><p>{answer.answer || 'No se encontraron datos suficientes para esta consulta.'}</p>{Array.isArray(answer.data) && answer.data.length > 0 && <div className="ai-result-list">{answer.data.slice(0, 8).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div>}</article> : <div className="assistant-empty-state"><span>✦</span><div><strong>El análisis aparecerá aquí</strong><small>Use una consulta rápida o escriba una pregunta sobre ventas, stock, caja, créditos o rentabilidad.</small></div></div>}
+      <div className="ai-v327-workspace">
+        <section className="card compact-card ai-chat-card">
+          <div className="assistant-section-head"><div><span className="eyebrow">Consulta operativa</span><h3>¿Qué necesita revisar hoy?</h3></div><span className="assistant-state-pill">Solo lectura</span></div>
+          <div className="ai-chat-composer">
+            <textarea value={question} onChange={e => setQuestion(e.target.value)} rows="3" placeholder="Ej.: ¿Qué productos debo reponer esta semana y por qué?" />
+            <button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando…' : 'Preguntar al asistente'}</button>
+          </div>
+          <div className="ai-quick-grid ai-v327-quick">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} className="secondary-btn" onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
+          {answer ? <article className="ai-answer-card ai-v327-answer"><div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Respuesta'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answer.answer); setNotice('Respuesta copiada.'); }}>⧉</button></div><p>{answer.answer || 'No se encontraron datos suficientes para esta consulta.'}</p>{Array.isArray(answer.data) && answer.data.length > 0 && <div className="ai-result-list">{answer.data.slice(0, 6).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div>}</article> : <div className="assistant-empty-state ai-v327-empty"><span>✦</span><div><strong>Listo para analizar su negocio</strong><small>Puede preguntar por stock, ventas, cobranza, utilidad, vendedores, pagos o preparar una respuesta comercial.</small></div></div>}
+          {history.length > 0 && <div className="assistant-history ai-v327-history"><div><span>Recientes</span><button type="button" onClick={() => setHistory([])}>Limpiar</button></div><section>{history.map(item => <button type="button" key={item.id} onClick={() => { setQuestion(item.question); askAssistant(item.question, item.intent); }}><span>{item.question}</span><small>{fmtDate(item.created_at)}</small></button>)}</section></div>}
         </section>
-        <section className="card compact-card ai-commercial-card ai-v321-commercial">
-          <div className="assistant-section-head"><div><span className="eyebrow">Atención por WhatsApp</span><h3>Prepare una respuesta comercial</h3></div><span className="assistant-state-pill verified">Con datos reales</span></div>
-          <p className="muted">Seleccione el producto y el tono. El mensaje puede copiarse o abrirse directamente en el WhatsApp oficial.</p>
+        <section className="card compact-card ai-commercial-card ai-v327-commercial">
+          <div className="assistant-section-head"><div><span className="eyebrow">WhatsApp oficial</span><h3>Respuesta comercial verificada</h3></div><span className="assistant-state-pill verified">Precio real</span></div>
+          <p className="muted">Elija un producto. El sistema incluye precio, código y disponibilidad antes de abrir WhatsApp.</p>
           <label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label>
-          <label>Tono de respuesta<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label>
+          <label>Tono<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label>
           <button type="button" className="primary-btn" onClick={generateCommercialReply}>Preparar mensaje</button>
-          {commercialText ? <div className="commercial-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="10" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar mensaje</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div> : <div className="commercial-empty-state"><span>💬</span><strong>Sin mensaje preparado</strong><small>El sistema completará precio, código y disponibilidad al elegir un producto.</small></div>}
+          {commercialText ? <div className="commercial-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="8" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div> : <div className="commercial-empty-state"><span>💬</span><strong>Mensaje comercial listo al elegir un producto</strong><small>La IA no inventa precio, descuento ni disponibilidad.</small></div>}
         </section>
       </div>
     </div>
   );
 }
+
 function POS({ products, reloadProducts, customers, profile, store, onGoReceipts, cashSession, menuOpen = false }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
@@ -2280,54 +2317,32 @@ function Inventory({ products }) {
   const visibleCategoryItems = byCat[visibleCategory] || [];
   const categoryRisk = (cat) => (byCat[cat] || []).filter(p => asNum(p.stock) <= asNum(p.stock_min)).length;
   return (
-    <div className="page inventory-page inventory-v326-page">
-      <section className="card compact-card inventory-control-card inventory-v326-control">
-        <div className="inventory-control-head">
-          <div><span className="eyebrow">Operación de almacén</span><h3>Inventario en tiempo real</h3><p className="muted">Elija una categoría y revise disponibilidad, reposición y productos agotados sin perder contexto.</p></div>
-          <div className="inventory-control-search"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div><div className="inventory-stock-filter" aria-label="Filtro de inventario">{['Todos','Bajo stock','Sin stock'].map(option => <button key={option} type="button" className={stockFilter===option ? 'active' : ''} onClick={()=>setStockFilter(option)}>{option}</button>)}</div></div>
-        </div>
-        <div className="inventory-kpi-grid">
-          <Kpi label="Productos" value={active.length} helper="activos" />
-          <Kpi label="Stock bajo" value={lowStock.length} helper="requieren revisión" />
-          <Kpi label="Sin stock" value={noStock.length} helper="reposición urgente" />
-          <Kpi label="Categorías" value={Object.keys(byCat).length} helper="con resultados" />
-        </div>
+    <div className="page inventory-page inventory-v327-page">
+      <section className="inventory-v327-commandbar">
+        <div className="inventory-v327-copy"><span className="eyebrow">Operación de almacén</span><h1>Inventario</h1><p><strong>{active.length}</strong> productos · <strong className="risk">{lowStock.length}</strong> por reponer · <strong>{noStock.length}</strong> agotados · <strong>{inventoryCategories.length}</strong> categorías</p></div>
+        <div className="inventory-v327-tools"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div><div className="inventory-stock-filter" aria-label="Filtro de inventario">{['Todos','Bajo stock','Sin stock'].map(option => <button key={option} type="button" className={stockFilter===option ? 'active' : ''} onClick={()=>setStockFilter(option)}>{option}</button>)}</div></div>
       </section>
-      {inventoryCategories.length > 0 && <section className="inventory-workspace-v326">
-        <aside className="card compact-card inventory-side-categories">
+      {inventoryCategories.length > 0 && <section className="inventory-workspace-v326 inventory-v327-workspace">
+        <aside className="card compact-card inventory-side-categories inventory-v327-side">
           <div className="inventory-side-head"><div><span className="eyebrow">Navegación</span><h3>Categorías</h3></div><span>{inventoryCategories.length}</span></div>
-          <div className="inventory-category-menu" role="navigation" aria-label="Categorías de inventario">
-            {inventoryCategories.map(cat => {
-              const risk = categoryRisk(cat);
-              return <button type="button" key={cat} className={visibleCategory === cat ? 'active' : ''} onClick={() => setActiveCategory(cat)}><span><strong>{cat}</strong><small>{byCat[cat].length} producto(s){risk ? ` · ${risk} por reponer` : ''}</small></span><b>{byCat[cat].length}</b></button>;
-            })}
-          </div>
+          <div className="inventory-category-menu" role="navigation" aria-label="Categorías de inventario">{inventoryCategories.map(cat => {
+            const risk = categoryRisk(cat);
+            return <button type="button" key={cat} className={visibleCategory === cat ? 'active' : ''} onClick={() => setActiveCategory(cat)}><span><strong>{cat}</strong><small>{byCat[cat].length} producto(s){risk ? ` · ${risk} por reponer` : ''}</small></span><b>{byCat[cat].length}</b></button>;
+          })}</div>
         </aside>
-        <section className="card compact-card inventory-products-pane">
-          <div className="inventory-category-head inventory-v326-head"><div><span className="eyebrow">Categoría activa</span><h3>{visibleCategory}</h3><p>{visibleCategoryItems.length} producto(s) encontrados</p></div><span className="inventory-guide-badge">Imagen · detalle · stock</span></div>
-          <div className="inventory-card-grid inventory-v326-grid">
-            {visibleCategoryItems.map(p => {
-              const stock = asNum(p.stock);
-              const min = asNum(p.stock_min);
-              const out = stock <= 0;
-              const low = stock <= min && !out;
-              const state = out ? 'out' : low ? 'low' : 'ready';
-              const stateLabel = out ? 'Agotado' : low ? 'Reponer' : 'Disponible';
-              return (
-                <article className={`inventory-card-pro inventory-v326-card inventory-${state}`} key={p.id}>
-                  <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
-                  <div className="inventory-card-info"><strong>{p.name}</strong><small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</small></div>
-                  <div className={`stock-pill ${out || low ? 'stock-low' : ''}`}><span>{stateLabel}</span><b>{stock}</b><small>mín. {min}</small></div>
-                </article>
-              );
-            })}
-          </div>
+        <section className="card compact-card inventory-products-pane inventory-v327-pane">
+          <div className="inventory-category-head inventory-v327-head"><div><span className="eyebrow">Categoría activa</span><h3>{visibleCategory}</h3><p>{visibleCategoryItems.length} producto(s) · revise primero los destacados en ámbar</p></div><span className="inventory-guide-badge">Foto · detalle · stock</span></div>
+          <div className="inventory-card-grid inventory-v327-grid">{visibleCategoryItems.map(p => {
+            const stock = asNum(p.stock); const min = asNum(p.stock_min); const out = stock <= 0; const low = stock <= min && !out; const state = out ? 'out' : low ? 'low' : 'ready'; const stateLabel = out ? 'Agotado' : low ? 'Reponer' : 'Disponible';
+            return <article className={`inventory-card-pro inventory-v327-card inventory-${state}`} key={p.id}><img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/><div className="inventory-card-info"><strong>{p.name}</strong><small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</small></div><div className={`stock-pill ${out || low ? 'stock-low' : ''}`}><span>{stateLabel}</span><b>{stock}</b><small>mín. {min}</small></div></article>;
+          })}</div>
         </section>
       </section>}
       {!filtered.length && <section className="card compact-card"><p className="muted">No se encontraron productos con ese criterio.</p></section>}
     </div>
   );
 }
+
 
 function StockEntry({ products, reloadProducts, profile, cashSession }) {
   const { movements, reload: reloadMovements } = useStockMovements(profile);
