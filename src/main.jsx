@@ -188,7 +188,8 @@ const productScanCode = (product) => String(product?.barcode || product?.code ||
 const CATALOG_WHATSAPP_FALLBACK = '51931709871';
 /* El catálogo debe usar una URL estable de producción, nunca una URL temporal de preview.
    Configure VITE_PUBLIC_CATALOG_URL en Vercel si luego usa un dominio propio. */
-const CONFIGURED_CATALOG_URL = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || 'https://clomar-store-vite.vercel.app/#/catalogo').trim();
+const RUNTIME_CATALOG_FALLBACK = typeof window !== 'undefined' ? `${window.location.origin}/#/catalogo` : 'https://clomar-store-vite.vercel.app/#/catalogo';
+const CONFIGURED_CATALOG_URL = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || RUNTIME_CATALOG_FALLBACK).trim();
 const catalogBaseUrl = () => {
   const base = CONFIGURED_CATALOG_URL.replace(/\/+$/, '');
   return base.includes('#/catalogo') ? base : `${base}/#/catalogo`;
@@ -220,10 +221,15 @@ const productPriceStatus = (product) => product?.price_status || 'Pendiente';
    mezclen con la hoja de etiquetas.
    ========================================================= */
 const LABEL_LAYOUTS = {
-  a4_2x6: { key: 'a4_2x6', label: 'A4 · 2 columnas × 6 filas', paper: 'a4', columns: 2, rows: 6, width: 90, height: 43, gapX: 5, gapY: 3, density: 'large' },
-  a4_3x8: { key: 'a4_3x8', label: 'A4 · 3 columnas × 8 filas', paper: 'a4', columns: 3, rows: 8, width: 58, height: 32, gapX: 4, gapY: 2, density: 'medium' },
-  a4_4x10: { key: 'a4_4x10', label: 'A4 · 4 columnas × 10 filas', paper: 'a4', columns: 4, rows: 10, width: 43, height: 25, gapX: 2, gapY: 2, density: 'compact' },
-  roll_1col: { key: 'roll_1col', label: 'Rollo térmico · 1 columna', paper: 'roll', columns: 1, rows: 1, width: 60, height: 40, gapX: 0, gapY: 2, density: 'large' },
+  a4_2x6: { key: 'a4_2x6', label: 'A4 · 2 columnas × 6 filas', paper: 'a4', columns: 2, rows: 6, width: 90, height: 43, gapX: 5, gapY: 3, density: 'showcase' },
+  a4_3x7: { key: 'a4_3x7', label: 'A4 · 3 columnas × 7 filas', paper: 'a4', columns: 3, rows: 7, width: 58, height: 37, gapX: 4, gapY: 3, density: 'commercial' },
+  a4_4x8: { key: 'a4_4x8', label: 'A4 · 4 columnas × 8 filas', paper: 'a4', columns: 4, rows: 8, width: 43, height: 32, gapX: 2, gapY: 2, density: 'compact' },
+  roll_1col: { key: 'roll_1col', label: 'Rollo térmico · 1 columna', paper: 'roll', columns: 1, rows: 1, width: 60, height: 40, gapX: 0, gapY: 2, density: 'commercial' },
+};
+const LABEL_TEMPLATE_INFO = {
+  commercial: { label: 'Comercial Pro', help: 'Precio protagonista, QR a catálogo y código de barras para POS.' },
+  compact: { label: 'Compacta', help: 'Alta densidad para etiquetas pequeñas o muchas unidades.' },
+  showcase: { label: 'Góndola / mostrador', help: 'Precio grande y lectura inmediata para exhibición.' },
 };
 
 const labelPrintEsc = (value = '') => escapeHtml(String(value ?? ''));
@@ -240,28 +246,32 @@ const buildLabelsPrintHTML = ({
   showPrice = true,
   showLogo = true,
   showCodeText = true,
-  sheetLayout = 'a4_3x8',
+  sheetLayout = 'a4_3x7',
   labelStyle = 'medium',
+  labelTemplate = 'commercial',
 }) => {
-  const layout = LABEL_LAYOUTS[sheetLayout] || LABEL_LAYOUTS.a4_3x8;
+  const layout = LABEL_LAYOUTS[sheetLayout] || LABEL_LAYOUTS.a4_3x7;
   const perPage = layout.paper === 'a4' ? layout.columns * layout.rows : 1;
   const pages = splitEvery(items, perPage);
   const logo = publicAssetUrl(store?.logo_url || APP_ICON);
   const storeName = store?.name || 'Clomar Store';
+  const safeTemplate = ['commercial', 'compact', 'showcase'].includes(labelTemplate) ? labelTemplate : 'commercial';
   const styleClass = labelStyle === 'small' ? 'style-compact' : labelStyle === 'large' ? 'style-detailed' : 'style-standard';
+  const clipped = (value, max = 64) => String(value || 'Producto').trim().slice(0, max);
   const labelMarkup = ({ product }) => {
     const code = productScanCode(product);
     const priceIsReady = productPriceStatus(product) === 'Validado' && Number(product?.price || 0) > 0;
     const hasQr = mode === 'qr' || mode === 'both';
     const hasBarcode = mode === 'barcode' || mode === 'both';
+    const variant = [product?.code || code, product?.size, product?.color].filter(Boolean).join(' · ') || code;
     const logoBlock = showLogo ? `<div class="brand"><img src="${labelPrintEsc(logo)}" alt="" onerror="this.style.display='none'"/><span>${labelPrintEsc(storeName)}</span></div>` : '';
     const priceBlock = !showPrice ? '' : priceIsReady
-      ? `<div class="price">${labelPrintEsc(money(product.price))}</div>`
-      : `<div class="price pending">Precio pendiente</div>`;
-    const qrBlock = hasQr ? `<img class="qr" src="${labelPrintEsc(qrUrl(catalogQrValue(product)))}" alt="QR catálogo ${labelPrintEsc(code)}"/>` : '';
-    const barcodeBlock = hasBarcode ? barcodeSvgMarkup(code, 46) : '';
-    const codeBlock = showCodeText ? `<div class="code-text">${labelPrintEsc(code)}</div>` : '';
-    return `<article class="label ${styleClass} mode-${labelPrintEsc(mode)}">${logoBlock}<div class="name">${labelPrintEsc(product?.name || 'Producto')}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div>${codeBlock}</article>`;
+      ? `<div class="price"><span>PRECIO</span><strong>${labelPrintEsc(money(product.price))}</strong></div>`
+      : `<div class="price pending"><strong>PRECIO PENDIENTE</strong></div>`;
+    const qrBlock = hasQr ? `<div class="qr-wrap"><img class="qr" src="${labelPrintEsc(qrUrl(catalogQrValue(product)))}" alt="QR catálogo ${labelPrintEsc(code)}"/><small>Ver catálogo</small></div>` : '';
+    const barcodeBlock = hasBarcode ? `<div class="barcode-wrap">${barcodeSvgMarkup(code, 46)}${showCodeText ? `<div class="code-text">${labelPrintEsc(code)}</div>` : ''}</div>` : '';
+    const meta = `<div class="meta">${labelPrintEsc(variant)}</div>`;
+    return `<article class="label template-${safeTemplate} ${styleClass} mode-${labelPrintEsc(mode)}">${logoBlock}<div class="label-title"><div class="name">${labelPrintEsc(clipped(product?.name))}</div>${meta}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div></article>`;
   };
 
   const pagesMarkup = pages.map((pageItems, pageIndex) => {
@@ -274,20 +284,19 @@ const buildLabelsPrintHTML = ({
     : `@page { size: 62mm auto; margin: 0; } .label-page{width:62mm;min-height:40mm;padding:1mm;page-break-after:always;break-after:page;} .label-page:last-child{page-break-after:auto;break-after:auto;}`;
 
   return `<!doctype html>
-<html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Etiquetas · ${labelPrintEsc(storeName)}</title>
+<html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Etiquetas comerciales · ${labelPrintEsc(storeName)}</title>
 <style>
-  :root{--label-w:${layout.width}mm;--label-h:${layout.height}mm;--cols:${layout.columns};--gap-x:${layout.gapX}mm;--gap-y:${layout.gapY}mm;}
+  :root{--label-w:${layout.width}mm;--label-h:${layout.height}mm;--cols:${layout.columns};--gap-x:${layout.gapX}mm;--gap-y:${layout.gapY}mm;--navy:#14213d;--ink:#111827;--muted:#64748b;--line:#cbd5e1;--blush:#fff4f1;}
   *{box-sizing:border-box} html,body{margin:0;padding:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif} body{print-color-adjust:exact;-webkit-print-color-adjust:exact}
   ${pageCss}
-  .label-grid{display:grid;grid-template-columns:repeat(var(--cols),var(--label-w));grid-auto-rows:var(--label-h);column-gap:var(--gap-x);row-gap:var(--gap-y);justify-content:center;align-content:start}
-  .roll-page .label-grid{justify-content:start;grid-template-columns:var(--label-w)}
-  .label{width:var(--label-w);height:var(--label-h);overflow:hidden;border:.22mm solid #b9c0ca;border-radius:1.8mm;background:#fff;padding:1.5mm 1.7mm;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;align-content:start;text-align:center;break-inside:avoid;page-break-inside:avoid}
-  .label.empty{visibility:hidden}.brand{min-height:3.4mm;display:flex;align-items:center;justify-content:center;gap:1mm;color:#111827;font-size:7.4px;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand img{width:3.2mm;height:3.2mm;object-fit:contain;flex:0 0 auto}.name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;align-self:center;font-size:9px;line-height:1.08;font-weight:900;color:#05070b;min-height:6.3mm}.price{min-height:4.5mm;margin-top:.4mm;font-size:11.5px;line-height:1;font-weight:950;color:#080d18}.price.pending{font-size:7px;color:#bf360c;text-transform:uppercase;letter-spacing:.02em}.codes{height:11.5mm;display:flex;align-items:center;justify-content:center;gap:1.4mm;min-width:0;margin-top:.5mm}.codes-both{justify-content:space-evenly}.qr{width:11.5mm;height:11.5mm;object-fit:contain;image-rendering:auto}.barcode-svg{width:calc(var(--label-w) - 7mm);height:9.5mm;display:block;fill:#000;background:#fff}.codes-both .barcode-svg{width:calc(var(--label-w) - 21mm);height:9.5mm}.code-text{min-height:2.7mm;margin-top:.3mm;font-size:6.4px;line-height:1;font-weight:750;letter-spacing:.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111827}
-  .style-compact .name{font-size:8px}.style-compact .brand{font-size:6.5px;min-height:3mm}.style-compact .brand img{width:2.8mm;height:2.8mm}.style-compact .price{font-size:9.2px;min-height:3.8mm}.style-compact .price.pending{font-size:6px}.style-compact .codes{height:9mm}.style-compact .qr{width:9mm;height:9mm}.style-compact .barcode-svg{height:7.6mm}.style-compact .codes-both .barcode-svg{width:calc(var(--label-w) - 17mm);height:7.6mm}.style-compact .code-text{display:none}
-  .style-detailed .name{font-size:10.2px}.style-detailed .price{font-size:13px}.style-detailed .codes{height:13.5mm}.style-detailed .qr{width:13.5mm;height:13.5mm}.style-detailed .barcode-svg{height:11.5mm}.style-detailed .codes-both .barcode-svg{width:calc(var(--label-w) - 25mm);height:11.5mm}.style-detailed .code-text{font-size:7px}
-  .mode-qr .qr{width:13mm;height:13mm}.mode-qr .codes{height:13mm}.mode-barcode .barcode-svg{width:calc(var(--label-w) - 6mm);height:11mm}.mode-barcode .codes{height:11mm}
-  @media screen{body{background:#f3f4f6;padding:12mm}.label-page{margin:0 auto 12mm;box-shadow:0 2mm 8mm rgba(15,23,42,.18)}}
-  @media print{html,body{width:100%;height:auto;background:#fff}.label-page{box-shadow:none;margin:0}.label{border-color:#aeb5bf}}
+  .label-grid{display:grid;grid-template-columns:repeat(var(--cols),var(--label-w));grid-auto-rows:var(--label-h);column-gap:var(--gap-x);row-gap:var(--gap-y);justify-content:center;align-content:start}.roll-page .label-grid{justify-content:start;grid-template-columns:var(--label-w)}
+  .label{width:var(--label-w);height:var(--label-h);overflow:hidden;border:.22mm solid var(--line);border-radius:2.2mm;background:#fff;padding:1.7mm 1.8mm 1.45mm;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:.5mm;text-align:center;break-inside:avoid;page-break-inside:avoid}.label.empty{visibility:hidden}
+  .brand{min-height:3.4mm;display:flex;align-items:center;justify-content:center;gap:1mm;color:var(--navy);font-size:7.2px;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand img{width:3.3mm;height:3.3mm;object-fit:contain;flex:0 0 auto}.label-title{display:grid;align-content:center;gap:.45mm;min-height:0}.name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:9.7px;line-height:1.06;font-weight:950;color:#05070b;min-height:6mm}.meta{font-size:6.2px;line-height:1.05;font-weight:700;letter-spacing:.025em;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .price{min-height:6mm;display:flex;align-items:center;justify-content:center;gap:1.3mm;padding:.85mm 1.3mm;border-radius:1.25mm;background:var(--navy);color:#fff}.price span{font-size:5.4px;font-weight:900;letter-spacing:.09em}.price strong{font-size:12.3px;line-height:1;font-weight:950}.price.pending{background:#fff3e0;color:#9a3412;font-size:6.2px;letter-spacing:.035em}
+  .codes{height:12mm;display:flex;align-items:center;justify-content:center;gap:1.55mm;min-width:0}.codes-both{justify-content:space-between}.qr-wrap{display:grid;grid-template-columns:11.4mm;grid-template-rows:11.4mm auto;place-items:center;gap:.2mm}.qr{width:11.4mm;height:11.4mm;object-fit:contain}.qr-wrap small{font-size:4.7px;line-height:1;color:#64748b;white-space:nowrap}.barcode-wrap{display:grid;grid-template-rows:9.6mm auto;align-items:center;justify-items:center;min-width:0;flex:1}.barcode-svg{width:100%;height:9.6mm;display:block;fill:#000;background:#fff}.codes-both .barcode-wrap{width:calc(var(--label-w) - 21.5mm)}.code-text{margin-top:.35mm;font-size:5.8px;line-height:1;font-weight:850;letter-spacing:.065em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111827}
+  .template-showcase .price{background:#0f172a;border-radius:1.6mm;min-height:7.2mm}.template-showcase .price strong{font-size:15px}.template-showcase .name{font-size:10.6px}.template-compact{padding:1.15mm 1.2mm}.template-compact .brand{font-size:6.1px;min-height:2.7mm}.template-compact .brand img{width:2.7mm;height:2.7mm}.template-compact .name{font-size:7.3px;min-height:4.8mm}.template-compact .meta{font-size:5.3px}.template-compact .price{min-height:4.8mm;padding:.5mm 1mm}.template-compact .price strong{font-size:9.5px}.template-compact .price span{font-size:4.5px}.template-compact .codes{height:8.6mm;gap:1mm}.template-compact .qr-wrap{grid-template-columns:8.3mm;grid-template-rows:8.3mm auto}.template-compact .qr{width:8.3mm;height:8.3mm}.template-compact .qr-wrap small{display:none}.template-compact .barcode-wrap{grid-template-rows:7.3mm auto}.template-compact .barcode-svg{height:7.3mm}.template-compact .code-text{font-size:4.8px}.template-compact .codes-both .barcode-wrap{width:calc(var(--label-w) - 15mm)}
+  .mode-qr .qr-wrap{grid-template-columns:16mm;grid-template-rows:16mm auto}.mode-qr .qr{width:16mm;height:16mm}.mode-qr .codes{height:17mm}.mode-barcode .barcode-wrap{width:100%;grid-template-rows:11mm auto}.mode-barcode .barcode-svg{height:11mm}.mode-barcode .codes{height:12.5mm}
+  @media screen{body{background:#f3f4f6;padding:12mm}.label-page{margin:0 auto 12mm;box-shadow:0 2mm 8mm rgba(15,23,42,.18)}}@media print{html,body{width:100%;height:auto;background:#fff}.label-page{box-shadow:none;margin:0}.label{border-color:#aeb5bf}}
 </style></head><body>${pagesMarkup || '<section class="label-page"><p>No hay etiquetas seleccionadas.</p></section>'}
 <script>
   const waitForImages = () => Promise.all(Array.from(document.images).map((image) => image.complete ? Promise.resolve() : new Promise((resolve) => { image.addEventListener('load', resolve, { once:true }); image.addEventListener('error', resolve, { once:true }); setTimeout(resolve, 2200); })));
@@ -3519,7 +3528,8 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   const [subcategoryId, setSubcategoryId] = useState('all');
   const [mode, setMode] = useState('both');
   const [labelSize, setLabelSize] = useState('medium');
-  const [sheetLayout, setSheetLayout] = useState('a4_3x8');
+  const [labelTemplate, setLabelTemplate] = useState('commercial');
+  const [sheetLayout, setSheetLayout] = useState('a4_3x7');
   const [showPrice, setShowPrice] = useState(true);
   const [showLogo, setShowLogo] = useState(true);
   const [showCodeText, setShowCodeText] = useState(true);
@@ -3535,11 +3545,9 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
     const matchSub = subcategoryId === 'all' || p.subcategory_id === subcategoryId || normalizeText(p.subcategory) === normalizeText(subcategories.find(c=>c.id===subcategoryId)?.name);
     return matchText && matchCat && matchSub;
   }), [activeProducts, search, categoryId, subcategoryId, categories, subcategories]);
-
   const chosen = useMemo(() => activeProducts.filter(p => selected.has(p.id)), [activeProducts, selected]);
   const basePrintable = chosen.length ? chosen : filtered;
   const visibleSubcategories = useMemo(() => categoryId === 'all' ? subcategories : subcategories.filter(s => s.parent_id === categoryId), [categoryId, subcategories]);
-
   const printableItems = useMemo(() => {
     const items = [];
     for (const product of basePrintable) {
@@ -3548,116 +3556,30 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
     }
     return items;
   }, [basePrintable, quantities, defaultQty]);
+  const sheetInfo = LABEL_LAYOUTS[sheetLayout]?.label || 'A4 · 3 columnas × 7 filas';
+  const publicCatalog = catalogBaseUrl();
 
-  const sheetInfo = {
-    a4_2x6: 'A4: 2 columnas x 6 filas',
-    a4_3x8: 'A4: 3 columnas x 8 filas',
-    a4_4x10: 'A4: 4 columnas x 10 filas',
-    roll_1col: 'Rollo térmico: 1 columna',
-  }[sheetLayout];
-
-  function toggleProduct(id) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
+  function toggleProduct(id) { setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; }); }
   function selectFiltered() { setSelected(new Set(filtered.map(p => p.id))); }
   function clearSelection() { setSelected(new Set()); }
-  function setQty(id, value) {
-    const qty = Math.max(1, Math.min(500, Number(value || 1)));
-    setQuantities(prev => ({ ...prev, [id]: qty }));
-  }
-  function applyQtyToFiltered() {
-    const qty = Math.max(1, Math.min(500, Number(defaultQty || 1)));
-    const next = { ...quantities };
-    filtered.forEach(p => { next[p.id] = qty; });
-    setQuantities(next);
-  }
-  function applyStockQtyToFiltered() {
-    const next = { ...quantities };
-    filtered.forEach(p => { next[p.id] = Math.max(1, Math.min(500, Number(p.stock || 1))); });
-    setQuantities(next);
-  }
+  function setQty(id, value) { const qty = Math.max(1, Math.min(500, Number(value || 1))); setQuantities(prev => ({ ...prev, [id]: qty })); }
+  function applyQtyToFiltered() { const qty = Math.max(1, Math.min(500, Number(defaultQty || 1))); const next = { ...quantities }; filtered.forEach(p => { next[p.id] = qty; }); setQuantities(next); }
+  function applyStockQtyToFiltered() { const next = { ...quantities }; filtered.forEach(p => { next[p.id] = Math.max(1, Math.min(500, Number(p.stock || 1))); }); setQuantities(next); }
   function printLabels() {
     if (!printableItems.length) return alert('No hay productos para imprimir.');
-    openLabelsPrintWindow({
-      items: printableItems,
-      store,
-      mode,
-      showPrice,
-      showLogo,
-      showCodeText,
-      sheetLayout,
-      labelStyle: labelSize,
-    });
+    openLabelsPrintWindow({ items: printableItems, store, mode, showPrice, showLogo, showCodeText, sheetLayout, labelStyle: labelSize, labelTemplate });
   }
 
-  return (
-    <div className="page labels-page">
-      <div className="hero compact-hero"><h1>🏷️ Etiquetas QR y código de barras</h1><p>Genera varias etiquetas por hoja PDF, con cantidad por producto y formato A4 o térmico.</p></div>
-      <div className="tool-grid labels-tools">
-        <section className="card compact-card">
-          <h3>Filtros</h3>
-          <label>Buscar producto<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, código, barcode, marca o color" /></label>
-          <label>Categoría<select value={categoryId} onChange={e=>{ setCategoryId(e.target.value); setSubcategoryId('all'); }}><option value="all">Todas</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-          <label>Subcategoría<select value={subcategoryId} onChange={e=>setSubcategoryId(e.target.value)}><option value="all">Todas</option>{visibleSubcategories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-          <div className="import-summary label-summary"><Kpi label="Filtrados" value={filtered.length} helper="productos" /><Kpi label="Seleccionados" value={chosen.length || filtered.length} helper={chosen.length ? 'manual' : 'por filtro'} /><Kpi label="Etiquetas" value={printableItems.length} helper="a imprimir" /></div>
-          <div className="button-row"><button className="secondary-btn" onClick={selectFiltered}>Seleccionar filtrados</button><button className="secondary-btn" onClick={clearSelection}>Limpiar selección</button></div>
-        </section>
-
-        <section className="card compact-card">
-          <h3>Diseño de hoja</h3>
-          <label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="both">QR + barras</option><option value="qr">Solo QR</option><option value="barcode">Solo código de barras</option></select></label>
-          <label>Estilo de contenido<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Compacto — recomendado para A4 4 × 10</option><option value="medium">Equilibrado — recomendado para A4 3 × 8</option><option value="large">Detallado — recomendado para A4 2 × 6</option></select></label>
-          <label>Formato de hoja<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas × 6 filas (90 × 43 mm)</option><option value="a4_3x8">A4: 3 columnas × 8 filas (58 × 32 mm)</option><option value="a4_4x10">A4: 4 columnas × 10 filas (43 × 25 mm)</option><option value="roll_1col">Rollo térmico: 1 columna (60 × 40 mm)</option></select></label>
-          <label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Mostrar precio</label>
-          <label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Mostrar marca Clomar Store</label>
-          <label className="check-row"><input type="checkbox" checked={showCodeText} onChange={e=>setShowCodeText(e.target.checked)} /> Mostrar código escrito</label>
-          <button className="primary-btn" onClick={printLabels}>Imprimir / Guardar PDF</button>
-          <p className="muted">Formato: <strong>{sheetInfo}</strong>. Se abrirá una hoja limpia, sin menú ni barra móvil. En el diálogo de impresión seleccione <strong>Guardar como PDF</strong>, papel <strong>A4</strong>, escala <strong>100 %</strong>, márgenes <strong>Ninguno</strong> y encabezados/pies desactivados.</p>
-        </section>
-      </div>
-
-      <section className="card compact-card no-print">
-        <h3>Cantidad por producto</h3>
-        <div className="quantity-tools">
-          <label>Cantidad rápida<input type="number" min="1" max="500" value={defaultQty} onChange={e=>setDefaultQty(e.target.value)} /></label>
-          <button className="secondary-btn" onClick={applyQtyToFiltered}>Aplicar cantidad a filtrados</button>
-          <button className="secondary-btn" onClick={applyStockQtyToFiltered}>Usar stock como cantidad</button>
-        </div>
-        <p className="muted">Ejemplo: si un producto tiene cantidad 10, saldrán 10 etiquetas de ese producto en el mismo PDF.</p>
-      </section>
-
-      <section className="card compact-card no-print">
-        <h3>Productos para etiquetas</h3>
-        <div className="product-pick-list product-pick-list-qty">
-          {filtered.map(p => <label key={p.id} className="product-pick-row qty-row"><input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleProduct(p.id)} /><img src={productImageSrc(p)} alt={p.name}/><span><strong>{p.name}</strong><small>{p.code} · {p.barcode || 'Sin barcode'} · {p.category || 'Sin categoría'}{p.subcategory ? ` / ${p.subcategory}` : ''}</small><small>Stock: {p.stock ?? 0} · Precio: {money(p.price)}</small></span><div className="qty-box"><small>Cant.</small><input type="number" min="1" max="500" value={quantities[p.id] || defaultQty} onChange={e=>setQty(p.id, e.target.value)} /></div></label>)}
-          {!filtered.length && <p className="muted">No hay productos con esos filtros.</p>}
-        </div>
-      </section>
-
-      <section className="card compact-card no-print">
-        <h3>Vista previa</h3>
-        <p className="muted">Se imprimirán <strong>{printableItems.length}</strong> etiquetas. Si el precio está pendiente, la etiqueta mostrará “Precio pendiente” en lugar del monto.</p>
-      </section>
-
-      <div className={`print-label-sheet label-size-${labelSize} sheet-${sheetLayout}`}>
-        {printableItems.map(({ product, key }) => {
-          const code = productScanCode(product);
-          return <div className="print-label" key={key}>
-            {showLogo && <div className="label-brand"><img src={APP_ICON} alt="Clomar"/><span>{store?.name || 'Clomar Store'}</span></div>}
-            <div className="label-name">{product.name}</div>
-            {showPrice && Number(product.price || 0) > 0 && productPriceStatus(product) === 'Validado' && <div className="label-price">{money(product.price)}</div>}
-            {showPrice && productPriceStatus(product) !== 'Validado' && <div className="label-pending">Precio pendiente</div>}
-            <div className={`label-codes mode-${mode}`}>{(mode === 'qr' || mode === 'both') && <img className="label-qr" src={qrUrl(catalogQrValue(product))} alt={`QR catálogo ${code}`} />}{(mode === 'barcode' || mode === 'both') && <BarcodeSVG value={code} />}</div>
-            {showCodeText && <div className="label-code-text">{code}</div>}
-          </div>;
-        })}
-      </div>
+  return <div className="page labels-page labels-pro-page">
+    <div className="hero labels-pro-hero"><div><span className="eyebrow">Etiquetas comerciales pro</span><h1>Etiquetas que venden y conectan al catálogo</h1><p>El QR abre el producto público; el código de barras sirve para venta e inventario. El precio queda como protagonista.</p></div><button className="secondary-btn" onClick={()=>navigator.clipboard?.writeText(publicCatalog).then(()=>alert('Enlace del catálogo copiado.')).catch(()=>alert(publicCatalog))}>Copiar enlace del catálogo</button></div>
+    <div className="labels-pro-flow"><span><b>1</b> Seleccione productos</span><i>→</i><span><b>2</b> Elija plantilla</span><i>→</i><span><b>3</b> Imprima o guarde PDF</span><small>QR: ficha del producto · Barras: código interno</small></div>
+    <div className="labels-pro-layout">
+      <section className="card labels-pro-filter"><h2>Productos</h2><label>Buscar producto<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, código, barcode, marca o color" /></label><div className="form-split"><label>Categoría<select value={categoryId} onChange={e=>{ setCategoryId(e.target.value); setSubcategoryId('all'); }}><option value="all">Todas</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Subcategoría<select value={subcategoryId} onChange={e=>setSubcategoryId(e.target.value)}><option value="all">Todas</option>{visibleSubcategories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div><div className="labels-pro-stats"><Kpi label="Filtrados" value={filtered.length} helper="productos" /><Kpi label="Seleccionados" value={chosen.length || filtered.length} helper={chosen.length ? 'manual' : 'por filtro'} /><Kpi label="Etiquetas" value={printableItems.length} helper="a imprimir" /></div><div className="button-row"><button className="secondary-btn" onClick={selectFiltered}>Seleccionar filtrados</button><button className="secondary-btn" onClick={clearSelection}>Limpiar selección</button></div></section>
+      <section className="card labels-pro-design"><h2>Diseño e impresión</h2><div className="label-template-grid">{Object.entries(LABEL_TEMPLATE_INFO).map(([key, info])=><button type="button" key={key} onClick={()=>setLabelTemplate(key)} className={`label-template-option ${labelTemplate===key?'active':''}`}><strong>{info.label}</strong><small>{info.help}</small></button>)}</div><div className="form-split"><label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="both">QR catálogo + barras POS</option><option value="qr">Solo QR catálogo</option><option value="barcode">Solo código de barras</option></select></label><label>Formato<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas × 6 filas (90 × 43 mm)</option><option value="a4_3x7">A4: 3 columnas × 7 filas (58 × 37 mm)</option><option value="a4_4x8">A4: 4 columnas × 8 filas (43 × 32 mm)</option><option value="roll_1col">Rollo térmico: 1 columna (60 × 40 mm)</option></select></label></div><div className="form-split"><label>Escala de contenido<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Compacta</option><option value="medium">Equilibrada</option><option value="large">Destacada</option></select></label><label>Cantidad rápida<input type="number" min="1" max="500" value={defaultQty} onChange={e=>setDefaultQty(e.target.value)} /></label></div><div className="labels-pro-checks"><label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Precio destacado</label><label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Marca Clomar Store</label><label className="check-row"><input type="checkbox" checked={showCodeText} onChange={e=>setShowCodeText(e.target.checked)} /> Código escrito</label></div><div className="button-row"><button className="secondary-btn" onClick={applyQtyToFiltered}>Aplicar cantidad</button><button className="secondary-btn" onClick={applyStockQtyToFiltered}>Usar stock como cantidad</button></div><button className="primary-btn labels-pro-print" onClick={printLabels}>Imprimir / Guardar PDF · {printableItems.length} etiquetas</button><p className="muted">Formato elegido: <strong>{sheetInfo}</strong>. En impresión: A4, escala 100 %, márgenes Ninguno y encabezados/pies desactivados.</p></section>
     </div>
-  );
+    <section className="card labels-pro-products"><div className="section-row"><div><span className="eyebrow">Selección de impresión</span><h2>Productos para etiquetas</h2></div><span className="muted">El QR enlaza directamente a la ficha pública del producto.</span></div><div className="labels-pro-product-grid">{filtered.map(p=>{const code=productScanCode(p); const selectedNow=selected.has(p.id); return <article key={p.id} className={`labels-pro-product ${selectedNow?'selected':''}`}><label className="labels-pro-product-check"><input type="checkbox" checked={selectedNow} onChange={()=>toggleProduct(p.id)} /> Seleccionar</label><img src={productImageSrc(p)} alt={p.name}/><div className="labels-pro-product-body"><strong>{p.name}</strong><small>{[p.code || code,p.size,p.color].filter(Boolean).join(' · ')}</small><div><span className={productPriceStatus(p)==='Validado'?'label-ready':'label-review'}>{productPriceStatus(p)==='Validado' ? money(p.price) : 'Precio pendiente'}</span><em>Stock {p.stock ?? 0}</em></div></div><label className="labels-pro-qty"><small>Copias</small><input type="number" min="1" max="500" value={quantities[p.id] || defaultQty} onChange={e=>setQty(p.id,e.target.value)} /></label></article>})}{!filtered.length&&<p className="muted">No hay productos con esos filtros.</p>}</div></section>
+    <section className="card labels-pro-preview"><div className="section-row"><div><span className="eyebrow">Vista previa</span><h2>Etiqueta Comercial Pro</h2></div><span className="preview-link">QR enlazado al catálogo</span></div><div className={`labels-pro-preview-grid template-${labelTemplate}`}>{(printableItems.slice(0, 4).length ? printableItems.slice(0,4) : filtered.slice(0,4).map(product=>({product,key:product.id}))).map(({product,key})=>{const code=productScanCode(product); const ready=productPriceStatus(product)==='Validado'&&Number(product.price||0)>0; return <article className={`labels-pro-card template-${labelTemplate}`} key={key}>{showLogo&&<div className="label-pro-brand"><img src={APP_ICON} alt=""/><span>{store?.name||'Clomar Store'}</span></div>}<div className="label-pro-name">{product.name}</div><div className="label-pro-meta">{[product.code||code,product.size,product.color].filter(Boolean).join(' · ')}</div>{showPrice&&<div className={`label-pro-price ${ready?'':'pending'}`}><small>{ready?'PRECIO':'REVISAR'}</small><b>{ready?money(product.price):'Precio pendiente'}</b></div>}<div className={`label-pro-codes mode-${mode}`}>{(mode==='qr'||mode==='both')&&<div><img src={qrUrl(catalogQrValue(product))} alt="QR catálogo"/><small>Catálogo</small></div>}{(mode==='barcode'||mode==='both')&&<div className="label-pro-barcode"><BarcodeSVG value={code}/>{showCodeText&&<small>{code}</small>}</div>}</div></article>})}</div></section>
+  </div>;
 }
 
 function ToolsAdmin({ profile, products = [], categories = [], subcategories = [], reloadProducts, reloadCustomers }) {
