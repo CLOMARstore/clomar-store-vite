@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.0-R3 · Operación automática';
+const APP_VERSION = 'V03.1 · Catálogo y WhatsApp comercial';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -185,6 +185,18 @@ const barcodeSvgMarkup = (value, height = 46) => {
 };
 const qrUrl = (value) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(String(value || ''))}`;
 const productScanCode = (product) => String(product?.barcode || product?.code || product?.id || '').trim();
+const CATALOG_WHATSAPP_FALLBACK = '51931709871';
+const catalogBaseUrl = () => `${window.location.origin}/#/catalogo`;
+const catalogProductUrl = (product) => `${catalogBaseUrl()}?product=${encodeURIComponent(String(product?.id || ''))}`;
+const catalogAvailabilityLabel = (value) => ({ 'Disponible': 'Disponible', 'Últimas unidades': 'Últimas unidades', 'Agotado': 'Agotado' }[value] || 'Disponible');
+const normalizeWhatsappNumber = (value) => {
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 9 && digits.startsWith('9')) digits = `51${digits}`;
+  return digits || CATALOG_WHATSAPP_FALLBACK;
+};
+const publicWhatsAppLink = (phone, message) => `https://wa.me/${normalizeWhatsappNumber(phone)}?text=${encodeURIComponent(String(message || ''))}`;
+const catalogQrValue = (product) => catalogProductUrl(product);
+
 const PRICE_STATUS_OPTIONS = ['Pendiente', 'Validado', 'Revisar'];
 const normalizePriceStatus = (value) => {
   const n = normalizeText(value);
@@ -240,7 +252,7 @@ const buildLabelsPrintHTML = ({
     const priceBlock = !showPrice ? '' : priceIsReady
       ? `<div class="price">${labelPrintEsc(money(product.price))}</div>`
       : `<div class="price pending">Precio pendiente</div>`;
-    const qrBlock = hasQr ? `<img class="qr" src="${labelPrintEsc(qrUrl(code))}" alt="QR ${labelPrintEsc(code)}"/>` : '';
+    const qrBlock = hasQr ? `<img class="qr" src="${labelPrintEsc(qrUrl(catalogQrValue(product)))}" alt="QR catálogo ${labelPrintEsc(code)}"/>` : '';
     const barcodeBlock = hasBarcode ? barcodeSvgMarkup(code, 46) : '';
     const codeBlock = showCodeText ? `<div class="code-text">${labelPrintEsc(code)}</div>` : '';
     return `<article class="label ${styleClass} mode-${labelPrintEsc(mode)}">${logoBlock}<div class="name">${labelPrintEsc(product?.name || 'Producto')}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div>${codeBlock}</article>`;
@@ -363,6 +375,8 @@ const MODULE_PERMISSIONS = {
   caja: ['dueno', 'admin', 'cajero'],
   reportes: ['dueno', 'admin', 'lectura'],
   productos: ['dueno', 'admin', 'almacen'],
+  catalogo: ['dueno', 'admin', 'almacen'],
+  pedidos: ['dueno', 'admin', 'cajero'],
   precios: ['dueno', 'admin'],
   categorias: ['dueno', 'admin', 'almacen'],
   etiquetas: ['dueno', 'admin', 'almacen'],
@@ -526,6 +540,8 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     ]},
     { title: 'Productos e inventario', items: [
       ['productos', '📦', 'Productos'],
+      ['catalogo', '🛍️', 'Catálogo público'],
+      ['pedidos', '📬', 'Pedidos web'],
       ['precios', '💰', 'Precios'],
       ['categorias', '🏷️', 'Categorías'],
       ['etiquetas', '🏷️', 'Etiquetas'],
@@ -566,7 +582,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'Pedidos web', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header app-header-pro">
@@ -590,7 +606,7 @@ function useProducts(profile) {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active,price_status,margin_target,min_price,price_notes,price_updated_at,price_updated_by')
+      .select('id,code,name,category,subcategory,category_id,subcategory_id,price,cost,stock,stock_min,status,store_id,image_url,image_path,brand,size,color,description,barcode,active,price_status,margin_target,min_price,price_notes,price_updated_at,price_updated_by,public_visible,catalog_status,catalog_featured,catalog_description,catalog_position,catalog_updated_at')
       .eq('status', 'Activo')
       .eq('active', true)
       .eq('store_id', profile?.store_id || DEFAULT_STORE_ID)
@@ -1727,7 +1743,7 @@ function CategoryDetailSheet({ category, subcategories = [], productCountFor, on
 }
 
 function Products({ products, reload, profile, categories = [], subcategories = [], reloadCategories }) {
-  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'', price_status:'Pendiente', margin_target:'50', min_price:'0', price_notes:'' };
+  const emptyForm = { code:'', barcode:'', name:'', category_id:'', subcategory_id:'', category:'', subcategory:'', brand:'', size:'', color:'', description:'', price:'', cost:'', stock:'0', stock_min:'2', image_url:'', price_status:'Pendiente', margin_target:'50', min_price:'0', price_notes:'', public_visible:false, catalog_status:'Borrador', catalog_featured:false, catalog_description:'', catalog_position:'999' };
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -1794,6 +1810,12 @@ function Products({ products, reload, profile, categories = [], subcategories = 
         margin_target: asNum(form.margin_target || 50),
         min_price: asNum(form.min_price || 0),
         price_notes: form.price_notes || '',
+        public_visible: Boolean(form.public_visible),
+        catalog_status: form.public_visible ? (form.catalog_status || 'Borrador') : 'Borrador',
+        catalog_featured: Boolean(form.catalog_featured),
+        catalog_description: form.catalog_description || '',
+        catalog_position: Math.max(0, Math.trunc(asNum(form.catalog_position || 999))),
+        catalog_updated_at: new Date().toISOString(),
         price_updated_at: new Date().toISOString(),
         price_updated_by: profile?.id || null,
         stock: asNum(form.stock),
@@ -1869,7 +1891,17 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             <label>Talla<input value={form.size} onChange={e=>setForm({...form,size:e.target.value})} placeholder="S, M, L, 38, 40" /></label>
             <label>Color<input value={form.color} onChange={e=>setForm({...form,color:e.target.value})} placeholder="Negro, rosa, azul" /></label>
           </div>
-          <label>Descripción<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Material, modelo, detalles para catálogo" /></label>
+          <label>Descripción interna<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Material, modelo y detalles internos" /></label>
+          <section className="catalog-inline-config">
+            <strong>Catálogo público</strong>
+            <label className="check-row"><input type="checkbox" checked={Boolean(form.public_visible)} onChange={e=>setForm({...form,public_visible:e.target.checked})} /> Mostrar este producto en el catálogo</label>
+            <div className="form-split">
+              <label>Estado web<select value={form.catalog_status} onChange={e=>setForm({...form,catalog_status:e.target.value})}><option>Borrador</option><option>Publicado</option><option>Oculto</option></select></label>
+              <label>Orden de aparición<input value={form.catalog_position} inputMode="numeric" onChange={e=>setForm({...form,catalog_position:e.target.value})} placeholder="999" /></label>
+            </div>
+            <label className="check-row"><input type="checkbox" checked={Boolean(form.catalog_featured)} onChange={e=>setForm({...form,catalog_featured:e.target.checked})} /> Destacar en portada</label>
+            <label>Descripción para clientes<input value={form.catalog_description} onChange={e=>setForm({...form,catalog_description:e.target.value})} placeholder="Texto corto que verá el cliente" /></label>
+          </section>
           <div className="form-split">
             <label>Precio de venta<input value={form.price} inputMode="decimal" onChange={e=>setForm({...form,price:e.target.value})} placeholder="0.00" /></label>
             <label>Costo de compra<input value={form.cost} inputMode="decimal" onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0.00" /></label>
@@ -3015,7 +3047,7 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
             <div className="label-name">{product.name}</div>
             {showPrice && Number(product.price || 0) > 0 && productPriceStatus(product) === 'Validado' && <div className="label-price">{money(product.price)}</div>}
             {showPrice && productPriceStatus(product) !== 'Validado' && <div className="label-pending">Precio pendiente</div>}
-            <div className={`label-codes mode-${mode}`}>{(mode === 'qr' || mode === 'both') && <img className="label-qr" src={qrUrl(code)} alt={`QR ${code}`} />}{(mode === 'barcode' || mode === 'both') && <BarcodeSVG value={code} />}</div>
+            <div className={`label-codes mode-${mode}`}>{(mode === 'qr' || mode === 'both') && <img className="label-qr" src={qrUrl(catalogQrValue(product))} alt={`QR catálogo ${code}`} />}{(mode === 'barcode' || mode === 'both') && <BarcodeSVG value={code} />}</div>
             {showCodeText && <div className="label-code-text">{code}</div>}
           </div>;
         })}
@@ -3163,6 +3195,7 @@ function StoreSettings({ store, reloadProfile }) {
       ruc: form.ruc || '',
       address: form.address || '',
       phone: form.phone || '',
+      whatsapp_number: normalizeWhatsappNumber(form.whatsapp_number || form.phone || CATALOG_WHATSAPP_FALLBACK),
       email: form.email || '',
       logo_url: form.logo_url || '',
       updated_at: new Date().toISOString(),
@@ -3181,7 +3214,8 @@ function StoreSettings({ store, reloadProfile }) {
         <label>Nombre comercial<input value={form.name || ''} onChange={e=>setForm({...form, name:e.target.value})} placeholder="Clomar Store Pro" /></label>
         <label>RUC<input value={form.ruc || ''} onChange={e=>setForm({...form, ruc:e.target.value})} placeholder="RUC de la tienda" /></label>
         <label>Dirección<input value={form.address || ''} onChange={e=>setForm({...form, address:e.target.value})} placeholder="Dirección" /></label>
-        <label>Teléfono / WhatsApp<input value={form.phone || ''} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Celular" /></label>
+        <label>Teléfono de tienda<input value={form.phone || ''} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Celular" /></label>
+        <label>WhatsApp oficial del catálogo<input value={form.whatsapp_number || ''} onChange={e=>setForm({...form, whatsapp_number:e.target.value})} placeholder="51931709871" /></label>
         <label>Correo<input value={form.email || ''} onChange={e=>setForm({...form, email:e.target.value})} placeholder="correo@tienda.com" /></label>
         <label>Logo URL<input value={form.logo_url || ''} onChange={e=>setForm({...form, logo_url:e.target.value})} placeholder="Opcional: pega una URL pública del logo" /></label>
         <div className="brand-preview">
@@ -3195,9 +3229,310 @@ function StoreSettings({ store, reloadProfile }) {
 }
 
 
+
+/* =========================================================
+   V03.1 — Catálogo público, pedidos web y WhatsApp comercial
+   El catálogo solo utiliza RPC públicas limitadas. No expone
+   costo, margen, stock exacto ni datos internos del ERP.
+   ========================================================= */
+function CatalogAdmin({ products = [], profile, store, reload }) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('todos');
+  const [drafts, setDrafts] = useState({});
+  const [savingId, setSavingId] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const rows = useMemo(() => products.filter((p) => {
+    const search = normalizeText(query);
+    const matchText = !search || [p.name, p.code, p.barcode, p.category, p.brand, p.color, p.size].some(v => normalizeText(v).includes(search));
+    const matchFilter = filter === 'todos'
+      || (filter === 'publicados' && p.public_visible && p.catalog_status === 'Publicado')
+      || (filter === 'borradores' && (!p.public_visible || p.catalog_status === 'Borrador'))
+      || (filter === 'agotados' && asNum(p.stock) <= 0)
+      || (filter === 'pendientes_precio' && (productPriceStatus(p) !== 'Validado' || asNum(p.price) <= 0));
+    return matchText && matchFilter;
+  }), [products, query, filter]);
+
+  const draftFor = (p) => drafts[p.id] || {
+    public_visible: Boolean(p.public_visible),
+    catalog_status: p.catalog_status || (p.public_visible ? 'Publicado' : 'Borrador'),
+    catalog_featured: Boolean(p.catalog_featured),
+    catalog_description: p.catalog_description || '',
+    catalog_position: String(p.catalog_position ?? 999),
+  };
+  const updateDraft = (p, patch) => setDrafts(prev => ({ ...prev, [p.id]: { ...draftFor(p), ...patch } }));
+  const publishedCount = products.filter(p => p.public_visible && p.catalog_status === 'Publicado').length;
+  const readyForPublic = (p) => p.active !== false && p.status === 'Activo' && productPriceStatus(p) === 'Validado' && asNum(p.price) > 0;
+
+  async function saveProductCatalog(p) {
+    const draft = draftFor(p);
+    if (draft.public_visible && draft.catalog_status === 'Publicado' && !readyForPublic(p)) {
+      return alert('Para publicar, el producto debe estar activo y tener precio validado mayor a cero. Corrija Precio antes de publicar.');
+    }
+    setSavingId(p.id);
+    const payload = {
+      public_visible: Boolean(draft.public_visible),
+      catalog_status: draft.public_visible ? (draft.catalog_status || 'Borrador') : 'Borrador',
+      catalog_featured: Boolean(draft.catalog_featured),
+      catalog_description: String(draft.catalog_description || '').trim(),
+      catalog_position: Math.max(0, Math.trunc(asNum(draft.catalog_position || 999))),
+      catalog_updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('products')
+      .update(payload)
+      .eq('id', p.id)
+      .eq('store_id', profile?.store_id || DEFAULT_STORE_ID);
+    setSavingId('');
+    if (error) return alert(`No se pudo actualizar el catálogo: ${error.message}`);
+    await reload?.();
+  }
+
+  async function copyCatalogLink() {
+    try {
+      await navigator.clipboard.writeText(catalogBaseUrl());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (_) {
+      window.prompt('Copia este enlace del catálogo:', catalogBaseUrl());
+    }
+  }
+
+  return (
+    <div className="page catalog-admin-page">
+      <div className="hero compact-hero catalog-admin-hero">
+        <div><span className="eyebrow">Canal comercial</span><h1>Catálogo público</h1><p>Publique solo productos con precio validado. El cliente verá precio, foto y disponibilidad, nunca costos ni stock exacto.</p></div>
+        <div className="catalog-link-actions"><button type="button" className="secondary-btn" onClick={copyCatalogLink}>{copied ? 'Enlace copiado' : 'Copiar enlace público'}</button><button type="button" className="primary-btn" onClick={() => window.open(catalogBaseUrl(), '_blank', 'noopener,noreferrer')}>Abrir catálogo</button></div>
+      </div>
+      <section className="card compact-card catalog-summary-card">
+        <div className="catalog-summary-grid"><Kpi label="Publicados" value={publishedCount} helper="visibles para clientes" /><Kpi label="Borradores" value={products.filter(p => !p.public_visible || p.catalog_status === 'Borrador').length} helper="aún no visibles" /><Kpi label="Agotados" value={products.filter(p => p.public_visible && asNum(p.stock) <= 0).length} helper="se muestran como agotados" /><Kpi label="WhatsApp" value={normalizeWhatsappNumber(store?.whatsapp_number || store?.phone)} helper="canal oficial" /></div>
+      </section>
+      <section className="card compact-card catalog-filter-card">
+        <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por producto, código, marca o color..." /></div>
+        <div className="catalog-filter-tabs">{[['todos','Todos'],['publicados','Publicados'],['borradores','Borradores'],['agotados','Agotados'],['pendientes_precio','Pendientes de precio']].map(([key,label]) => <button key={key} type="button" className={filter===key?'active':''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+      </section>
+      <section className="catalog-admin-list">
+        {rows.map(p => {
+          const draft = draftFor(p);
+          const availability = asNum(p.stock) <= 0 ? 'Agotado' : asNum(p.stock) <= asNum(p.stock_min) ? 'Últimas unidades' : 'Disponible';
+          const publicNow = Boolean(p.public_visible) && p.catalog_status === 'Publicado';
+          return <article className="card catalog-admin-product" key={p.id}>
+            <div className="catalog-admin-product-main"><img src={productImageSrc(p)} alt={p.name}/><div><div className="catalog-product-title"><h3>{p.name}</h3><span className={publicNow ? 'catalog-public-pill published' : 'catalog-public-pill draft'}>{publicNow ? 'Publicado' : 'No publicado'}</span></div><p>{p.code || 'Sin código'} · {p.category || 'General'}{p.brand ? ` · ${p.brand}` : ''}</p><div className="catalog-meta-row"><strong>{money(p.price)}</strong><span className={availability === 'Agotado' ? 'availability-pill soldout' : availability === 'Últimas unidades' ? 'availability-pill low' : 'availability-pill available'}>{availability}</span><small>{productPriceStatus(p)} · stock interno {asNum(p.stock)}</small></div>{!readyForPublic(p) && <div className="catalog-warning">No se puede publicar: valide el precio y confirme que el producto esté activo.</div>}</div></div>
+            <div className="catalog-admin-form">
+              <label className="check-row"><input type="checkbox" checked={Boolean(draft.public_visible)} onChange={e=>updateDraft(p,{public_visible:e.target.checked, catalog_status:e.target.checked && draft.catalog_status==='Borrador' ? 'Publicado' : draft.catalog_status})} /> Visible en catálogo</label>
+              <label>Estado<select value={draft.catalog_status} onChange={e=>updateDraft(p,{catalog_status:e.target.value})} disabled={!draft.public_visible}><option>Borrador</option><option>Publicado</option><option>Oculto</option></select></label>
+              <label className="check-row"><input type="checkbox" checked={Boolean(draft.catalog_featured)} onChange={e=>updateDraft(p,{catalog_featured:e.target.checked})} /> Destacado</label>
+              <label>Orden<input value={draft.catalog_position} inputMode="numeric" onChange={e=>updateDraft(p,{catalog_position:e.target.value})} /></label>
+              <label className="catalog-description-field">Descripción para cliente<input value={draft.catalog_description} onChange={e=>updateDraft(p,{catalog_description:e.target.value})} placeholder={p.description || 'Material, uso o detalle principal'} /></label>
+              <button type="button" className="primary-btn" disabled={savingId===p.id} onClick={()=>saveProductCatalog(p)}>{savingId===p.id ? 'Guardando...' : 'Guardar publicación'}</button>
+            </div>
+          </article>;
+        })}
+        {!rows.length && <section className="card compact-card"><p className="muted">No hay productos que coincidan con el filtro.</p></section>}
+      </section>
+    </div>
+  );
+}
+
+function CatalogOrders({ profile, store }) {
+  const [orders, setOrders] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('Todos');
+  const [savingId, setSavingId] = useState('');
+  const storeId = profile?.store_id || DEFAULT_STORE_ID;
+  const statuses = ['Nuevo','Contactado','Confirmado','Pago pendiente','En preparación','Entregado','Cancelado'];
+
+  async function loadOrders() {
+    if (!hasSupabaseConfig) return;
+    setLoading(true); setError('');
+    const [ordersRes, itemsRes] = await Promise.all([
+      supabase.from('catalog_orders').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(500),
+      supabase.from('catalog_order_items').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(3000),
+    ]);
+    if (ordersRes.error || itemsRes.error) setError([ordersRes.error?.message, itemsRes.error?.message].filter(Boolean).join(' · '));
+    setOrders(ordersRes.data || []); setItems(itemsRes.data || []); setLoading(false);
+  }
+  useEffect(() => { loadOrders(); }, [storeId]);
+
+  const visible = filter === 'Todos' ? orders : orders.filter(o => o.status === filter);
+  const itemByOrder = useMemo(() => items.reduce((acc, item) => { (acc[item.catalog_order_id] ||= []).push(item); return acc; }, {}), [items]);
+  const pending = orders.filter(o => ['Nuevo','Contactado','Confirmado','Pago pendiente'].includes(o.status)).length;
+  const totalPending = orders.filter(o => !['Entregado','Cancelado'].includes(o.status)).reduce((sum,o)=>sum+asNum(o.total_amount),0);
+
+  async function updateStatus(order, status) {
+    setSavingId(order.id);
+    const { error: updateError } = await supabase.from('catalog_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', order.id).eq('store_id', storeId);
+    setSavingId('');
+    if (updateError) return alert(`No se pudo actualizar el pedido: ${updateError.message}`);
+    await loadOrders();
+  }
+  function contactOrder(order) {
+    const message = `Hola ${order.customer_name || ''}, te escribimos de ${store?.name || 'Clomar Store'} por tu pedido ${order.order_code || ''}. Estamos revisando disponibilidad y coordinando la confirmación.`;
+    window.open(publicWhatsAppLink(order.customer_phone, message), '_blank', 'noopener,noreferrer');
+  }
+
+  return (
+    <div className="page catalog-orders-page">
+      <div className="hero compact-hero"><div><span className="eyebrow">Canal web + WhatsApp</span><h1>Pedidos comerciales</h1><p>Son solicitudes: confirme disponibilidad y pago por WhatsApp antes de entregar o descontar stock.</p></div><button type="button" className="secondary-btn" onClick={loadOrders}>{loading ? 'Actualizando...' : 'Actualizar pedidos'}</button></div>
+      {error && <div className="data-error"><strong>No se pudieron cargar los pedidos.</strong> Ejecute primero el SQL de V03.1. Detalle: {error}</div>}
+      <div className="kpi-grid"><Kpi label="Pendientes" value={pending} helper="requieren seguimiento" /><Kpi label="Solicitudes" value={orders.length} helper="historial registrado" /><Kpi label="Monto referencial" value={money(totalPending)} helper="no es pago confirmado" /><Kpi label="Canal" value="WhatsApp" helper={normalizeWhatsappNumber(store?.whatsapp_number || store?.phone)} /></div>
+      <section className="card compact-card catalog-order-filter"><label>Estado<select value={filter} onChange={e=>setFilter(e.target.value)}><option>Todos</option>{statuses.map(s=><option key={s}>{s}</option>)}</select></label></section>
+      <section className="catalog-orders-list">
+        {visible.map(order => <article className="card catalog-order-card" key={order.id}>
+          <div className="catalog-order-head"><div><span className="order-code">{order.order_code || 'Pedido web'}</span><h3>{order.customer_name || 'Cliente'}</h3><p>{order.customer_phone || 'Sin teléfono'} · {fmtDate(order.created_at)}</p></div><div><strong>{money(order.total_amount)}</strong><span className={`order-status status-${normalizeText(order.status).replace(/\s+/g,'-')}`}>{order.status}</span></div></div>
+          <div className="catalog-order-lines">{(itemByOrder[order.id] || []).map(line => <div key={line.id} className="catalog-order-line"><span>{line.qty} × {line.product_name}<small>{line.product_code || 'Sin código'}{line.product_color ? ` · ${line.product_color}` : ''}{line.product_size ? ` · ${line.product_size}` : ''}</small></span><b>{money(line.subtotal)}</b></div>)}{!(itemByOrder[order.id] || []).length && <p className="muted">Sin detalle cargado.</p>}</div>
+          {order.customer_note && <div className="catalog-order-note"><strong>Nota:</strong> {order.customer_note}</div>}
+          <div className="catalog-order-actions"><select value={order.status || 'Nuevo'} onChange={e=>updateStatus(order,e.target.value)} disabled={savingId===order.id}>{statuses.map(s=><option key={s}>{s}</option>)}</select><button type="button" className="secondary-btn" onClick={()=>contactOrder(order)}>Abrir WhatsApp</button></div>
+        </article>)}
+        {!visible.length && <section className="card compact-card"><p className="muted">No hay pedidos para el filtro seleccionado.</p></section>}
+      </section>
+    </div>
+  );
+}
+
+function isPublicCatalogLocation() {
+  return String(window.location.hash || '').toLowerCase().startsWith('#/catalogo');
+}
+function catalogProductIdFromLocation() {
+  const query = String(window.location.hash || '').split('?')[1] || '';
+  return new URLSearchParams(query).get('product') || '';
+}
+function catalogProductMessage(product, store) {
+  const bits = [
+    'Hola, deseo consultar este producto:',
+    `Producto: ${product?.name || ''}`,
+    product?.size ? `Talla: ${product.size}` : '',
+    product?.color ? `Color: ${product.color}` : '',
+    `Precio: ${money(product?.price || 0)}`,
+    product?.code ? `Código: ${product.code}` : '',
+  ].filter(Boolean);
+  return bits.join('\n');
+}
+
+function PublicCatalogApp() {
+  const [store, setStore] = useState({ id: DEFAULT_STORE_ID, name: 'Clomar Store', whatsapp_number: CATALOG_WHATSAPP_FALLBACK });
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('Todas');
+  const [selectedId, setSelectedId] = useState(() => catalogProductIdFromLocation());
+  const [cart, setCart] = useState([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', phone: '', note: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  async function loadCatalog() {
+    if (!hasSupabaseConfig) { setError('El catálogo requiere las variables de Supabase configuradas.'); setLoading(false); return; }
+    setLoading(true); setError('');
+    const [storeRes, productsRes] = await Promise.all([
+      supabase.rpc('clomar_public_catalog_store_v31', { p_store_id: DEFAULT_STORE_ID }),
+      supabase.rpc('clomar_public_catalog_products_v31', { p_store_id: DEFAULT_STORE_ID, p_query: null, p_product_id: null }),
+    ]);
+    if (storeRes.error || productsRes.error) {
+      setError([storeRes.error?.message, productsRes.error?.message].filter(Boolean).join(' · ') || 'No se pudo cargar el catálogo.');
+    } else {
+      const publicStore = Array.isArray(storeRes.data) ? storeRes.data[0] : storeRes.data;
+      setStore(publicStore || { id: DEFAULT_STORE_ID, name: 'Clomar Store', whatsapp_number: CATALOG_WHATSAPP_FALLBACK });
+      setProducts(productsRes.data || []);
+    }
+    setLoading(false);
+  }
+  useEffect(() => { loadCatalog(); }, []);
+  useEffect(() => {
+    const onHash = () => setSelectedId(catalogProductIdFromLocation());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General')))], [products]);
+  const visibleProducts = useMemo(() => products.filter(p => {
+    const q = normalizeText(query);
+    const textMatch = !q || [p.name,p.category,p.subcategory,p.brand,p.color,p.size,p.code].some(v => normalizeText(v).includes(q));
+    const catMatch = category === 'Todas' || (p.category || 'General') === category;
+    return textMatch && catMatch;
+  }), [products, query, category]);
+  const selected = products.find(p => p.id === selectedId) || null;
+  const cartTotal = cart.reduce((sum,line)=>sum+asNum(line.price)*asNum(line.qty),0);
+  const cartQty = cart.reduce((sum,line)=>sum+asNum(line.qty),0);
+  const inCart = (id) => cart.find(line => line.id === id);
+  const canOrder = (p) => catalogAvailabilityLabel(p.availability) !== 'Agotado';
+
+  function selectProduct(p) {
+    setSelectedId(p.id);
+    window.history.replaceState(null, '', `#/catalogo?product=${encodeURIComponent(p.id)}`);
+  }
+  function closeProduct() {
+    setSelectedId('');
+    window.history.replaceState(null, '', '#/catalogo');
+  }
+  function addToCart(p) {
+    if (!canOrder(p)) return alert('Este producto está agotado. Puede consultar opciones similares por WhatsApp.');
+    setCart(prev => {
+      const exists = prev.find(line => line.id === p.id);
+      if (exists) return prev.map(line => line.id === p.id ? { ...line, qty: Math.min(10, asNum(line.qty) + 1) } : line);
+      return [...prev, { id:p.id, name:p.name, code:p.code, color:p.color, size:p.size, price:asNum(p.price), image_url:p.image_url, qty:1 }];
+    });
+    setNotice(`${p.name} se agregó al pedido.`);
+    setTimeout(() => setNotice(''), 1800);
+  }
+  function changeCartQty(id, delta) {
+    setCart(prev => prev.map(line => line.id === id ? { ...line, qty: Math.max(1, Math.min(10, asNum(line.qty)+delta)) } : line));
+  }
+  function removeCartLine(id) { setCart(prev => prev.filter(line => line.id !== id)); }
+  function consultProduct(p) { window.open(publicWhatsAppLink(store?.whatsapp_number || store?.phone, catalogProductMessage(p, store)), '_blank', 'noopener,noreferrer'); }
+
+  async function submitOrder(e) {
+    e.preventDefault();
+    if (!cart.length) return;
+    if (String(form.name || '').trim().length < 2) return alert('Indique su nombre para registrar el pedido.');
+    if (String(form.phone || '').replace(/\D/g,'').length < 7) return alert('Indique un teléfono o WhatsApp válido.');
+    const popup = window.open('', '_blank');
+    setSubmitting(true);
+    const { data, error: orderError } = await supabase.rpc('clomar_create_catalog_order_v31', {
+      p_store_id: store?.id || DEFAULT_STORE_ID,
+      p_customer_name: form.name.trim(),
+      p_customer_phone: form.phone.trim(),
+      p_customer_note: form.note.trim() || null,
+      p_items: cart.map(line => ({ product_id: line.id, qty: asNum(line.qty) })),
+    });
+    setSubmitting(false);
+    if (orderError) {
+      if (popup) popup.close();
+      return alert(`No se pudo registrar el pedido: ${orderError.message}. Verifique disponibilidad y vuelva a intentarlo.`);
+    }
+    const order = Array.isArray(data) ? data[0] : data;
+    const lines = cart.map(line => `${line.qty} × ${line.name}${line.color ? ` · ${line.color}` : ''}${line.size ? ` · ${line.size}` : ''} — ${money(asNum(line.price)*asNum(line.qty))}`);
+    const message = ['Hola, deseo confirmar este pedido de catálogo:', `Pedido: ${order?.order_code || 'Solicitud web'}`, '', ...lines, '', `Total referencial: ${money(order?.total_amount || cartTotal)}`, 'Nombre: ' + form.name.trim(), 'Teléfono: ' + form.phone.trim(), form.note.trim() ? `Nota: ${form.note.trim()}` : ''].filter(Boolean).join('\n');
+    const url = publicWhatsAppLink(store?.whatsapp_number || store?.phone, message);
+    if (popup) popup.location.href = url; else window.location.href = url;
+    setCart([]); setCartOpen(false); setForm({ name:'', phone:'', note:'' });
+    setNotice(`Pedido ${order?.order_code || ''} registrado. Continúe en WhatsApp para confirmarlo.`);
+  }
+
+  if (loading) return <main className="catalog-public-shell"><div className="catalog-public-loader">Cargando catálogo...</div></main>;
+  if (error) return <main className="catalog-public-shell"><section className="catalog-public-error"><h1>Catálogo temporalmente no disponible</h1><p>{error}</p><button className="primary-btn" onClick={loadCatalog}>Reintentar</button></section></main>;
+
+  return (
+    <main className="catalog-public-shell">
+      <header className="catalog-public-header"><a className="catalog-public-brand" href="#/catalogo" onClick={closeProduct}><img src={publicAssetUrl(store?.logo_url || APP_ICON)} alt={store?.name || 'Clomar Store'}/><span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span></a><div className="catalog-public-header-actions"><a className="catalog-whatsapp-btn" href={publicWhatsAppLink(store?.whatsapp_number || store?.phone, 'Hola, deseo consultar el catálogo de productos.')} target="_blank" rel="noreferrer">WhatsApp</a><button type="button" className="catalog-cart-btn" onClick={()=>setCartOpen(true)}>Pedido <span>{cartQty}</span></button></div></header>
+      <section className="catalog-public-hero"><div><span>Precios actualizados</span><h1>Encuentra lo que buscas</h1><p>Consulta productos, elige tus opciones y confirma tu pedido por WhatsApp.</p></div><div className="catalog-public-search"><Search size={20}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar ropa, talla, color o marca..." /></div></section>
+      <nav className="catalog-public-categories">{categories.map(c=><button key={c} type="button" className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>)}</nav>
+      {notice && <div className="catalog-toast">{notice}</div>}
+      <section className="catalog-public-grid">{visibleProducts.map(p => <article className="catalog-public-card" key={p.id}><button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/>{p.catalog_featured && <span className="catalog-featured-badge">Destacado</span>}<span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span></button><div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>consultProduct(p)}>Consultar</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar') : 'Agotado'}</button></div></div></article>)}{!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Pruebe otra búsqueda o consulte por WhatsApp.</p><a href={publicWhatsAppLink(store?.whatsapp_number || store?.phone,'Hola, deseo consultar por un producto que no encontré en el catálogo.')} target="_blank" rel="noreferrer">Consultar por WhatsApp</a></section>}</section>
+      {selected && <div className="catalog-detail-backdrop" onMouseDown={closeProduct}><article className="catalog-detail-modal" onMouseDown={e=>e.stopPropagation()}><button type="button" className="catalog-detail-close" onClick={closeProduct}>×</button><img src={selected.image_url || APP_ICON} alt={selected.name}/><div><span className={selected.availability==='Agotado'?'catalog-availability soldout':selected.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(selected.availability)}</span><p>{selected.category || 'General'}</p><h2>{selected.name}</h2><strong>{money(selected.price)}</strong><div className="catalog-detail-specs">{selected.brand && <span>Marca: {selected.brand}</span>}{selected.color && <span>Color: {selected.color}</span>}{selected.size && <span>Talla: {selected.size}</span>}{selected.code && <span>Código: {selected.code}</span>}</div><p className="catalog-detail-description">{selected.catalog_description || selected.description || 'Consulta disponibilidad y detalles por WhatsApp.'}</p><div className="catalog-detail-actions"><button className="secondary-btn" type="button" onClick={()=>consultProduct(selected)}>Consultar por WhatsApp</button><button className="primary-btn" type="button" disabled={!canOrder(selected)} onClick={()=>{addToCart(selected); setCartOpen(true);}}>{canOrder(selected)?'Agregar al pedido':'Agotado'}</button></div></div></article></div>}
+      {cartOpen && <div className="catalog-cart-backdrop" onMouseDown={()=>setCartOpen(false)}><aside className="catalog-cart-drawer" onMouseDown={e=>e.stopPropagation()}><div className="catalog-cart-head"><div><span>Pedido por WhatsApp</span><h2>Tu selección</h2></div><button type="button" onClick={()=>setCartOpen(false)}>×</button></div>{cart.length ? <><div className="catalog-cart-lines">{cart.map(line=><article key={line.id}><img src={line.image_url || APP_ICON} alt={line.name}/><div><strong>{line.name}</strong><small>{[line.color,line.size,line.code].filter(Boolean).join(' · ')}</small><b>{money(line.price)}</b></div><div className="cart-qty-control"><button type="button" onClick={()=>changeCartQty(line.id,-1)}>−</button><span>{line.qty}</span><button type="button" onClick={()=>changeCartQty(line.id,1)}>+</button><button type="button" className="cart-remove" onClick={()=>removeCartLine(line.id)}>Quitar</button></div></article>)}</div><div className="catalog-cart-total"><span>Total referencial</span><strong>{money(cartTotal)}</strong></div><form className="catalog-order-form" onSubmit={submitOrder}><label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre y apellido" required /></label><label>Tu WhatsApp<input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} inputMode="tel" placeholder="999 999 999" required /></label><label>Nota opcional<textarea value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Color alternativo, entrega, consulta..." rows="3" /></label><p>Al enviar, registramos la solicitud y abrimos WhatsApp para confirmar disponibilidad y pago.</p><button type="submit" className="primary-btn" disabled={submitting}>{submitting ? 'Registrando...' : 'Enviar pedido por WhatsApp'}</button></form></> : <div className="catalog-cart-empty"><h3>Tu pedido está vacío</h3><p>Agregue productos del catálogo para enviarlos por WhatsApp.</p></div>}</aside></div>}
+      <footer className="catalog-public-footer"><strong>{store?.name || 'Clomar Store'}</strong><span>Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</span></footer>
+    </main>
+  );
+}
+
 function MobileBottomNav({ current, setCurrent, role, menuOpen = false }) {
   const labelMap = {
-    panel: ['📊', 'Inicio'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
+    panel: ['📊', 'Inicio'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], catalogo: ['🛍️', 'Catálogo'], pedidos: ['📬', 'Pedidos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
   };
   const preferred = role === 'almacen'
     ? ['productos', 'inventario', 'ingreso', 'etiquetas']
@@ -3240,6 +3575,8 @@ function AppShell({ session }) {
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} cashSession={cashSession} menuOpen={open} onGoReceipts={() => setCurrent('comprobantes')}/>,
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
+    catalogo: <CatalogAdmin products={products} reload={reload} profile={profile} store={store}/>,
+    pedidos: <CatalogOrders profile={profile} store={store}/>,
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
     categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
     etiquetas: <LabelsAdmin products={products} categories={categories} subcategories={subcategories} store={store}/>,
@@ -3265,9 +3602,16 @@ function AppShell({ session }) {
 }
 function Root() {
   const { session, loading } = useAuth();
+  const [publicCatalog, setPublicCatalog] = useState(() => isPublicCatalogLocation());
+  useEffect(() => {
+    const onHash = () => setPublicCatalog(isPublicCatalogLocation());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
   }, []);
+  if (publicCatalog) return <PublicCatalogApp />;
   if (loading) return <div className="loader full">Iniciando Clomar Store...</div>;
   if (!hasSupabaseConfig) return <Login />;
   return session ? <AppShell session={session}/> : <Login/>;
