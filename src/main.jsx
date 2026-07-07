@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.3 · Clomar AI Command Center';
+const APP_VERSION = 'V03.4 · WhatsApp Comercial + CRM Operativo';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -538,7 +538,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
   const role = profile?.role || 'cajero';
   const mode = role === 'cajero' ? 'Modo vendedor' : role === 'almacen' ? 'Modo inventario' : role === 'lectura' ? 'Modo consulta' : 'Modo propietario';
   const ownerSections = [
-    { title: 'Operación', items: [['ventas', '🧾', 'Nueva venta'], ['caja', '💰', 'Caja por turno'], ['pedidos', '📬', 'Pedidos web'], ['comprobantes', '📄', 'Comprobantes'], ['creditos', '💳', 'Créditos']] },
+    { title: 'Operación', items: [['ventas', '🧾', 'Nueva venta'], ['caja', '💰', 'Caja por turno'], ['pedidos', '💬', 'WhatsApp CRM'], ['comprobantes', '📄', 'Comprobantes'], ['creditos', '💳', 'Créditos']] },
     { title: 'Catálogo e inventario', items: [['productos', '📦', 'Productos'], ['inventario', '📘', 'Inventario'], ['ingreso', '📥', 'Ingreso mercadería'], ['precios', '🏷️', 'Precios'], ['etiquetas', '🔖', 'Etiquetas'], ['catalogo', '🛍️', 'Catálogo público'], ['categorias', '🗂️', 'Categorías']] },
     { title: 'Control', items: [['panel', '📊', 'Panel del dueño'], ['reportes', '📈', 'Reportes'], ['ia', '✦', 'Asistente IA'], ['clientes', '👥', 'Clientes']] },
     { title: 'Administración', items: [['usuarios', '🧑‍💼', 'Usuarios'], ['tienda', '🏪', 'Tienda'], ['herramientas', '🛠️', 'Herramientas']] },
@@ -551,7 +551,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
     : role === 'lectura'
       ? [{ title: 'Consulta', items: [['panel', '📊', 'Panel comercial'], ['reportes', '📈', 'Reportes'], ['inventario', '📘', 'Inventario']] }]
       : [
-        { title: 'Mi turno', items: [['ventas', '🧾', 'Nueva venta'], ['caja', '💰', 'Caja por turno'], ['pedidos', '📬', 'Pedidos web'], ['comprobantes', '📄', 'Comprobantes'], ['creditos', '💳', 'Créditos']] },
+        { title: 'Mi turno', items: [['ventas', '🧾', 'Nueva venta'], ['caja', '💰', 'Caja por turno'], ['pedidos', '💬', 'WhatsApp CRM'], ['comprobantes', '📄', 'Comprobantes'], ['creditos', '💳', 'Créditos']] },
         { title: 'Clientes', items: [['clientes', '👥', 'Clientes']] },
       ];
   const sections = (['dueno', 'admin'].includes(role) ? ownerSections : operatorSections)
@@ -585,7 +585,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 }
 function Header({ setOpen, current, profile, store, setCurrent }) {
   const titleMap = {
-    panel: 'Panel del dueño', ia: 'Asistente IA', ventas: 'Nueva venta', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja por turno', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'Pedidos web', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Panel del dueño', ia: 'Asistente IA', ventas: 'Nueva venta', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja por turno', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'WhatsApp CRM', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   const role = profile?.role || 'cajero';
   const mode = role === 'cajero' ? 'Modo vendedor' : role === 'almacen' ? 'Modo inventario' : role === 'lectura' ? 'Modo consulta' : 'Modo propietario';
@@ -3974,60 +3974,202 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
     </div>
   );
 }
-function CatalogOrders({ profile, store }) {
+
+function WhatsAppCRM({ profile, store, products = [], onNavigate }) {
+  const [channels, setChannels] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('Todos');
-  const [savingId, setSavingId] = useState('');
+  const [activeTab, setActiveTab] = useState('Conversaciones');
+  const [filter, setFilter] = useState('Todas');
+  const [selectedId, setSelectedId] = useState('');
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [channelForm, setChannelForm] = useState({ phone_number_id: '', display_phone_number: '', business_account_id: '', auto_reply_enabled: false });
+  const [savingChannel, setSavingChannel] = useState(false);
   const storeId = profile?.store_id || DEFAULT_STORE_ID;
-  const statuses = ['Nuevo','Contactado','Confirmado','Pago pendiente','En preparación','Entregado','Cancelado'];
+  const statuses = ['Nuevo','Consultando','Pendiente de pago','Pago por validar','En preparación','Entregado','Cancelado'];
 
-  async function loadOrders() {
+  const selectedConversation = conversations.find(row => row.id === selectedId) || conversations[0] || null;
+  const contactById = useMemo(() => contacts.reduce((acc, row) => { acc[row.id] = row; return acc; }, {}), [contacts]);
+  const messagesByConversation = useMemo(() => messages.reduce((acc, row) => { (acc[row.conversation_id] ||= []).push(row); return acc; }, {}), [messages]);
+  const selectedMessages = useMemo(() => (messagesByConversation[selectedConversation?.id] || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)), [messagesByConversation, selectedConversation?.id]);
+  const activeChannel = channels.find(row => row.active !== false) || channels[0] || null;
+  const filteredConversations = useMemo(() => {
+    if (filter === 'Todas') return conversations;
+    return conversations.filter(row => row.status === filter);
+  }, [conversations, filter]);
+  const pendingCount = conversations.filter(row => !['Entregado','Cancelado'].includes(row.status || 'Nuevo')).length;
+  const unreadCount = conversations.filter(row => (row.unread_count || 0) > 0).length;
+  const pendingOrders = orders.filter(order => !['Entregado','Cancelado'].includes(order.status || 'Nuevo')).length;
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL || 'https://TU-PROYECTO.supabase.co'}/functions/v1/clomar-whatsapp`;
+
+  function humanTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const diff = Math.max(0, Date.now() - date.getTime());
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Ahora';
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} h`;
+    return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+  }
+
+  async function loadCRM() {
     if (!hasSupabaseConfig) return;
     setLoading(true); setError('');
-    const [ordersRes, itemsRes] = await Promise.all([
-      supabase.from('catalog_orders').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(500),
-      supabase.from('catalog_order_items').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(3000),
+    const [channelsRes, contactsRes, conversationsRes, messagesRes, ordersRes] = await Promise.all([
+      supabase.from('whatsapp_channels').select('*').eq('store_id', storeId).order('created_at', { ascending: false }),
+      supabase.from('whatsapp_contacts').select('*').eq('store_id', storeId).order('last_seen_at', { ascending: false }).limit(600),
+      supabase.from('whatsapp_conversations').select('*').eq('store_id', storeId).order('last_message_at', { ascending: false }).limit(600),
+      supabase.from('whatsapp_messages').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(3000),
+      supabase.from('catalog_orders').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(300),
     ]);
-    if (ordersRes.error || itemsRes.error) setError([ordersRes.error?.message, itemsRes.error?.message].filter(Boolean).join(' · '));
-    setOrders(ordersRes.data || []); setItems(itemsRes.data || []); setLoading(false);
+    const results = [channelsRes, contactsRes, conversationsRes, messagesRes, ordersRes];
+    const firstError = results.find(result => result.error)?.error;
+    if (firstError) {
+      setError(firstError.message || 'No se pudo cargar el CRM. Ejecute primero el SQL de V03.4.');
+      setLoading(false);
+      return;
+    }
+    setChannels(channelsRes.data || []);
+    setContacts(contactsRes.data || []);
+    setConversations(conversationsRes.data || []);
+    setMessages(messagesRes.data || []);
+    setOrders(ordersRes.data || []);
+    setSelectedId(current => current || conversationsRes.data?.[0]?.id || '');
+    const firstChannel = channelsRes.data?.[0];
+    if (firstChannel) setChannelForm({
+      phone_number_id: firstChannel.phone_number_id || '',
+      display_phone_number: firstChannel.display_phone_number || '',
+      business_account_id: firstChannel.business_account_id || '',
+      auto_reply_enabled: Boolean(firstChannel.auto_reply_enabled),
+    });
+    setLoading(false);
   }
-  useEffect(() => { loadOrders(); }, [storeId]);
 
-  const visible = filter === 'Todos' ? orders : orders.filter(o => o.status === filter);
-  const itemByOrder = useMemo(() => items.reduce((acc, item) => { (acc[item.catalog_order_id] ||= []).push(item); return acc; }, {}), [items]);
-  const pending = orders.filter(o => ['Nuevo','Contactado','Confirmado','Pago pendiente'].includes(o.status)).length;
-  const totalPending = orders.filter(o => !['Entregado','Cancelado'].includes(o.status)).reduce((sum,o)=>sum+asNum(o.total_amount),0);
+  useEffect(() => { loadCRM(); }, [storeId]);
 
-  async function updateStatus(order, status) {
-    setSavingId(order.id);
-    const { error: updateError } = await supabase.from('catalog_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', order.id).eq('store_id', storeId);
-    setSavingId('');
-    if (updateError) return alert(`No se pudo actualizar el pedido: ${updateError.message}`);
-    await loadOrders();
+  async function updateConversationStatus(conversation, status) {
+    if (!conversation) return;
+    const { error: updateError } = await supabase.from('whatsapp_conversations').update({ status, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('store_id', storeId);
+    if (updateError) { setNotice(`No se pudo actualizar: ${updateError.message}`); return; }
+    setConversations(prev => prev.map(row => row.id === conversation.id ? { ...row, status } : row));
+    setNotice('Estado comercial actualizado.');
   }
-  function contactOrder(order) {
-    const message = `Hola ${order.customer_name || ''}, te escribimos de ${store?.name || 'Clomar Store'} por tu pedido ${order.order_code || ''}. Estamos revisando disponibilidad y coordinando la confirmación.`;
-    window.open(publicWhatsAppLink(order.customer_phone, message), '_blank', 'noopener,noreferrer');
+
+  async function saveChannel(e) {
+    e?.preventDefault?.();
+    const phoneNumberId = String(channelForm.phone_number_id || '').trim();
+    if (!phoneNumberId) { setNotice('Ingrese el Phone Number ID de WhatsApp Cloud API.'); return; }
+    setSavingChannel(true); setNotice('');
+    const payload = {
+      store_id: storeId,
+      phone_number_id: phoneNumberId,
+      display_phone_number: String(channelForm.display_phone_number || '').trim(),
+      business_account_id: String(channelForm.business_account_id || '').trim(),
+      auto_reply_enabled: Boolean(channelForm.auto_reply_enabled),
+      active: true,
+      updated_at: new Date().toISOString(),
+    };
+    const { error: saveError } = activeChannel
+      ? await supabase.from('whatsapp_channels').update(payload).eq('id', activeChannel.id).eq('store_id', storeId)
+      : await supabase.from('whatsapp_channels').insert(payload);
+    setSavingChannel(false);
+    if (saveError) { setNotice(`No se pudo guardar el canal: ${saveError.message}`); return; }
+    setNotice('Canal guardado. Configure el webhook en Meta y haga una prueba con su número.');
+    await loadCRM();
   }
+
+  async function invokeHub(body) {
+    const { data, error: functionError } = await supabase.functions.invoke('clomar-whatsapp', { body });
+    if (functionError) throw functionError;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  }
+
+  async function createAIDraft() {
+    if (!selectedConversation) { setNotice('Seleccione una conversación.'); return; }
+    setDrafting(true); setNotice('');
+    try {
+      const data = await invokeHub({ action: 'ai_draft', store_id: storeId, conversation_id: selectedConversation.id, tone: 'Cercano' });
+      setDraft(data?.draft || '');
+      setNotice(data?.mode === 'gemini' ? 'Borrador generado por Gemini con datos verificados.' : 'Borrador preparado con información verificada del ERP.');
+    } catch (err) {
+      setNotice(err?.message || 'No se pudo generar el borrador.');
+    } finally { setDrafting(false); }
+  }
+
+  async function sendMessage() {
+    if (!selectedConversation || !String(draft || '').trim()) { setNotice('Escriba o genere un mensaje antes de enviarlo.'); return; }
+    setSending(true); setNotice('');
+    try {
+      const data = await invokeHub({ action: 'send', store_id: storeId, conversation_id: selectedConversation.id, text: draft.trim() });
+      const message = data?.message;
+      if (message) setMessages(prev => [...prev, message]);
+      setConversations(prev => prev.map(row => row.id === selectedConversation.id ? { ...row, last_message_at: new Date().toISOString(), last_message_preview: draft.trim(), unread_count: 0 } : row));
+      setDraft('');
+      setNotice('Mensaje enviado por WhatsApp y registrado en el CRM.');
+    } catch (err) {
+      setNotice(err?.message || 'No se pudo enviar el mensaje. Revise que el canal y la ventana de atención estén activos.');
+    } finally { setSending(false); }
+  }
+
+  const selectedContact = selectedConversation ? contactById[selectedConversation.contact_id] : null;
+  const canSend = Boolean(activeChannel?.phone_number_id && selectedConversation && selectedContact);
 
   return (
-    <div className="page catalog-orders-page">
-      <div className="hero compact-hero"><div><span className="eyebrow">Canal web + WhatsApp</span><h1>Pedidos comerciales</h1><p>Son solicitudes: confirme disponibilidad y pago por WhatsApp antes de entregar o descontar stock.</p></div><button type="button" className="secondary-btn" onClick={loadOrders}>{loading ? 'Actualizando...' : 'Actualizar pedidos'}</button></div>
-      {error && <div className="data-error"><strong>No se pudieron cargar los pedidos.</strong> Ejecute primero el SQL de V03.1. Detalle: {error}</div>}
-      <div className="kpi-grid"><Kpi label="Pendientes" value={pending} helper="requieren seguimiento" /><Kpi label="Solicitudes" value={orders.length} helper="historial registrado" /><Kpi label="Monto referencial" value={money(totalPending)} helper="no es pago confirmado" /><Kpi label="Canal" value="WhatsApp" helper={normalizeWhatsappNumber(store?.whatsapp_number || store?.phone)} /></div>
-      <section className="card compact-card catalog-order-filter"><label>Estado<select value={filter} onChange={e=>setFilter(e.target.value)}><option>Todos</option>{statuses.map(s=><option key={s}>{s}</option>)}</select></label></section>
-      <section className="catalog-orders-list">
-        {visible.map(order => <article className="card catalog-order-card" key={order.id}>
-          <div className="catalog-order-head"><div><span className="order-code">{order.order_code || 'Pedido web'}</span><h3>{order.customer_name || 'Cliente'}</h3><p>{order.customer_phone || 'Sin teléfono'} · {fmtDate(order.created_at)}</p></div><div><strong>{money(order.total_amount)}</strong><span className={`order-status status-${normalizeText(order.status).replace(/\s+/g,'-')}`}>{order.status}</span></div></div>
-          <div className="catalog-order-lines">{(itemByOrder[order.id] || []).map(line => <div key={line.id} className="catalog-order-line"><span>{line.qty} × {line.product_name}<small>{line.product_code || 'Sin código'}{line.product_color ? ` · ${line.product_color}` : ''}{line.product_size ? ` · ${line.product_size}` : ''}</small></span><b>{money(line.subtotal)}</b></div>)}{!(itemByOrder[order.id] || []).length && <p className="muted">Sin detalle cargado.</p>}</div>
-          {order.customer_note && <div className="catalog-order-note"><strong>Nota:</strong> {order.customer_note}</div>}
-          <div className="catalog-order-actions"><select value={order.status || 'Nuevo'} onChange={e=>updateStatus(order,e.target.value)} disabled={savingId===order.id}>{statuses.map(s=><option key={s}>{s}</option>)}</select><button type="button" className="secondary-btn" onClick={()=>contactOrder(order)}>Abrir WhatsApp</button></div>
-        </article>)}
-        {!visible.length && <section className="card compact-card"><p className="muted">No hay pedidos para el filtro seleccionado.</p></section>}
+    <div className="page wa-crm-page">
+      <section className="wa-crm-hero">
+        <div><span className="eyebrow">WhatsApp Cloud API + CRM operativo</span><h1>Centro comercial de conversaciones</h1><p>Reciba consultas, prepare respuestas verificadas, cree pedidos y derive los casos sensibles a una persona.</p></div>
+        <div className={`wa-channel-state ${activeChannel?.phone_number_id ? 'ready' : ''}`}><span className="status-dot"/>{activeChannel?.phone_number_id ? 'Canal configurado' : 'Canal pendiente'}</div>
       </section>
+      <section className="wa-crm-safe"><strong>Control humano:</strong> la IA puede sugerir y preparar respuestas. Los descuentos, pagos, créditos, cambios y devoluciones deben ser confirmados por una persona.</section>
+      {error && <section className="data-error"><strong>CRM no disponible todavía.</strong> Ejecute <code>supabase/INSTALAR_V03_4_WHATSAPP_CRM.sql</code>. Detalle: {error}</section>}
+      <section className="wa-crm-kpis">
+        <Kpi label="Conversaciones abiertas" value={pendingCount} helper="requieren atención" />
+        <Kpi label="Mensajes nuevos" value={unreadCount} helper="sin revisar" />
+        <Kpi label="Pedidos por seguir" value={pendingOrders} helper="solicitudes web y WhatsApp" />
+        <Kpi label="Canal" value={activeChannel?.display_phone_number || 'Pendiente'} helper={activeChannel?.auto_reply_enabled ? 'IA con respuesta controlada' : 'Respuesta automática desactivada'} />
+      </section>
+      <section className="wa-crm-tabs">
+        {['Conversaciones','Pedidos','Configuración'].map(tab => <button type="button" key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}
+      </section>
+      {activeTab === 'Configuración' && <section className="wa-setup-grid">
+        <form className="card wa-channel-form" onSubmit={saveChannel}>
+          <span className="eyebrow">Canal oficial</span><h2>Conectar WhatsApp Cloud API</h2><p>Los tokens privados se guardan solo como secretos de Supabase. Aquí registre datos no sensibles del número oficial.</p>
+          <label>Phone Number ID<input value={channelForm.phone_number_id} onChange={e => setChannelForm({ ...channelForm, phone_number_id: e.target.value })} placeholder="Ej.: 123456789012345" required /></label>
+          <label>Número visible<input value={channelForm.display_phone_number} onChange={e => setChannelForm({ ...channelForm, display_phone_number: e.target.value })} placeholder="+51 931 709 871" /></label>
+          <label>WhatsApp Business Account ID <small>Opcional, útil para control interno</small><input value={channelForm.business_account_id} onChange={e => setChannelForm({ ...channelForm, business_account_id: e.target.value })} placeholder="WABA ID" /></label>
+          <label className="wa-check"><input type="checkbox" checked={Boolean(channelForm.auto_reply_enabled)} onChange={e => setChannelForm({ ...channelForm, auto_reply_enabled: e.target.checked })} /><span><strong>Activar respuestas automáticas controladas</strong><small>Solo responde mensajes entrantes con datos verificables. Manténgalo desactivado durante las pruebas.</small></span></label>
+          <button className="primary-btn" disabled={savingChannel}>{savingChannel ? 'Guardando...' : 'Guardar canal'}</button>
+        </form>
+        <section className="card wa-webhook-guide">
+          <span className="eyebrow">Paso Meta</span><h2>Webhook de Clomar Store</h2>
+          <p>En Meta Developers agregue esta URL como Callback URL:</p>
+          <code>{webhookUrl}</code>
+          <p>Use el mismo valor que guardará como secreto <strong>WHATSAPP_VERIFY_TOKEN</strong> para verificar el webhook.</p>
+          <ol><li>Suscriba el campo <strong>messages</strong>.</li><li>Pruebe desde el número permitido por Meta.</li><li>Envíe “Hola” al WhatsApp oficial.</li><li>Revise que aparezca una conversación aquí.</li></ol>
+          <button type="button" className="secondary-btn" onClick={() => navigator.clipboard?.writeText(webhookUrl).then(() => setNotice('URL del webhook copiada.'))}>Copiar URL del webhook</button>
+        </section>
+      </section>}
+      {activeTab === 'Pedidos' && <section className="wa-orders-board">
+        <div className="wa-board-head"><div><span className="eyebrow">Pedidos comerciales</span><h2>Solicitudes pendientes</h2><p>Confirme disponibilidad y pago antes de registrar la venta final en el POS.</p></div><button type="button" className="secondary-btn" onClick={loadCRM}>{loading ? 'Actualizando...' : 'Actualizar'}</button></div>
+        <div className="wa-order-grid">{orders.map(order => <article className="wa-order-card" key={order.id}><div><span>{order.order_code || 'Pedido'}</span><h3>{order.customer_name || 'Cliente'}</h3><small>{order.customer_phone || 'Sin número'} · {fmtDate(order.created_at)}</small></div><div><b>{money(order.total_amount)}</b><select value={order.status || 'Nuevo'} onChange={async e => { const { error: updateError } = await supabase.from('catalog_orders').update({ status: e.target.value, updated_at: new Date().toISOString() }).eq('id', order.id).eq('store_id', storeId); if (updateError) setNotice(updateError.message); else loadCRM(); }}>{statuses.map(status => <option key={status}>{status}</option>)}</select></div></article>)}{!orders.length && <div className="wa-empty">No hay pedidos registrados todavía.</div>}</div>
+      </section>}
+      {activeTab === 'Conversaciones' && <section className="wa-crm-workspace">
+        <aside className="wa-conversation-list"><div className="wa-list-head"><div><span className="eyebrow">Bandeja</span><h2>Conversaciones</h2></div><button type="button" onClick={loadCRM}>{loading ? '…' : '↻'}</button></div><div className="wa-filter-row"><button type="button" className={filter==='Todas'?'active':''} onClick={() => setFilter('Todas')}>Todas</button><button type="button" className={filter==='Nuevo'?'active':''} onClick={() => setFilter('Nuevo')}>Nuevas</button><button type="button" className={filter==='Pendiente de pago'?'active':''} onClick={() => setFilter('Pendiente de pago')}>Pagos</button></div><div className="wa-conversation-scroll">{filteredConversations.map(conversation => { const contact = contactById[conversation.contact_id] || {}; const active = selectedConversation?.id === conversation.id; return <button key={conversation.id} type="button" className={`wa-conversation-row ${active ? 'active' : ''}`} onClick={() => { setSelectedId(conversation.id); setDraft(''); }}><span className="wa-avatar">{String(contact.display_name || contact.wa_id || '?').slice(0,1).toUpperCase()}</span><span><strong>{contact.display_name || contact.wa_id || 'Cliente WhatsApp'}</strong><small>{conversation.last_message_preview || 'Sin mensajes todavía'}</small></span><em>{humanTime(conversation.last_message_at)}{conversation.unread_count ? <b>{conversation.unread_count}</b> : null}</em></button>; })}{!filteredConversations.length && <div className="wa-empty">Aún no hay conversaciones. Configure Meta y escriba al número oficial para probar.</div>}</div></aside>
+        <main className="wa-chat-panel">{selectedConversation ? <><header className="wa-chat-head"><div><span className="wa-avatar">{String(selectedContact?.display_name || selectedContact?.wa_id || '?').slice(0,1).toUpperCase()}</span><div><h2>{selectedContact?.display_name || selectedContact?.wa_id || 'Cliente WhatsApp'}</h2><small>{selectedContact?.phone_number || selectedContact?.wa_id || 'WhatsApp'} · {selectedConversation.status || 'Nuevo'}</small></div></div><select value={selectedConversation.status || 'Nuevo'} onChange={e => updateConversationStatus(selectedConversation, e.target.value)}>{statuses.map(status => <option key={status}>{status}</option>)}</select></header><div className="wa-message-thread">{selectedMessages.map(message => <article key={message.id} className={`wa-message ${message.direction === 'Saliente' ? 'out' : 'in'}`}><p>{message.body || '[Mensaje no textual]'}</p><small>{fmtDate(message.created_at)} · {message.status || (message.direction === 'Saliente' ? 'Enviado' : 'Recibido')}</small></article>)}{!selectedMessages.length && <div className="wa-empty">No hay mensajes guardados todavía.</div>}</div><div className="wa-compose"><div className="wa-compose-actions"><button type="button" className="secondary-btn" onClick={createAIDraft} disabled={drafting || !canSend}>{drafting ? 'Generando...' : 'Sugerir respuesta IA'}</button><button type="button" className="ghost-btn" onClick={() => setDraft('Hola, gracias por comunicarte con Clomar Store. ¿En qué producto o talla te puedo ayudar?')}>Saludo</button></div><textarea value={draft} onChange={e => setDraft(e.target.value)} placeholder="Escriba una respuesta o pida un borrador a la IA..." rows="4" /><div className="wa-send-row"><small>{activeChannel?.auto_reply_enabled ? 'Bot controlado activo: revise siempre antes de confirmar ventas o pagos.' : 'Respuesta automática desactivada: usted decide cada envío.'}</small><button className="primary-btn" disabled={!canSend || sending || !draft.trim()} onClick={sendMessage}>{sending ? 'Enviando...' : 'Enviar por WhatsApp'}</button></div></div></> : <div className="wa-chat-empty"><h2>Seleccione una conversación</h2><p>Las consultas de clientes aparecerán aquí después de conectar el webhook de Meta.</p></div>}</main>
+        <aside className="wa-customer-panel">{selectedConversation ? <><span className="eyebrow">Ficha comercial</span><h2>{selectedContact?.display_name || 'Cliente WhatsApp'}</h2><div className="wa-customer-data"><span>WhatsApp</span><strong>{selectedContact?.phone_number || selectedContact?.wa_id || '—'}</strong><span>Estado</span><strong>{selectedConversation.status || 'Nuevo'}</strong><span>Último contacto</span><strong>{fmtDate(selectedConversation.last_message_at) || '—'}</strong></div><div className="wa-ai-rules"><strong>La IA puede</strong><p>Buscar productos, explicar precio, disponibilidad y preparar borradores.</p><strong>Requiere persona</strong><p>Descuentos, crédito, pago, entrega, reclamos, cambios y devoluciones.</p></div><button type="button" className="secondary-btn" onClick={() => onNavigate?.('clientes')}>Abrir clientes</button><button type="button" className="secondary-btn" onClick={() => onNavigate?.('ventas')}>Registrar venta final</button></> : <><span className="eyebrow">CRM operativo</span><h2>Atención guiada</h2><p>Cuando un cliente escriba, podrá convertir la consulta en pedido y luego registrar la venta desde el POS.</p></>}</aside>
+      </section>}
+      {notice && <div className="wa-toast" role="status">{notice}<button type="button" onClick={() => setNotice('')}>×</button></div>}
     </div>
   );
 }
@@ -4226,7 +4368,7 @@ function AppShell({ session }) {
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     catalogo: <CatalogAdmin products={products} reload={reload} profile={profile} store={store}/>,
-    pedidos: <CatalogOrders profile={profile} store={store}/>,
+    pedidos: <WhatsAppCRM profile={profile} store={store} products={products} onNavigate={setCurrent}/>,
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
     categorias: <CategoriesAdmin profile={profile} categories={categories} subcategories={subcategories} products={products} reloadCategories={reloadCategories}/>,
     etiquetas: <LabelsAdmin products={products} categories={categories} subcategories={subcategories} store={store}/>,
