@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.2.2 · UX premium';
+const APP_VERSION = 'V03.2.3 · Command Center compacto';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -1980,7 +1980,13 @@ function Products({ products, reload, profile, categories = [], subcategories = 
   const [saving, setSaving] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [productPage, setProductPage] = useState(1);
   const filteredProducts = products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const PRODUCT_PAGE_SIZE = 18;
+  const productPageCount = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PAGE_SIZE));
+  const safeProductPage = Math.min(productPage, productPageCount);
+  const visibleProducts = filteredProducts.slice((safeProductPage - 1) * PRODUCT_PAGE_SIZE, safeProductPage * PRODUCT_PAGE_SIZE);
+  useEffect(() => { setProductPage(1); }, [query]);
   const selectedSubcategories = subcategories.filter(c => c.parent_id === form.category_id);
   function setCategoryById(categoryId) {
     const cat = categories.find(c => c.id === categoryId);
@@ -2155,7 +2161,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
           <h3>Lista de productos</h3>
           <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por nombre, marca, código o barcode..." /></div>
           <div className="product-card-list">
-            {filteredProducts.map(p=>(
+            {visibleProducts.map(p=>(
               <div className="product-card-item" key={p.id}>
                 <img src={productImageSrc(p)} alt={p.name} />
                 <div>
@@ -2173,6 +2179,7 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             ))}
             {!filteredProducts.length && <p className="muted">No hay productos activos.</p>}
           </div>
+          {filteredProducts.length > PRODUCT_PAGE_SIZE && <div className="compact-pagination"><span>Mostrando {(safeProductPage - 1) * PRODUCT_PAGE_SIZE + 1}–{Math.min(safeProductPage * PRODUCT_PAGE_SIZE, filteredProducts.length)} de {filteredProducts.length}</span><div><button type="button" className="secondary-btn" disabled={safeProductPage === 1} onClick={() => setProductPage(p => Math.max(1, p - 1))}>← Anterior</button><span className="pagination-page">Página {safeProductPage} de {productPageCount}</span><button type="button" className="secondary-btn" disabled={safeProductPage === productPageCount} onClick={() => setProductPage(p => Math.min(productPageCount, p + 1))}>Siguiente →</button></div></div>}
         </section>
       </div>
     </div>
@@ -2220,6 +2227,10 @@ function Inventory({ products }) {
   const noStock = active.filter(p => asNum(p.stock) <= 0);
   const filtered = active.filter(p => `${p.code || ''} ${p.barcode || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''}`.toLowerCase().includes(query.toLowerCase()));
   const byCat = filtered.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
+  const [activeCategory, setActiveCategory] = useState('');
+  const inventoryCategories = Object.keys(byCat).sort((a, b) => a.localeCompare(b, 'es'));
+  const visibleCategory = inventoryCategories.includes(activeCategory) ? activeCategory : (inventoryCategories[0] || '');
+  const visibleCategoryItems = byCat[visibleCategory] || [];
   return (
     <div className="page inventory-page">
       <div className="hero compact-hero"><h1>📘 Inventario</h1><p>Control compacto por categoría, stock disponible y alertas de reposición.</p></div>
@@ -2235,26 +2246,25 @@ function Inventory({ products }) {
           <Kpi label="Categorías" value={Object.keys(byCat).length} helper="con resultados" />
         </div>
       </section>
-      {Object.entries(byCat).map(([cat, items]) => (
-        <section className="card compact-card inventory-block inventory-pro-block" key={cat}>
-          <div className="inventory-category-head"><h3>{cat}</h3><span>{items.length} producto(s)</span></div>
-          <div className="inventory-card-grid">
-            {items.map(p => {
-              const low = asNum(p.stock) <= asNum(p.stock_min);
-              return (
-                <article className="inventory-card-pro" key={p.id}>
-                  <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
-                  <div className="inventory-card-info">
-                    <strong>{p.name}</strong>
-                    <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}</small>
-                  </div>
-                  <div className={low ? 'stock-pill stock-low' : 'stock-pill'}>Stock {asNum(p.stock)}</div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+      {inventoryCategories.length > 0 && <section className="inventory-category-switcher"><div className="inventory-category-tabs">{inventoryCategories.map(cat => <button type="button" key={cat} className={visibleCategory === cat ? 'active' : ''} onClick={() => setActiveCategory(cat)}>{cat}<span>{byCat[cat].length}</span></button>)}</div></section>}
+      {visibleCategory && <section className="card compact-card inventory-block inventory-pro-block">
+        <div className="inventory-category-head"><div><span className="eyebrow">Categoría activa</span><h3>{visibleCategory}</h3></div><span>{visibleCategoryItems.length} producto(s)</span></div>
+        <div className="inventory-card-grid">
+          {visibleCategoryItems.map(p => {
+            const low = asNum(p.stock) <= asNum(p.stock_min);
+            return (
+              <article className="inventory-card-pro" key={p.id}>
+                <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
+                <div className="inventory-card-info">
+                  <strong>{p.name}</strong>
+                  <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}</small>
+                </div>
+                <div className={low ? 'stock-pill stock-low' : 'stock-pill'}>Stock {asNum(p.stock)}</div>
+              </article>
+            );
+          })}
+        </div>
+      </section>}
       {!filtered.length && <section className="card compact-card"><p className="muted">No se encontraron productos con ese criterio.</p></section>}
     </div>
   );
@@ -3475,6 +3485,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   const [editingId, setEditingId] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchWorking, setBatchWorking] = useState('');
+  const [catalogPage, setCatalogPage] = useState(1);
 
   const rows = useMemo(() => products.filter((p) => {
     const search = normalizeText(query);
@@ -3486,6 +3497,12 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
       || (filter === 'pendientes_precio' && (productPriceStatus(p) !== 'Validado' || asNum(p.price) <= 0));
     return matchText && matchFilter;
   }), [products, query, filter]);
+
+  const CATALOG_PAGE_SIZE = 18;
+  const catalogPageCount = Math.max(1, Math.ceil(rows.length / CATALOG_PAGE_SIZE));
+  const safeCatalogPage = Math.min(catalogPage, catalogPageCount);
+  const pagedRows = rows.slice((safeCatalogPage - 1) * CATALOG_PAGE_SIZE, safeCatalogPage * CATALOG_PAGE_SIZE);
+  useEffect(() => { setCatalogPage(1); }, [query, filter]);
 
   const draftFor = (p) => drafts[p.id] || {
     public_visible: Boolean(p.public_visible),
@@ -3566,7 +3583,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
       <section className="catalog-batch-bar"><div><strong>{selectedIds.length ? `${selectedIds.length} seleccionado(s)` : `${rows.length} producto(s) encontrados`}</strong><small>{selectedIds.length ? 'Aplique una acción masiva sin abrir cada ficha.' : 'Seleccione productos para publicar, ocultar o destacar varios a la vez.'}</small></div><div><button type="button" className="secondary-btn" disabled={!selectedIds.length || batchWorking} onClick={() => applyBatch('publish')}>{batchWorking === 'publish' ? 'Publicando...' : 'Publicar seleccionados'}</button><button type="button" className="secondary-btn" disabled={!selectedIds.length || batchWorking} onClick={() => applyBatch('hide')}>{batchWorking === 'hide' ? 'Ocultando...' : 'Ocultar'}</button><button type="button" className="secondary-btn" disabled={!selectedIds.length || batchWorking} onClick={() => applyBatch('feature')}>{batchWorking === 'feature' ? 'Guardando...' : 'Destacar'}</button>{selectedIds.length > 0 && <button type="button" className="catalog-clear-selection" onClick={() => setSelectedIds([])}>Limpiar</button>}</div></section>
       <div className="catalog-results-line"><strong>{rows.length} producto(s)</strong><span>Edite solo el producto necesario o use acciones masivas para ahorrar tiempo.</span></div>
       <section className="catalog-admin-list catalog-v321-list">
-        {rows.map(p => {
+        {pagedRows.map(p => {
           const draft = draftFor(p);
           const availability = asNum(p.stock) <= 0 ? 'Agotado' : asNum(p.stock) <= asNum(p.stock_min) ? 'Últimas unidades' : 'Disponible';
           const publicNow = Boolean(p.public_visible) && p.catalog_status === 'Publicado';
@@ -3589,6 +3606,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
         })}
         {!rows.length && <section className="card compact-card"><p className="muted">No hay productos que coincidan con el filtro.</p></section>}
       </section>
+      {rows.length > CATALOG_PAGE_SIZE && <div className="compact-pagination catalog-pagination"><span>Mostrando {(safeCatalogPage - 1) * CATALOG_PAGE_SIZE + 1}–{Math.min(safeCatalogPage * CATALOG_PAGE_SIZE, rows.length)} de {rows.length}</span><div><button type="button" className="secondary-btn" disabled={safeCatalogPage === 1} onClick={() => setCatalogPage(p => Math.max(1, p - 1))}>← Anterior</button><span className="pagination-page">Página {safeCatalogPage} de {catalogPageCount}</span><button type="button" className="secondary-btn" disabled={safeCatalogPage === catalogPageCount} onClick={() => setCatalogPage(p => Math.min(catalogPageCount, p + 1))}>Siguiente →</button></div></div>}
     </div>
   );
 }
