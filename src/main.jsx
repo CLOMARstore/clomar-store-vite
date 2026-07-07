@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.2.3 · Command Center compacto';
+const APP_VERSION = 'V03.2.4 · Operación visual refinada';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -186,7 +186,13 @@ const barcodeSvgMarkup = (value, height = 46) => {
 const qrUrl = (value) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(String(value || ''))}`;
 const productScanCode = (product) => String(product?.barcode || product?.code || product?.id || '').trim();
 const CATALOG_WHATSAPP_FALLBACK = '51931709871';
-const catalogBaseUrl = () => `${window.location.origin}/#/catalogo`;
+/* El catálogo debe usar una URL estable de producción, nunca una URL temporal de preview.
+   Configure VITE_PUBLIC_CATALOG_URL en Vercel si luego usa un dominio propio. */
+const CONFIGURED_CATALOG_URL = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || 'https://clomar-store-vite.vercel.app/#/catalogo').trim();
+const catalogBaseUrl = () => {
+  const base = CONFIGURED_CATALOG_URL.replace(/\/+$/, '');
+  return base.includes('#/catalogo') ? base : `${base}/#/catalogo`;
+};
 const catalogProductUrl = (product) => `${catalogBaseUrl()}?product=${encodeURIComponent(String(product?.id || ''))}`;
 const catalogAvailabilityLabel = (value) => ({ 'Disponible': 'Disponible', 'Últimas unidades': 'Últimas unidades', 'Agotado': 'Agotado' }[value] || 'Disponible');
 const normalizeWhatsappNumber = (value) => {
@@ -1981,6 +1987,13 @@ function Products({ products, reload, profile, categories = [], subcategories = 
   const [formOpen, setFormOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [productPage, setProductPage] = useState(1);
+  useEffect(() => {
+    if (!formOpen) return undefined;
+    const onKeyDown = (event) => { if (event.key === 'Escape') setFormOpen(false); };
+    document.body.classList.add('clomar-modal-open');
+    window.addEventListener('keydown', onKeyDown);
+    return () => { document.body.classList.remove('clomar-modal-open'); window.removeEventListener('keydown', onKeyDown); };
+  }, [formOpen]);
   const filteredProducts = products.filter(p => `${p.code} ${p.barcode || ''} ${p.name} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''} ${p.color || ''} ${p.size || ''}`.toLowerCase().includes(query.toLowerCase()));
   const PRODUCT_PAGE_SIZE = 18;
   const productPageCount = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PAGE_SIZE));
@@ -2092,9 +2105,12 @@ function Products({ products, reload, profile, categories = [], subcategories = 
         <span>{filteredProducts.length} producto(s)</span>
       </div>
       <div className="two-col product-admin-layout">
-        <form className={`card form-grid product-form-sheet ${formOpen ? 'form-open' : ''}`} onSubmit={save}>
-          <button className="sheet-close-btn form-sheet-close" type="button" onClick={() => setFormOpen(false)}>Cerrar ×</button>
-          <h3>Nuevo producto</h3>
+        {formOpen && <div className="product-modal-backdrop" role="dialog" aria-modal="true" aria-label="Nuevo producto" onMouseDown={(event) => { if (event.target === event.currentTarget) setFormOpen(false); }}>
+        <form className="card form-grid product-form-sheet form-open" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
+          <header className="product-modal-head">
+            <div><span className="eyebrow">Registro de catálogo e inventario</span><h3>Nuevo producto</h3><p>Complete lo esencial primero. Las opciones avanzadas quedan al final.</p></div>
+            <button className="product-modal-close" type="button" aria-label="Cerrar ventana de nuevo producto" title="Cerrar" onClick={() => setFormOpen(false)}>×</button>
+          </header>
           <div className="image-uploader">
             <div className="image-preview-box">
               <img src={previewUrl || APP_ICON} alt="Vista previa" />
@@ -2127,6 +2143,16 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             <label>Talla<input value={form.size} onChange={e=>setForm({...form,size:e.target.value})} placeholder="S, M, L, 38, 40" /></label>
             <label>Color<input value={form.color} onChange={e=>setForm({...form,color:e.target.value})} placeholder="Negro, rosa, azul" /></label>
           </div>
+          <div className="form-split product-core-price-row">
+            <label>Precio de venta<input value={form.price} inputMode="decimal" onChange={e=>setForm({...form,price:e.target.value})} placeholder="0.00" /></label>
+            <label>Costo de compra<input value={form.cost} inputMode="decimal" onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0.00" /></label>
+          </div>
+          <div className="form-split product-core-stock-row">
+            <label>Stock inicial<input value={form.stock} inputMode="decimal" onChange={e=>setForm({...form,stock:e.target.value})} /></label>
+            <label>Stock mínimo<input value={form.stock_min} inputMode="decimal" onChange={e=>setForm({...form,stock_min:e.target.value})} /></label>
+          </div>
+          <details className="product-advanced-section">
+            <summary>Opciones avanzadas: catálogo, margen y notas</summary>
           <label>Descripción interna<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Material, modelo y detalles internos" /></label>
           <section className="catalog-inline-config">
             <strong>Catálogo público</strong>
@@ -2139,10 +2165,6 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             <label>Descripción para clientes<input value={form.catalog_description} onChange={e=>setForm({...form,catalog_description:e.target.value})} placeholder="Texto corto que verá el cliente" /></label>
           </section>
           <div className="form-split">
-            <label>Precio de venta<input value={form.price} inputMode="decimal" onChange={e=>setForm({...form,price:e.target.value})} placeholder="0.00" /></label>
-            <label>Costo de compra<input value={form.cost} inputMode="decimal" onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0.00" /></label>
-          </div>
-          <div className="form-split">
             <label>Estado del precio<select value={form.price_status} onChange={e=>setForm({...form,price_status:e.target.value})}>{PRICE_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></label>
             <label>Margen objetivo sobre costo %<input value={form.margin_target} inputMode="decimal" onChange={e=>setForm({...form,margin_target:e.target.value})} placeholder="50" /></label>
           </div>
@@ -2151,13 +2173,11 @@ function Products({ products, reload, profile, categories = [], subcategories = 
             <label>Precio sugerido<input value={money(suggestedPrice(form.cost, form.margin_target))} readOnly /></label>
           </div>
           <label>Nota de precio<input value={form.price_notes} onChange={e=>setForm({...form,price_notes:e.target.value})} placeholder="Ej.: falta confirmar precio real con proveedor" /></label>
-          <div className="form-split">
-            <label>Stock inicial<input value={form.stock} inputMode="decimal" onChange={e=>setForm({...form,stock:e.target.value})} /></label>
-            <label>Stock mínimo<input value={form.stock_min} inputMode="decimal" onChange={e=>setForm({...form,stock_min:e.target.value})} /></label>
-          </div>
-          <button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar producto'}</button>
+          </details>
+          <footer className="product-modal-actions"><button type="button" className="secondary-btn" onClick={() => setFormOpen(false)}>Cancelar</button><button className="primary-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar producto'}</button></footer>
         </form>
-        <section className="card compact-card">
+        </div>}
+        <section className="card compact-card product-list-panel">
           <h3>Lista de productos</h3>
           <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por nombre, marca, código o barcode..." /></div>
           <div className="product-card-list">
@@ -2222,10 +2242,12 @@ function Customers({ customers, reload, profile }) {
 
 function Inventory({ products }) {
   const [query, setQuery] = useState('');
+  const [stockFilter, setStockFilter] = useState('Todos');
   const active = products.filter(p => p.active !== false);
   const lowStock = active.filter(p => asNum(p.stock) <= asNum(p.stock_min));
   const noStock = active.filter(p => asNum(p.stock) <= 0);
-  const filtered = active.filter(p => `${p.code || ''} ${p.barcode || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const searched = active.filter(p => `${p.code || ''} ${p.barcode || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.brand || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const filtered = searched.filter(p => stockFilter === 'Todos' || (stockFilter === 'Bajo stock' && asNum(p.stock) <= asNum(p.stock_min) && asNum(p.stock) > 0) || (stockFilter === 'Sin stock' && asNum(p.stock) <= 0));
   const byCat = filtered.reduce((acc, p) => { (acc[p.category || 'General'] ||= []).push(p); return acc; }, {});
   const [activeCategory, setActiveCategory] = useState('');
   const inventoryCategories = Object.keys(byCat).sort((a, b) => a.localeCompare(b, 'es'));
@@ -2236,8 +2258,8 @@ function Inventory({ products }) {
       <div className="hero compact-hero"><h1>📘 Inventario</h1><p>Control compacto por categoría, stock disponible y alertas de reposición.</p></div>
       <section className="card compact-card inventory-control-card">
         <div className="inventory-control-head">
-          <div><h3>Resumen de inventario</h3><p className="muted">Busca, revisa stock bajo y valida disponibilidad por categoría.</p></div>
-          <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div>
+          <div><span className="eyebrow">Operación de almacén</span><h3>Inventario en tiempo real</h3><p className="muted">Filtre primero por riesgo y luego revise una categoría.</p></div>
+          <div className="inventory-control-search"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, código o categoría..." /></div><div className="inventory-stock-filter" aria-label="Filtro de inventario">{['Todos','Bajo stock','Sin stock'].map(option => <button key={option} type="button" className={stockFilter===option ? 'active' : ''} onClick={()=>setStockFilter(option)}>{option}</button>)}</div></div>
         </div>
         <div className="inventory-kpi-grid">
           <Kpi label="Productos" value={active.length} helper="activos" />
@@ -2251,15 +2273,20 @@ function Inventory({ products }) {
         <div className="inventory-category-head"><div><span className="eyebrow">Categoría activa</span><h3>{visibleCategory}</h3></div><span>{visibleCategoryItems.length} producto(s)</span></div>
         <div className="inventory-card-grid">
           {visibleCategoryItems.map(p => {
-            const low = asNum(p.stock) <= asNum(p.stock_min);
+            const stock = asNum(p.stock);
+            const min = asNum(p.stock_min);
+            const out = stock <= 0;
+            const low = stock <= min && !out;
+            const state = out ? 'out' : low ? 'low' : 'ready';
+            const stateLabel = out ? 'Sin stock' : low ? 'Reponer' : 'Disponible';
             return (
-              <article className="inventory-card-pro" key={p.id}>
+              <article className={`inventory-card-pro inventory-${state}`} key={p.id}>
                 <img className="product-thumb small" src={productImageSrc(p)} alt={p.name}/>
                 <div className="inventory-card-info">
                   <strong>{p.name}</strong>
-                  <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}</small>
+                  <small>{p.code || 'Sin código'} · {p.brand || 'Sin marca'}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</small>
                 </div>
-                <div className={low ? 'stock-pill stock-low' : 'stock-pill'}>Stock {asNum(p.stock)}</div>
+                <div className={`stock-pill ${out || low ? 'stock-low' : ''}`}><span>{stateLabel}</span><b>{stock}</b><small>mín. {min}</small></div>
               </article>
             );
           })}
@@ -2274,6 +2301,7 @@ function StockEntry({ products, reloadProducts, profile, cashSession }) {
   const { movements, reload: reloadMovements } = useStockMovements(profile);
   const [form, setForm] = useState({ product_id:'', provider:'', qty:'1', cost:'0', method:'Efectivo', paid:'0', invoice:'', note:'' });
   const [query, setQuery] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const selected = products.find(p => p.id === form.product_id) || products[0];
   const total = asNum(form.qty) * asNum(form.cost);
   const entries = movements.filter(m => m.type === 'Entrada');
@@ -2310,10 +2338,10 @@ function StockEntry({ products, reloadProducts, profile, cashSession }) {
 
   return (
     <div className="page purchases-page">
-      <div className="hero compact-hero"><h1>📥 Compras y proveedores</h1><p>Registra ingresos de mercadería, proveedor, documento, costo y salida de caja.</p></div>
-      <div className="kpi-grid"><Kpi label="Ingresos hoy" value={entriesToday.length} helper="compras registradas" /><Kpi label="Unidades hoy" value={unitsToday} helper="stock agregado" /><Kpi label="Proveedores recientes" value={lastProviders.length} helper="según historial" /><Kpi label="Producto seleccionado" value={selected ? asNum(selected.stock) : 0} helper="stock actual" /></div>
-      <div className="two-col">
-        <form className="card form-grid purchase-form" onSubmit={save}>
+      <div className="hero compact-hero purchase-command-hero"><div><span className="eyebrow">Abastecimiento</span><h1>Compras e ingreso de mercadería</h1><p>Registre la compra y actualice stock, costo y caja en una sola operación.</p></div><button type="button" className="secondary-btn" onClick={()=>setHistoryOpen(true)}>Ver historial</button></div>
+      <section className="purchase-summary-strip"><div><span>Ingresos hoy</span><strong>{entriesToday.length}</strong></div><div><span>Unidades hoy</span><strong>{unitsToday}</strong></div><div><span>Proveedores</span><strong>{lastProviders.length}</strong></div><div><span>Stock actual</span><strong>{selected ? asNum(selected.stock) : 0}</strong></div></section>
+      <div className="two-col purchase-workspace">
+        <form className="card form-grid purchase-form purchase-form-compact" onSubmit={save}>
           <h3>Nueva compra / ingreso</h3>
           <label>Producto<select value={form.product_id} onChange={e=>{const p=products.find(x=>x.id===e.target.value); setForm({...form,product_id:e.target.value,cost:String(p?.cost || 0)})}}>{products.map(p=><option key={p.id} value={p.id}>{p.code} · {p.name} · Stock {asNum(p.stock)}</option>)}</select></label>
           <div className="form-split"><label>Proveedor<input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="Nombre del proveedor" /></label><label>Documento<input value={form.invoice} onChange={e=>setForm({...form,invoice:e.target.value})} placeholder="Factura, boleta, guía" /></label></div>
@@ -2321,11 +2349,11 @@ function StockEntry({ products, reloadProducts, profile, cashSession }) {
           <div className="form-split"><label>Método de pago<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option><option>Crédito</option></select></label><label>Monto pagado<input value={form.paid} onChange={e=>setForm({...form,paid:e.target.value})} inputMode="decimal" /></label></div>
           <label>Observación<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Detalle de compra, cambio de costo, referencia..." /></label>
           <div className="total-box"><span>Total compra</span><strong>{money(total)}</strong><small>Stock después: {selected ? asNum(selected.stock) + asNum(form.qty) : 0}</small></div>
-          <button className="primary-btn">Registrar compra e ingreso</button>
+          <div className="purchase-submit-row"><div><span>Total de compra</span><strong>{money(total)}</strong></div><button className="primary-btn">Registrar ingreso</button></div>
         </form>
-        <section className="card compact-card"><h3>Producto seleccionado</h3>{selected ? <><div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category}{selected.subcategory ? ` / ${selected.subcategory}` : ''} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div><div className="list-row"><span>Stock actual</span><strong>{asNum(selected.stock)}</strong></div><div className="list-row"><span>Stock después</span><strong>{asNum(selected.stock) + asNum(form.qty)}</strong></div><div className="list-row"><span>Costo anterior</span><strong>{money(selected.cost)}</strong></div><div className="list-row"><span>Nuevo costo</span><strong>{money(form.cost)}</strong></div></> : <p className="muted">No hay productos.</p>}<h4>Proveedores recientes</h4>{lastProviders.map(p => <button key={p} type="button" className="provider-chip" onClick={()=>setForm({...form, provider:p})}>{p}</button>)}</section>
+        <section className="card compact-card purchase-preview-card"><h3>Resumen del ingreso</h3>{selected ? <><div className="list-row inventory-product-row"><img className="product-thumb small" src={productImageSrc(selected)} alt={selected.name}/><span>{selected.name}<small>{selected.code} · {selected.category}{selected.subcategory ? ` / ${selected.subcategory}` : ''} · {selected.brand || 'Sin marca'}</small></span><strong>{money(selected.price)}</strong></div><div className="list-row"><span>Stock actual</span><strong>{asNum(selected.stock)}</strong></div><div className="list-row"><span>Stock después</span><strong>{asNum(selected.stock) + asNum(form.qty)}</strong></div><div className="list-row"><span>Costo anterior</span><strong>{money(selected.cost)}</strong></div><div className="list-row"><span>Nuevo costo</span><strong>{money(form.cost)}</strong></div></> : <p className="muted">No hay productos.</p>}<h4>Proveedores recientes</h4>{lastProviders.map(p => <button key={p} type="button" className="provider-chip" onClick={()=>setForm({...form, provider:p})}>{p}</button>)}</section>
       </div>
-      <section className="card compact-card extra-row"><div className="report-filter-head"><div><h3>Historial de compras</h3><p className="muted">Busca por producto, código, proveedor o documento.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar compra..." /></div>{filteredEntries.map(m=><div className="list-row" key={m.id}><span>{m.products?.name || 'Producto'}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>+{asNum(m.qty)}</strong></div>)}{!filteredEntries.length && <p className="muted">No hay compras registradas.</p>}</section>
+      {historyOpen && <div className="purchase-history-backdrop" role="dialog" aria-modal="true" onMouseDown={(event)=>{ if (event.target === event.currentTarget) setHistoryOpen(false); }}><section className="card purchase-history-modal" onMouseDown={(event)=>event.stopPropagation()}><header><div><span className="eyebrow">Movimientos recientes</span><h3>Historial de compras</h3><p>Busque por producto, código, proveedor o documento.</p></div><button type="button" className="product-modal-close" onClick={()=>setHistoryOpen(false)}>×</button></header><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar compra..." /></div><div className="purchase-history-list">{filteredEntries.map(m=><div className="list-row" key={m.id}><span>{m.products?.name || 'Producto'}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>+{asNum(m.qty)}</strong></div>)}{!filteredEntries.length && <p className="muted">No hay compras registradas.</p>}</div></section></div>}
     </div>
   );
 }
@@ -3513,6 +3541,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   };
   const updateDraft = (p, patch) => setDrafts(prev => ({ ...prev, [p.id]: { ...draftFor(p), ...patch } }));
   const publishedCount = products.filter(p => p.public_visible && p.catalog_status === 'Publicado').length;
+  const shareUrl = catalogBaseUrl();
   const readyForPublic = (p) => p.active !== false && p.status === 'Activo' && productPriceStatus(p) === 'Validado' && asNum(p.price) > 0;
 
   async function saveProductCatalog(p) {
@@ -3570,7 +3599,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
     <div className="page catalog-admin-page catalog-v321-page">
       <div className="hero compact-hero catalog-admin-hero catalog-v321-hero">
         <div><span className="eyebrow">Canal comercial</span><h1>Catálogo público</h1><p>Controle qué productos ve el cliente. Publicar no descuenta stock ni modifica precios.</p></div>
-        <div className="catalog-link-actions"><button type="button" className="secondary-btn" onClick={copyCatalogLink}>{copied ? '✓ Enlace copiado' : 'Copiar enlace'}</button><button type="button" className="primary-btn" onClick={() => window.open(catalogBaseUrl(), '_blank', 'noopener,noreferrer')}>Ver catálogo</button></div>
+        <div className="catalog-link-actions"><div className="catalog-share-address"><span>Enlace para compartir con clientes</span><code>{shareUrl}</code></div><button type="button" className="secondary-btn" onClick={copyCatalogLink}>{copied ? '✓ Enlace copiado' : 'Copiar enlace'}</button><button type="button" className="primary-btn" onClick={() => window.open(shareUrl, '_blank', 'noopener,noreferrer')}>Abrir catálogo</button></div>
       </div>
       <section className="catalog-workflow-strip"><span>1. Valide precio</span><span>2. Active publicación</span><span>3. Revise vista pública</span><span>4. Atienda pedidos por WhatsApp</span></section>
       <section className="card compact-card catalog-summary-card">
