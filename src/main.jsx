@@ -1,4 +1,4 @@
-/* Clomar Store V03.0-R3 — Automatización operativa transaccional */
+/* Clomar Store V03.2 — Control gerencial + IA comercial guiada por datos */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.1 · Catálogo y WhatsApp comercial';
+const APP_VERSION = 'V03.2 · Control gerencial e IA comercial';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -369,6 +369,7 @@ const ROLE_HOME = {
 };
 const MODULE_PERMISSIONS = {
   panel: ['dueno', 'admin', 'lectura'],
+  ia: ['dueno', 'admin'],
   ventas: ['dueno', 'admin', 'cajero'],
   comprobantes: ['dueno', 'admin', 'cajero'],
   creditos: ['dueno', 'admin', 'cajero'],
@@ -537,6 +538,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
       ['creditos', '💳', 'Créditos'],
       ['caja', '💰', 'Caja'],
       ['reportes', '📈', 'Reportes'],
+      ['ia', '🤖', 'Asistente IA'],
     ]},
     { title: 'Productos e inventario', items: [
       ['productos', '📦', 'Productos'],
@@ -582,7 +584,7 @@ function Sidebar({ current, setCurrent, open, setOpen, session, profile, store }
 
 function Header({ setOpen, current, profile, store }) {
   const titleMap = {
-    panel: 'Panel dueño', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'Pedidos web', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
+    panel: 'Control gerencial', ia: 'Asistente IA', ventas: 'Venta rápida', comprobantes: 'Comprobantes', creditos: 'Créditos', caja: 'Caja diaria', reportes: 'Reportes', productos: 'Productos', catalogo: 'Catálogo público', pedidos: 'Pedidos web', precios: 'Control de precios', categorias: 'Categorías', etiquetas: 'Etiquetas QR y barras', inventario: 'Inventario', ingreso: 'Compras y proveedores', clientes: 'Clientes', usuarios: 'Usuarios y roles', tienda: 'Configuración de tienda', herramientas: 'Herramientas'
   };
   return (
     <header className="app-header app-header-pro">
@@ -792,54 +794,221 @@ function Kpi({ label, value, helper }) {
   return <div className="kpi"><span>{label}</span><strong>{value}</strong><small>{helper}</small></div>;
 }
 
+function fmtWhole(value) {
+  return Number(value || 0).toLocaleString('es-PE', { maximumFractionDigits: 0 });
+}
+
+function managementSeverityClass(severity = '') {
+  const value = String(severity || '').toLowerCase();
+  if (value === 'critical' || value === 'alta') return 'critical';
+  if (value === 'warning' || value === 'media') return 'warning';
+  return 'info';
+}
+
+function managementAlertIcon(kind = '') {
+  const key = String(kind || '').toLowerCase();
+  if (key.includes('stock')) return '📦';
+  if (key.includes('credit') || key.includes('cobran')) return '💳';
+  if (key.includes('cash') || key.includes('caja')) return '💰';
+  if (key.includes('margin') || key.includes('margen')) return '📉';
+  if (key.includes('catalog')) return '🛍️';
+  if (key.includes('rotation') || key.includes('rotacion')) return '🕒';
+  return 'ℹ️';
+}
+
+function useManagementDashboard(profile, days) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const storeId = profile?.store_id || DEFAULT_STORE_ID;
+
+  async function reload() {
+    if (!hasSupabaseConfig || !profile?.id) return;
+    setLoading(true);
+    setError('');
+    const { data: result, error: rpcError } = await supabase.rpc('clomar_management_dashboard_v32', {
+      p_store_id: storeId,
+      p_days: Number(days || 30),
+    });
+    if (rpcError) {
+      setError(rpcError.message || 'No se pudo cargar el control gerencial.');
+      setData(null);
+    } else {
+      setData(result || null);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { reload(); }, [profile?.id, storeId, days]);
+  return { data, loading, error, reload };
+}
+
 function Panel({ products, profile }) {
-  const { sales } = useSales(profile);
-  const { movements } = useCashMovements(profile);
-  const stockCritico = products.filter(p => asNum(p.stock) <= asNum(p.stock_min ?? 2));
-  const sinPrecio = products.filter(p => asNum(p.price) <= 0 || productPriceStatus(p) !== 'Validado');
-  const today = todayISO();
-  const salesToday = sales.filter(s => String(s.created_at || '').slice(0,10) === today);
-  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); })();
-  const salesYesterday = sales.filter(s => String(s.created_at || '').slice(0,10) === yesterday);
-  const ingresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Ingreso','Apertura'].includes(m.type));
-  const egresosToday = movements.filter(m => String(m.created_at || '').slice(0,10) === today && ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
-  const totalVentas = salesToday.reduce((s, v) => s + asNum(v.total), 0);
-  const totalYesterday = salesYesterday.reduce((s, v) => s + asNum(v.total), 0);
-  const cajaNeta = ingresosToday.reduce((s, v) => s + asNum(v.amount), 0) - egresosToday.reduce((s, v) => s + asNum(v.amount), 0);
-  const creditosHoy = salesToday.filter(s => s.payment_method === 'Crédito' || s.status === 'Crédito').reduce((s,v)=>s+asNum(v.total),0);
-  const ventaMayor = salesToday.slice().sort((a,b)=>asNum(b.total)-asNum(a.total))[0];
-  const tendencia = totalYesterday > 0 ? ((totalVentas - totalYesterday) / totalYesterday) * 100 : 0;
-  const byMethod = salesToday.reduce((acc, s) => { acc[s.payment_method || 'Sin método'] = (acc[s.payment_method || 'Sin método'] || 0) + asNum(s.total); return acc; }, {});
-  const bestMethod = Object.entries(byMethod).sort((a,b)=>b[1]-a[1])[0];
-  const alerts = [
-    stockCritico.length ? `${stockCritico.length} producto(s) con stock crítico.` : '',
-    sinPrecio.length ? `${sinPrecio.length} producto(s) pendientes de precio.` : '',
-    creditosHoy > 0 ? `Créditos del día por ${money(creditosHoy)}.` : '',
-    cajaNeta < 0 ? 'Caja neta negativa: revisar egresos.' : '',
-  ].filter(Boolean);
+  const [days, setDays] = useState(30);
+  const { data, loading, error, reload } = useManagementDashboard(profile, days);
+  const role = profile?.role || 'cajero';
+
+  if (!['dueno', 'admin'].includes(role)) {
+    return (
+      <div className="page compact-page dashboard-owner-page">
+        <div className="hero compact-hero owner-hero"><div><span className="eyebrow">Vista de lectura</span><h1>📊 Panel comercial</h1><p>El control gerencial detallado está reservado para dueño y administrador.</p></div></div>
+        <section className="card compact-card"><h3>Acceso disponible</h3><p className="muted">Puede revisar los resultados desde Reportes e Inventario. Las alertas de rentabilidad, cobranza y control de caja requieren autorización de administrador.</p></section>
+      </div>
+    );
+  }
+
+  const metrics = data?.metrics || {};
+  const alerts = Array.isArray(data?.alerts) ? data.alerts : [];
+  const topProducts = Array.isArray(data?.top_products) ? data.top_products : [];
+  const slowProducts = Array.isArray(data?.slow_products) ? data.slow_products : [];
+  const stockCritical = Array.isArray(data?.stock_critical) ? data.stock_critical : [];
+  const sellers = Array.isArray(data?.sellers) ? data.sellers : [];
+  const paymentMethods = Array.isArray(data?.payment_methods) ? data.payment_methods : [];
+  const crossSell = Array.isArray(data?.cross_sell) ? data.cross_sell : [];
+  const maxPayment = Math.max(1, ...paymentMethods.map(row => asNum(row.amount)));
+  const maxSeller = Math.max(1, ...sellers.map(row => asNum(row.amount)));
+  const salesDelta = asNum(metrics.sales_delta_percent);
+
   return (
-    <div className="page compact-page dashboard-owner-page">
-      <div className="hero compact-hero owner-hero">
+    <div className="page compact-page management-dashboard-page">
+      <div className="hero compact-hero owner-hero management-hero">
         <div>
-          <span className="eyebrow">Vista de dueño</span>
-          <h1>📊 Panel comercial</h1>
-          <p>Lectura rápida para decidir ventas, reposición, precios, caja y créditos.</p>
+          <span className="eyebrow">Control del propietario</span>
+          <h1>📊 Centro de control gerencial</h1>
+          <p>Ventas, rentabilidad, caja, crédito, rotación y oportunidades comerciales con datos reales de Clomar Store.</p>
         </div>
-        <div className="owner-today-card"><span>Ventas hoy</span><strong>{money(totalVentas)}</strong><small>{salesToday.length} comprobantes · {tendencia >= 0 ? '+' : ''}{tendencia.toFixed(1)}% vs ayer</small></div>
+        <div className="management-hero-actions">
+          <label>Periodo<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="90">Últimos 90 días</option></select></label>
+          <button type="button" className="secondary-btn" onClick={reload}>{loading ? 'Actualizando...' : 'Actualizar'}</button>
+        </div>
       </div>
-      <div className="kpi-grid dashboard-kpis">
-        <Kpi label="Ventas hoy" value={money(totalVentas)} helper={`${salesToday.length} comprobantes`} />
-        <Kpi label="Caja neta" value={money(cajaNeta)} helper="Ingresos menos egresos" />
-        <Kpi label="Crédito hoy" value={money(creditosHoy)} helper="Por cobrar" />
-        <Kpi label="Método dominante" value={bestMethod?.[0] || '—'} helper={bestMethod ? money(bestMethod[1]) : 'Sin ventas'} />
-        <Kpi label="Productos" value={products.length} helper="Activos" />
-        <Kpi label="Stock crítico" value={stockCritico.length} helper="Revisar reposición" />
-      </div>
-      <div className="dashboard-grid-pro">
-        <section className="card compact-card"><h3>Acciones recomendadas</h3>{alerts.length ? alerts.map((a, i)=><div className="insight-row" key={i}><span>⚠️</span><strong>{a}</strong></div>) : <div className="insight-row ok"><span>✅</span><strong>Sin alertas críticas por ahora.</strong></div>}</section>
-        <section className="card compact-card"><h3>Mejor comprobante del día</h3>{ventaMayor ? <div className="featured-sale"><span>{receiptNumber(ventaMayor)}</span><strong>{money(ventaMayor.total)}</strong><small>{ventaMayor.customer_name || 'Cliente'} · {ventaMayor.payment_method}</small></div> : <p className="muted">Todavía no hay ventas hoy.</p>}</section>
-        <section className="card compact-card"><h3>Últimas ventas</h3>{sales.slice(0, 8).length ? sales.slice(0, 8).map(s => (<div className="list-row" key={s.id}><span>{receiptNumber(s)} · {s.customer_name || 'Cliente'}<small>{fmtDate(s.created_at)} · {s.payment_method}</small></span><strong>{money(s.total)}</strong></div>)) : <p className="muted">Todavía no hay ventas registradas.</p>}</section>
-        <section className="card compact-card"><h3>Stock crítico</h3>{stockCritico.length ? stockCritico.slice(0, 10).map(p => (<div className="list-row" key={p.id}><span>{p.name}<small>{p.category || 'General'} · mínimo {asNum(p.stock_min)}</small></span><strong className="danger-text">{asNum(p.stock)}</strong></div>)) : <p className="muted">No hay productos críticos.</p>}</section>
+
+      {error && <section className="data-error"><strong>No se pudo cargar V03.2:</strong> {error}. Verifique que ejecutó el SQL de esta entrega y recargue la página.</section>}
+      {loading && !data && <div className="loader">Preparando indicadores gerenciales...</div>}
+
+      {data && <>
+        <div className="management-period-strip"><span>Periodo analizado</span><strong>{data.period_start || '—'} al {data.period_end || '—'}</strong><small>Actualizado: {data.generated_at ? fmtDate(data.generated_at) : 'ahora'}</small></div>
+        <div className="management-kpi-grid">
+          <Kpi label="Ventas del periodo" value={money(metrics.sales_total)} helper={`${fmtWhole(metrics.sales_count)} comprobantes · ${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}% vs periodo anterior`} />
+          <Kpi label="Utilidad bruta" value={money(metrics.profit_total)} helper={`Margen ${asNum(metrics.margin_percent).toFixed(1)}%`} />
+          <Kpi label="Ticket promedio" value={money(metrics.ticket_average)} helper={`${fmtWhole(metrics.units_sold)} unidades vendidas`} />
+          <Kpi label="Crédito pendiente" value={money(metrics.credit_pending)} helper={`${fmtWhole(metrics.credit_overdue_count)} crédito(s) vencido(s)`} />
+          <Kpi label="Stock crítico" value={fmtWhole(metrics.stock_critical_count)} helper={`${fmtWhole(metrics.slow_stock_count)} con baja rotación`} />
+          <Kpi label="Caja última diferencia" value={money(metrics.last_cash_difference)} helper={metrics.last_cash_closed_at ? `Cierre ${fmtDate(metrics.last_cash_closed_at)}` : 'Sin caja cerrada'} />
+        </div>
+
+        <section className="management-alerts card compact-card">
+          <div className="section-head-inline"><div><span className="eyebrow">Prioridades del día</span><h3>Qué debe revisar primero</h3></div><span className="result-pill">{alerts.length} alerta(s)</span></div>
+          <div className="management-alert-grid">
+            {alerts.length ? alerts.map((alert, idx) => <article className={`management-alert ${managementSeverityClass(alert.severity)}`} key={`${alert.kind || 'alert'}-${idx}`}><span>{managementAlertIcon(alert.kind)}</span><div><strong>{alert.title || 'Alerta operativa'}</strong><p>{alert.message || 'Revise este indicador.'}</p></div></article>) : <article className="management-alert success"><span>✅</span><div><strong>Operación bajo control</strong><p>No hay alertas críticas para el periodo seleccionado.</p></div></article>}
+          </div>
+        </section>
+
+        <div className="management-grid-primary">
+          <section className="card compact-card"><div className="section-head-inline"><div><span className="eyebrow">Rentabilidad</span><h3>Productos más rentables</h3></div><span className="result-pill">Top {topProducts.length}</span></div><div className="management-table"><div className="management-table-head"><span>Producto</span><span>Unid.</span><span>Vendido</span><span>Utilidad</span></div>{topProducts.map((row, idx) => <div className="management-table-row" key={`${row.product_id || row.name}-${idx}`}><span><strong>{row.name || 'Producto'}</strong><small>{row.code || 'Sin código'} · margen {asNum(row.margin_percent).toFixed(1)}%</small></span><b>{fmtWhole(row.qty)}</b><b>{money(row.amount)}</b><b className={asNum(row.profit) < 0 ? 'danger-text' : ''}>{money(row.profit)}</b></div>)}{!topProducts.length && <p className="muted">Aún no hay ventas en el periodo.</p>}</div></section>
+          <section className="card compact-card"><div className="section-head-inline"><div><span className="eyebrow">Reposición</span><h3>Stock crítico</h3></div><span className="result-pill danger">{stockCritical.length} producto(s)</span></div><div className="management-list">{stockCritical.map((row, idx) => <div className="list-row" key={`${row.product_id || row.name}-${idx}`}><span><strong>{row.name || 'Producto'}</strong><small>{row.code || 'Sin código'} · mínimo {fmtWhole(row.stock_min)}</small></span><b className="danger-text">{fmtWhole(row.stock)}</b></div>)}{!stockCritical.length && <p className="muted">No hay productos con stock crítico.</p>}</div></section>
+          <section className="card compact-card"><div className="section-head-inline"><div><span className="eyebrow">Rotación</span><h3>Mercadería sin movimiento</h3></div><span className="result-pill">60 días</span></div><div className="management-list">{slowProducts.map((row, idx) => <div className="list-row" key={`${row.product_id || row.name}-${idx}`}><span><strong>{row.name || 'Producto'}</strong><small>{row.code || 'Sin código'} · stock actual {fmtWhole(row.stock)}</small></span><b>{money(row.stock_value)}</b></div>)}{!slowProducts.length && <p className="muted">No hay mercadería sin movimiento en los últimos 60 días.</p>}</div></section>
+        </div>
+
+        <div className="management-grid-secondary">
+          <section className="card compact-card"><span className="eyebrow">Cobros</span><h3>Créditos por cobrar</h3><div className="credit-summary-rows"><div><span>Saldo total</span><strong>{money(metrics.credit_pending)}</strong></div><div><span>Vencido</span><strong className={asNum(metrics.credit_overdue) > 0 ? 'danger-text' : ''}>{money(metrics.credit_overdue)}</strong></div><div><span>Pedidos web pendientes</span><strong>{fmtWhole(metrics.pending_catalog_orders)}</strong></div></div><p className="muted">Priorice los créditos vencidos antes de otorgar nuevas excepciones.</p></section>
+          <section className="card compact-card"><span className="eyebrow">Ingresos</span><h3>Por método de pago</h3><div className="bar-list">{paymentMethods.map((row, idx) => <div className="bar-row" key={`${row.method}-${idx}`}><div><strong>{row.method || 'Sin método'}</strong><small>{fmtWhole(row.operations)} operación(es)</small></div><div className="bar-track"><span style={{ width: `${Math.max(5, (asNum(row.amount) / maxPayment) * 100)}%` }} /></div><b>{money(row.amount)}</b></div>)}{!paymentMethods.length && <p className="muted">No hay ingresos registrados en el periodo.</p>}</div></section>
+          <section className="card compact-card"><span className="eyebrow">Equipo</span><h3>Rendimiento por vendedor</h3><div className="bar-list">{sellers.map((row, idx) => <div className="bar-row" key={`${row.user_id || row.seller}-${idx}`}><div><strong>{row.seller || 'Sin vendedor'}</strong><small>{fmtWhole(row.sales_count)} venta(s) · ticket {money(row.ticket_average)}</small></div><div className="bar-track"><span style={{ width: `${Math.max(5, (asNum(row.amount) / maxSeller) * 100)}%` }} /></div><b>{money(row.amount)}</b></div>)}{!sellers.length && <p className="muted">No hay ventas por vendedor en el periodo.</p>}</div></section>
+          <section className="card compact-card"><span className="eyebrow">Venta cruzada</span><h3>Productos que se compran juntos</h3><div className="management-list">{crossSell.map((row, idx) => <div className="list-row" key={`${row.product_a}-${row.product_b}-${idx}`}><span><strong>{row.product_a || 'Producto'} + {row.product_b || 'Producto'}</strong><small>Comprados juntos en {fmtWhole(row.times_together)} venta(s)</small></span><b>{fmtWhole(row.times_together)}</b></div>)}{!crossSell.length && <p className="muted">Se necesitan más ventas con varios productos para detectar combinaciones.</p>}</div></section>
+        </div>
+      </>}
+    </div>
+  );
+}
+
+const ASSISTANT_QUICK_QUESTIONS = [
+  { intent: 'reponer', label: '¿Qué debo reponer?', text: '¿Qué productos debo reponer esta semana?' },
+  { intent: 'rotacion', label: 'Productos lentos', text: '¿Qué productos no se venden hace tiempo?' },
+  { intent: 'cobranza', label: 'Cobranza', text: '¿Cuánto tengo pendiente de cobrar?' },
+  { intent: 'rentabilidad', label: 'Rentabilidad', text: '¿Qué productos me dejan más utilidad?' },
+  { intent: 'vendedores', label: 'Vendedores', text: '¿Cómo va el rendimiento de los vendedores?' },
+  { intent: 'pagos', label: 'Pagos', text: '¿Qué método de pago se usa más?' },
+  { intent: 'resumen', label: 'Resumen', text: 'Dame un resumen del negocio.' },
+];
+
+function inferAssistantIntent(text = '') {
+  const value = normalizeText(text);
+  if (/(reponer|reposicion|comprar|stock|faltante)/.test(value)) return 'reponer';
+  if (/(lento|rotacion|no se vende|sin vender|estancado)/.test(value)) return 'rotacion';
+  if (/(cobrar|cobranza|deuda|credito|vencid)/.test(value)) return 'cobranza';
+  if (/(rentab|utilidad|ganancia|margen)/.test(value)) return 'rentabilidad';
+  if (/(vendedor|equipo|quien vende)/.test(value)) return 'vendedores';
+  if (/(yape|plin|tarjeta|efectivo|pago|metodo)/.test(value)) return 'pagos';
+  return 'resumen';
+}
+
+function copyTextToClipboard(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+    return true;
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.style.position = 'fixed';
+  area.style.opacity = '0';
+  document.body.appendChild(area);
+  area.select();
+  try { document.execCommand('copy'); } catch (err) {}
+  document.body.removeChild(area);
+  return true;
+}
+
+function AssistantAI({ profile, products = [], store }) {
+  const [days, setDays] = useState(30);
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState(null);
+  const [asking, setAsking] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [commercialTone, setCommercialTone] = useState('Cercano');
+  const [commercialText, setCommercialText] = useState('');
+
+  async function askAssistant(rawQuestion, forcedIntent = null) {
+    const text = String(rawQuestion || question || '').trim();
+    if (!text && !forcedIntent) return;
+    setAsking(true);
+    setNotice('');
+    const { data, error } = await supabase.rpc('clomar_management_assistant_v32', {
+      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+      p_intent: forcedIntent || inferAssistantIntent(text),
+      p_days: Number(days || 30),
+    });
+    if (error) {
+      setAnswer(null);
+      setNotice(error.message || 'No se pudo obtener la respuesta del asistente.');
+    } else {
+      setAnswer({ ...data, question: text || 'Consulta rápida' });
+    }
+    setAsking(false);
+  }
+
+  const selectedProduct = products.find(p => p.id === selectedProductId) || null;
+  function generateCommercialReply() {
+    if (!selectedProduct) { setNotice('Seleccione un producto para generar una respuesta comercial.'); return; }
+    const availability = asNum(selectedProduct.stock) <= 0 ? 'En este momento figura agotado' : asNum(selectedProduct.stock) <= asNum(selectedProduct.stock_min || 2) ? 'Quedan últimas unidades' : 'Está disponible';
+    const detail = [selectedProduct.brand, selectedProduct.color ? `color ${selectedProduct.color}` : '', selectedProduct.size ? `talla ${selectedProduct.size}` : ''].filter(Boolean).join(' · ');
+    const greeting = commercialTone === 'Formal' ? 'Hola, gracias por escribir a Clomar Store.' : commercialTone === 'Breve' ? 'Hola 👋' : 'Hola, gracias por comunicarte con Clomar Store 😊';
+    const closing = commercialTone === 'Formal' ? '¿Desea que verifiquemos la disponibilidad final o le ayudamos con otra talla/color?' : commercialTone === 'Breve' ? '¿Te lo reservo?' : '¿Deseas que te lo reservemos o revisar otra talla/color?';
+    const text = `${greeting}\n\n${selectedProduct.name}${detail ? ` (${detail})` : ''}\nPrecio: ${money(selectedProduct.price)}\n${availability}.\nCódigo: ${selectedProduct.code || selectedProduct.barcode || '—'}\n\n${closing}`;
+    setCommercialText(text);
+    setNotice('Respuesta comercial preparada con datos reales del producto. Revísela antes de enviarla.');
+  }
+
+  return (
+    <div className="page ai-assistant-page">
+      <div className="hero compact-hero ai-hero"><div><span className="eyebrow">IA guiada por datos reales</span><h1>🤖 Asistente comercial y gerencial</h1><p>Responde con información de ventas, inventario, caja y créditos. No modifica precios, stock, pagos ni operaciones.</p></div><label>Periodo<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">7 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label></div>
+      <section className="ai-safety-strip"><strong>Controlado:</strong> utiliza el ERP como fuente de verdad; no inventa productos, precios, stock ni descuentos. Las respuestas comerciales se preparan para revisión humana antes de enviarlas por WhatsApp.</section>
+      {notice && <div className="catalog-toast ai-toast">{notice}</div>}
+      <div className="ai-layout-grid">
+        <section className="card compact-card ai-question-card"><span className="eyebrow">Decisiones del negocio</span><h3>Pregunte al asistente</h3><div className="ai-question-box"><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="4" placeholder="Ej.: ¿Qué debo reponer esta semana?" /><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando...' : 'Analizar datos'}</button></div><div className="ai-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} className="secondary-btn" onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>{answer && <article className="ai-answer-card"><div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Resultado'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answer.answer); setNotice('Respuesta copiada.'); }}>⧉</button></div><p>{answer.answer || 'No se encontraron datos suficientes para esta consulta.'}</p>{Array.isArray(answer.data) && answer.data.length > 0 && <div className="ai-result-list">{answer.data.slice(0, 8).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div>}</article>}</section>
+        <section className="card compact-card ai-commercial-card"><span className="eyebrow">Atención comercial</span><h3>Preparar respuesta para WhatsApp</h3><p className="muted">Elija un producto del ERP; se genera un mensaje con precio y datos reales para revisar y copiar.</p><label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label><label>Tono<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label><button type="button" className="primary-btn" onClick={generateCommercialReply}>Generar respuesta comercial</button>{commercialText && <div className="commercial-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="10" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar mensaje</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div>}</section>
       </div>
     </div>
   );
@@ -3532,7 +3701,7 @@ function PublicCatalogApp() {
 
 function MobileBottomNav({ current, setCurrent, role, menuOpen = false }) {
   const labelMap = {
-    panel: ['📊', 'Inicio'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], catalogo: ['🛍️', 'Catálogo'], pedidos: ['📬', 'Pedidos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
+    panel: ['📊', 'Inicio'], ia: ['🤖', 'IA'], ventas: ['🧾', 'Vender'], reportes: ['📈', 'Reportes'], caja: ['💰', 'Caja'], comprobantes: ['🧾', 'Tickets'], productos: ['📦', 'Productos'], catalogo: ['🛍️', 'Catálogo'], pedidos: ['📬', 'Pedidos'], inventario: ['📘', 'Stock'], ingreso: ['📥', 'Compras'], herramientas: ['🛠️', 'Más'], creditos: ['💳', 'Créditos']
   };
   const preferred = role === 'almacen'
     ? ['productos', 'inventario', 'ingreso', 'etiquetas']
@@ -3572,6 +3741,7 @@ function AppShell({ session }) {
 
   const contentMap = {
     panel: <Panel products={products} profile={profile}/>,
+    ia: <AssistantAI profile={profile} products={products} store={store}/>,
     ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} cashSession={cashSession} menuOpen={open} onGoReceipts={() => setCurrent('comprobantes')}/>,
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
