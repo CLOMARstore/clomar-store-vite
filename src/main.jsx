@@ -165,6 +165,24 @@ function BarcodeSVG({ value, height = 46 }) {
   });
   return <svg className="barcode-svg" viewBox={`0 0 ${x} ${height}`} preserveAspectRatio="none" role="img" aria-label={`Código de barras ${value}`}>{bars}</svg>;
 }
+
+/* Genera el SVG para la ventana de impresión independiente, sin depender del CSS de la aplicación. */
+const barcodeSvgMarkup = (value, height = 46) => {
+  const sequence = code128Sequence(value);
+  let x = 0;
+  const bars = [];
+  sequence.forEach((code) => {
+    const pattern = CODE128_PATTERNS[code] || CODE128_PATTERNS[16];
+    let black = true;
+    for (const widthChar of pattern) {
+      const width = Number(widthChar || 1);
+      if (black) bars.push(`<rect x="${x}" y="0" width="${width}" height="${height}"/>`);
+      x += width;
+      black = !black;
+    }
+  });
+  return `<svg class="barcode-svg" viewBox="0 0 ${x} ${height}" preserveAspectRatio="none" role="img" aria-label="Código de barras ${escapeHtml(value)}">${bars.join('')}</svg>`;
+};
 const qrUrl = (value) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(String(value || ''))}`;
 const productScanCode = (product) => String(product?.barcode || product?.code || product?.id || '').trim();
 const PRICE_STATUS_OPTIONS = ['Pendiente', 'Validado', 'Revisar'];
@@ -175,6 +193,101 @@ const normalizePriceStatus = (value) => {
   return 'Pendiente';
 };
 const productPriceStatus = (product) => product?.price_status || 'Pendiente';
+
+
+/* =========================================================
+   V02.3 — Impresión profesional de etiquetas
+   La impresión se genera en una ventana limpia. Así se evita
+   que el menú, la barra inferior móvil o estilos del ERP se
+   mezclen con la hoja de etiquetas.
+   ========================================================= */
+const LABEL_LAYOUTS = {
+  a4_2x6: { key: 'a4_2x6', label: 'A4 · 2 columnas × 6 filas', paper: 'a4', columns: 2, rows: 6, width: 90, height: 43, gapX: 5, gapY: 3, density: 'large' },
+  a4_3x8: { key: 'a4_3x8', label: 'A4 · 3 columnas × 8 filas', paper: 'a4', columns: 3, rows: 8, width: 58, height: 32, gapX: 4, gapY: 2, density: 'medium' },
+  a4_4x10: { key: 'a4_4x10', label: 'A4 · 4 columnas × 10 filas', paper: 'a4', columns: 4, rows: 10, width: 43, height: 25, gapX: 2, gapY: 2, density: 'compact' },
+  roll_1col: { key: 'roll_1col', label: 'Rollo térmico · 1 columna', paper: 'roll', columns: 1, rows: 1, width: 60, height: 40, gapX: 0, gapY: 2, density: 'large' },
+};
+
+const labelPrintEsc = (value = '') => escapeHtml(String(value ?? ''));
+const splitEvery = (items, chunkSize) => {
+  const groups = [];
+  for (let i = 0; i < items.length; i += chunkSize) groups.push(items.slice(i, i + chunkSize));
+  return groups;
+};
+
+const buildLabelsPrintHTML = ({
+  items = [],
+  store = {},
+  mode = 'both',
+  showPrice = true,
+  showLogo = true,
+  showCodeText = true,
+  sheetLayout = 'a4_3x8',
+  labelStyle = 'medium',
+}) => {
+  const layout = LABEL_LAYOUTS[sheetLayout] || LABEL_LAYOUTS.a4_3x8;
+  const perPage = layout.paper === 'a4' ? layout.columns * layout.rows : 1;
+  const pages = splitEvery(items, perPage);
+  const logo = publicAssetUrl(store?.logo_url || APP_ICON);
+  const storeName = store?.name || 'Clomar Store';
+  const styleClass = labelStyle === 'small' ? 'style-compact' : labelStyle === 'large' ? 'style-detailed' : 'style-standard';
+  const labelMarkup = ({ product }) => {
+    const code = productScanCode(product);
+    const priceIsReady = productPriceStatus(product) === 'Validado' && Number(product?.price || 0) > 0;
+    const hasQr = mode === 'qr' || mode === 'both';
+    const hasBarcode = mode === 'barcode' || mode === 'both';
+    const logoBlock = showLogo ? `<div class="brand"><img src="${labelPrintEsc(logo)}" alt="" onerror="this.style.display='none'"/><span>${labelPrintEsc(storeName)}</span></div>` : '';
+    const priceBlock = !showPrice ? '' : priceIsReady
+      ? `<div class="price">${labelPrintEsc(money(product.price))}</div>`
+      : `<div class="price pending">Precio pendiente</div>`;
+    const qrBlock = hasQr ? `<img class="qr" src="${labelPrintEsc(qrUrl(code))}" alt="QR ${labelPrintEsc(code)}"/>` : '';
+    const barcodeBlock = hasBarcode ? barcodeSvgMarkup(code, 46) : '';
+    const codeBlock = showCodeText ? `<div class="code-text">${labelPrintEsc(code)}</div>` : '';
+    return `<article class="label ${styleClass} mode-${labelPrintEsc(mode)}">${logoBlock}<div class="name">${labelPrintEsc(product?.name || 'Producto')}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div>${codeBlock}</article>`;
+  };
+
+  const pagesMarkup = pages.map((pageItems, pageIndex) => {
+    const filler = layout.paper === 'a4' ? Array.from({ length: Math.max(0, perPage - pageItems.length) }, (_, i) => `<div class="label empty" aria-hidden="true" data-empty="${i}"></div>`).join('') : '';
+    return `<section class="label-page ${layout.paper === 'roll' ? 'roll-page' : 'a4-page'}" data-page="${pageIndex + 1}"><div class="label-grid">${pageItems.map(labelMarkup).join('')}${filler}</div></section>`;
+  }).join('');
+
+  const pageCss = layout.paper === 'a4'
+    ? `@page { size: A4 portrait; margin: 0; } .label-page{width:210mm;height:297mm;padding:10mm;page-break-after:always;break-after:page;} .label-page:last-child{page-break-after:auto;break-after:auto;}`
+    : `@page { size: 62mm auto; margin: 0; } .label-page{width:62mm;min-height:40mm;padding:1mm;page-break-after:always;break-after:page;} .label-page:last-child{page-break-after:auto;break-after:auto;}`;
+
+  return `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Etiquetas · ${labelPrintEsc(storeName)}</title>
+<style>
+  :root{--label-w:${layout.width}mm;--label-h:${layout.height}mm;--cols:${layout.columns};--gap-x:${layout.gapX}mm;--gap-y:${layout.gapY}mm;}
+  *{box-sizing:border-box} html,body{margin:0;padding:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif} body{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  ${pageCss}
+  .label-grid{display:grid;grid-template-columns:repeat(var(--cols),var(--label-w));grid-auto-rows:var(--label-h);column-gap:var(--gap-x);row-gap:var(--gap-y);justify-content:center;align-content:start}
+  .roll-page .label-grid{justify-content:start;grid-template-columns:var(--label-w)}
+  .label{width:var(--label-w);height:var(--label-h);overflow:hidden;border:.22mm solid #b9c0ca;border-radius:1.8mm;background:#fff;padding:1.5mm 1.7mm;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;align-content:start;text-align:center;break-inside:avoid;page-break-inside:avoid}
+  .label.empty{visibility:hidden}.brand{min-height:3.4mm;display:flex;align-items:center;justify-content:center;gap:1mm;color:#111827;font-size:7.4px;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand img{width:3.2mm;height:3.2mm;object-fit:contain;flex:0 0 auto}.name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;align-self:center;font-size:9px;line-height:1.08;font-weight:900;color:#05070b;min-height:6.3mm}.price{min-height:4.5mm;margin-top:.4mm;font-size:11.5px;line-height:1;font-weight:950;color:#080d18}.price.pending{font-size:7px;color:#bf360c;text-transform:uppercase;letter-spacing:.02em}.codes{height:11.5mm;display:flex;align-items:center;justify-content:center;gap:1.4mm;min-width:0;margin-top:.5mm}.codes-both{justify-content:space-evenly}.qr{width:11.5mm;height:11.5mm;object-fit:contain;image-rendering:auto}.barcode-svg{width:calc(var(--label-w) - 7mm);height:9.5mm;display:block;fill:#000;background:#fff}.codes-both .barcode-svg{width:calc(var(--label-w) - 21mm);height:9.5mm}.code-text{min-height:2.7mm;margin-top:.3mm;font-size:6.4px;line-height:1;font-weight:750;letter-spacing:.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111827}
+  .style-compact .name{font-size:8px}.style-compact .brand{font-size:6.5px;min-height:3mm}.style-compact .brand img{width:2.8mm;height:2.8mm}.style-compact .price{font-size:9.2px;min-height:3.8mm}.style-compact .price.pending{font-size:6px}.style-compact .codes{height:9mm}.style-compact .qr{width:9mm;height:9mm}.style-compact .barcode-svg{height:7.6mm}.style-compact .codes-both .barcode-svg{width:calc(var(--label-w) - 17mm);height:7.6mm}.style-compact .code-text{display:none}
+  .style-detailed .name{font-size:10.2px}.style-detailed .price{font-size:13px}.style-detailed .codes{height:13.5mm}.style-detailed .qr{width:13.5mm;height:13.5mm}.style-detailed .barcode-svg{height:11.5mm}.style-detailed .codes-both .barcode-svg{width:calc(var(--label-w) - 25mm);height:11.5mm}.style-detailed .code-text{font-size:7px}
+  .mode-qr .qr{width:13mm;height:13mm}.mode-qr .codes{height:13mm}.mode-barcode .barcode-svg{width:calc(var(--label-w) - 6mm);height:11mm}.mode-barcode .codes{height:11mm}
+  @media screen{body{background:#f3f4f6;padding:12mm}.label-page{margin:0 auto 12mm;box-shadow:0 2mm 8mm rgba(15,23,42,.18)}}
+  @media print{html,body{width:100%;height:auto;background:#fff}.label-page{box-shadow:none;margin:0}.label{border-color:#aeb5bf}}
+</style></head><body>${pagesMarkup || '<section class="label-page"><p>No hay etiquetas seleccionadas.</p></section>'}
+<script>
+  const waitForImages = () => Promise.all(Array.from(document.images).map((image) => image.complete ? Promise.resolve() : new Promise((resolve) => { image.addEventListener('load', resolve, { once:true }); image.addEventListener('error', resolve, { once:true }); setTimeout(resolve, 2200); })));
+  window.addEventListener('load', () => waitForImages().then(() => setTimeout(() => window.print(), 250)));
+</script></body></html>`;
+};
+
+const openLabelsPrintWindow = (options) => {
+  const popup = window.open('', '_blank', 'width=1100,height=820');
+  if (!popup) {
+    alert('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para este sitio y vuelve a intentar.');
+    return false;
+  }
+  popup.document.open();
+  popup.document.write(buildLabelsPrintHTML(options));
+  popup.document.close();
+  return true;
+};
 const productProfit = (product) => asNum(product?.price) - asNum(product?.cost);
 const productMarkupPercent = (product) => asNum(product?.cost) > 0 ? (productProfit(product) / asNum(product.cost)) * 100 : 0;
 const productMarginPercent = (product) => asNum(product?.price) > 0 ? (productProfit(product) / asNum(product.price)) * 100 : 0;
@@ -2646,7 +2759,16 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   }
   function printLabels() {
     if (!printableItems.length) return alert('No hay productos para imprimir.');
-    setTimeout(() => window.print(), 100);
+    openLabelsPrintWindow({
+      items: printableItems,
+      store,
+      mode,
+      showPrice,
+      showLogo,
+      showCodeText,
+      sheetLayout,
+      labelStyle: labelSize,
+    });
   }
 
   return (
@@ -2665,13 +2787,13 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
         <section className="card compact-card">
           <h3>Diseño de hoja</h3>
           <label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="both">QR + barras</option><option value="qr">Solo QR</option><option value="barcode">Solo código de barras</option></select></label>
-          <label>Tamaño de etiqueta<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Pequeña 40 x 30 mm</option><option value="medium">Mediana 50 x 30 mm</option><option value="large">Ropa 60 x 40 mm</option></select></label>
-          <label>Formato de hoja<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas x 6 filas</option><option value="a4_3x8">A4: 3 columnas x 8 filas</option><option value="a4_4x10">A4: 4 columnas x 10 filas</option><option value="roll_1col">Rollo térmico: 1 columna</option></select></label>
+          <label>Estilo de contenido<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Compacto — recomendado para A4 4 × 10</option><option value="medium">Equilibrado — recomendado para A4 3 × 8</option><option value="large">Detallado — recomendado para A4 2 × 6</option></select></label>
+          <label>Formato de hoja<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas × 6 filas (90 × 43 mm)</option><option value="a4_3x8">A4: 3 columnas × 8 filas (58 × 32 mm)</option><option value="a4_4x10">A4: 4 columnas × 10 filas (43 × 25 mm)</option><option value="roll_1col">Rollo térmico: 1 columna (60 × 40 mm)</option></select></label>
           <label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Mostrar precio</label>
           <label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Mostrar marca Clomar Store</label>
           <label className="check-row"><input type="checkbox" checked={showCodeText} onChange={e=>setShowCodeText(e.target.checked)} /> Mostrar código escrito</label>
           <button className="primary-btn" onClick={printLabels}>Imprimir / Guardar PDF</button>
-          <p className="muted">Formato: <strong>{sheetInfo}</strong>. En impresión elige <strong>Guardar como PDF</strong>.</p>
+          <p className="muted">Formato: <strong>{sheetInfo}</strong>. Se abrirá una hoja limpia, sin menú ni barra móvil. En el diálogo de impresión seleccione <strong>Guardar como PDF</strong>, papel <strong>A4</strong>, escala <strong>100 %</strong>, márgenes <strong>Ninguno</strong> y encabezados/pies desactivados.</p>
         </section>
       </div>
 
@@ -2762,7 +2884,7 @@ function ToolsAdmin({ profile, products = [], categories = [], subcategories = [
 
   async function parseFile(e) {
     const file = e.target.files?.[0]; setImportResult(null); setPreviewRows([]); setRawRows([]); if (!file) return; setFileName(file.name);
-    try { const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }); const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx)); const codeCounts = normalized.reduce((acc, row) => { const key = normalizeText(row.code || ''); if (key) acc.set(key, (acc.get(key) || 0) + 1); return acc; }, new Map()); normalized.forEach(row => { if (codeCounts.get(normalizeText(row.code || '')) > 1) row.errors.push('Código interno duplicado en el Excel'); }); setRawRows(normalized); setPreviewRows(normalized); } catch (error) { alert(error.message || 'No se pudo leer el archivo Excel.'); }
+    try { const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }); const normalized = rows.map((r, idx) => normalizeImportedRow(r, idx)); const codeCounts = normalized.reduce((acc, row) => { const key = normalizeText(row.code || ''); if (key) acc.set(key, (acc.get(key) || 0) + 1); return acc; }, new Map()); normalized.forEach(row => { if (codeCounts.get(normalizeText(row.code || '')) > 1) row.errors.push('Código interno duplicado en el Excel'); }); setRawRows(normalized); setPreviewRows(normalized.slice(0, 30)); } catch (error) { alert(error.message || 'No se pudo leer el archivo Excel.'); }
   }
 
   async function importProducts() {

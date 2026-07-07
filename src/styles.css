@@ -116,7 +116,11 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
   .reset-keep-delete { grid-template-columns: 1fr; }
 }
 
-/* V01.11 - Etiquetas QR y códigos de barras */
+/* =========================================================
+   V02.3 — Etiquetas: vista previa estable y print fallback
+   La impresión principal se realiza en una ventana limpia.
+   Este bloque deja una vista previa consistente en el ERP.
+   ========================================================= */
 .labels-tools { align-items: start; }
 .button-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .label-summary { margin: 12px 0; }
@@ -124,32 +128,33 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
 .product-pick-row { display: grid; grid-template-columns: auto 54px 1fr auto; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 18px; padding: 10px; background: #fff; }
 .product-pick-row img { width: 54px; height: 54px; object-fit: cover; border-radius: 14px; background: #fff3f1; border: 1px solid var(--border); }
 .product-pick-row small { display: block; color: var(--muted); margin-top: 4px; }
-.print-label-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 18px; }
-.print-label { background: #fff; border: 1px dashed #c9ced8; border-radius: 10px; padding: 8px; text-align: center; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+
+/* Vista previa: el formato de hoja gobierna la cuadrícula. */
+.print-label-sheet { display: grid; gap: 12px; margin-top: 18px; justify-content: center; align-items: start; }
+.print-label-sheet.sheet-a4_2x6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.print-label-sheet.sheet-a4_3x8 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.print-label-sheet.sheet-a4_4x10 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.print-label-sheet.sheet-roll_1col { grid-template-columns: minmax(240px, 360px); justify-content: start; }
+.print-label { min-width: 0; min-height: 152px; background: #fff; border: 1px dashed #c9ced8; border-radius: 10px; padding: 8px; text-align: center; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
 .label-brand { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; font-weight: 800; color: var(--ink); margin-bottom: 3px; }
 .label-brand img { width: 16px; height: 16px; object-fit: contain; }
-.label-name { font-weight: 900; font-size: 10px; line-height: 1.15; min-height: 22px; display: flex; align-items: center; justify-content: center; }
+.label-name { font-weight: 900; font-size: 10px; line-height: 1.15; min-height: 24px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .label-price { font-size: 13px; font-weight: 950; margin: 2px 0; }
-.label-codes { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 2px 0; }
+.label-codes { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 2px 0; min-height: 48px; }
 .label-codes.mode-qr, .label-codes.mode-barcode { display: block; }
 .label-qr { width: 46px; height: 46px; object-fit: contain; }
 .barcode-svg { width: 105px; height: 38px; fill: #101522; background: #fff; display: block; }
 .label-codes.mode-barcode .barcode-svg { width: 145px; height: 48px; margin: 4px auto; }
 .label-codes.mode-qr .label-qr { width: 70px; height: 70px; }
 .label-code-text { font-size: 9px; font-weight: 800; letter-spacing: .3px; overflow-wrap: anywhere; }
-.label-size-small .print-label { width: 40mm; min-height: 30mm; }
-.label-size-medium .print-label { width: 50mm; min-height: 30mm; }
-.label-size-large .print-label { width: 60mm; min-height: 40mm; }
-@media print {
-  body { background: #fff !important; }
-  .sidebar, .app-header, .hero, .labels-tools, .product-pick-list, .no-print, .card:not(:has(.print-label-sheet)) { display: none !important; }
-  .app, .main, .page { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
-  .print-label-sheet { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(40mm, 1fr)); gap: 2mm; margin: 0; padding: 0; }
-  .print-label { border: 1px solid #ccc; box-shadow: none; border-radius: 2mm; color: #000; }
-  .label-name, .label-price, .label-code-text, .label-brand { color: #000 !important; }
-}
+.label-pending { font-size: 10px; font-weight: 900; color: #c2410c; margin: 2px 0; }
+.label-size-small .print-label { min-height: 132px; }
+.label-size-small .label-name { font-size: 9px; }
+.label-size-small .label-price { font-size: 11px; }
+.label-size-large .print-label { min-height: 174px; }
+.label-size-large .label-name { font-size: 11px; }
+.label-size-large .label-price { font-size: 15px; }
 
-/* V01.11B - Etiquetas múltiples por hoja PDF */
 .quantity-tools { display: grid; grid-template-columns: 180px 1fr 1fr; gap: 10px; align-items: end; }
 .quantity-tools label { margin: 0; }
 .quantity-tools input { width: 100%; }
@@ -157,27 +162,37 @@ select{width:100%;border:1px solid #d8dde7;background:#fff;border-radius:14px;pa
 .qty-box { display: grid; gap: 4px; justify-items: center; }
 .qty-box small { font-size: 10px; margin: 0; text-transform: uppercase; letter-spacing: .08em; }
 .qty-box input { width: 74px; padding: 9px 8px; text-align: center; border: 1px solid var(--border); border-radius: 12px; font-weight: 900; }
-.sheet-a4_2x6 { grid-template-columns: repeat(2, 60mm); justify-content: center; }
-.sheet-a4_3x8 { grid-template-columns: repeat(3, 50mm); justify-content: center; }
-.sheet-a4_4x10 { grid-template-columns: repeat(4, 40mm); justify-content: center; }
-.sheet-roll_1col { grid-template-columns: 60mm; justify-content: start; }
+
 @media (max-width: 980px) {
   .quantity-tools { grid-template-columns: 1fr; }
   .product-pick-list-qty .qty-row { grid-template-columns: auto 48px 1fr; }
   .qty-box { grid-column: 1 / -1; justify-items: stretch; }
   .qty-box input { width: 100%; }
+  .print-label-sheet.sheet-a4_4x10 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .print-label-sheet.sheet-a4_3x8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Respaldo para la impresión manual dentro de la página. */
 @media print {
-  @page { size: A4; margin: 8mm; }
-  .print-label-sheet.sheet-a4_2x6 { grid-template-columns: repeat(2, 60mm) !important; }
-  .print-label-sheet.sheet-a4_3x8 { grid-template-columns: repeat(3, 50mm) !important; }
-  .print-label-sheet.sheet-a4_4x10 { grid-template-columns: repeat(4, 40mm) !important; }
-  .print-label-sheet.sheet-roll_1col { grid-template-columns: 60mm !important; }
-  .print-label-sheet { justify-content: center !important; align-content: start !important; gap: 2mm !important; }
-  .label-size-small .print-label { width: 40mm !important; height: 30mm !important; }
-  .label-size-medium .print-label { width: 50mm !important; height: 30mm !important; }
-  .label-size-large .print-label { width: 60mm !important; height: 40mm !important; }
-  .print-label { padding: 2mm !important; overflow: hidden !important; }
+  .labels-page ~ .mobile-bottom-nav,
+  .mobile-bottom-nav,
+  .sidebar,
+  .sidebar-scrim,
+  .app-header,
+  .app-header-pro,
+  .hero,
+  .labels-tools,
+  .product-pick-list,
+  .no-print,
+  .mobile-checkout-bar,
+  .cart-mini,
+  .toast,
+  .notice-backdrop { display: none !important; }
+  html, body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+  .app, .main, .page, .labels-page { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .print-label-sheet { display: grid !important; grid-template-columns: repeat(3, 58mm) !important; justify-content: center !important; align-content: start !important; gap: 2mm !important; margin: 0 !important; padding: 0 !important; }
+  .print-label { width: 58mm !important; min-height: 32mm !important; border: .2mm solid #bfc6cf !important; border-radius: 1.6mm !important; box-shadow: none !important; color: #000 !important; }
+  .label-name, .label-price, .label-code-text, .label-brand { color: #000 !important; }
 }
 
 /* V01.12 - Control de precios, costos y márgenes */
@@ -2411,4 +2426,13 @@ html:has(body.clomar-modal-open){overflow:hidden!important;overscroll-behavior:n
   .mobile-cart-summary strong{font-size:12.5px!important;}
   .mobile-cart-clear{padding:0 8px;font-size:10px;}
   .mobile-cart-open-btn{padding:0 10px!important;font-size:11px!important;}
+}
+
+
+/* V02.3 final safety: never print application navigation. */
+@media print {
+  .mobile-bottom-nav,
+  nav.mobile-bottom-nav,
+  .sidebar-scrim,
+  .mobile-checkout-bar { display: none !important; }
 }
