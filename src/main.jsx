@@ -1,4 +1,4 @@
-/* Clomar Store V03.0-R2 — Caja y reportes corregidos */
+/* Clomar Store V03.0-R3 — Automatización operativa transaccional */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.0-R2 · Caja y reportes';
+const APP_VERSION = 'V03.0-R3 · Operación automática';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -723,6 +723,36 @@ function useCashMovements(profile) {
   return { movements, loading, loadError, reload: loadMovements };
 }
 
+
+function useCashSession(profile) {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  async function reload() {
+    if (!hasSupabaseConfig || !profile?.store_id) { setSession(null); return; }
+    setLoading(true);
+    setLoadError('');
+    const { data, error } = await supabase
+      .from('cash_sessions')
+      .select('id,store_id,opened_by,closed_by,status,opening_amount,expected_amount,counted_amount,difference_amount,opening_note,closing_note,opened_at,closed_at,created_at')
+      .eq('store_id', profile.store_id || DEFAULT_STORE_ID)
+      .eq('status', 'Abierta')
+      .order('opened_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.error('No se pudo leer la caja activa:', error);
+      setLoadError(error.message || 'No se pudo leer la caja activa.');
+      setSession(null);
+    } else {
+      setSession(data || null);
+    }
+    setLoading(false);
+  }
+  useEffect(() => { reload(); }, [profile?.store_id]);
+  return { session, loading, loadError, reload };
+}
+
 function useStockMovements(profile) {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -799,7 +829,7 @@ function Panel({ products, profile }) {
   );
 }
 
-function POS({ products, reloadProducts, customers, profile, store, onGoReceipts, menuOpen = false }) {
+function POS({ products, reloadProducts, customers, profile, store, onGoReceipts, cashSession, menuOpen = false }) {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [method, setMethod] = useState('Efectivo');
@@ -1089,68 +1119,82 @@ function POS({ products, reloadProducts, customers, profile, store, onGoReceipts
 
   async function checkout() {
     if (!validateSaleBeforeConfirm()) return;
+    if (!cashSession?.session?.id) {
+      setNotice({
+        type: 'warning', icon: '🔒', title: 'Caja cerrada',
+        message: 'Antes de vender debes abrir la caja desde el módulo Caja. La venta no se registró ni modificó el stock.'
+      });
+      return;
+    }
     document.activeElement?.blur?.();
     setConfirmOpen(false);
     setMobileCartOpen(false);
     if (!hasSupabaseConfig) { alert('Venta demo registrada. Configura Supabase para guardar.'); setCart([]); return; }
     setSaving(true);
-    const meta = { store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
-    const saleMethod = method === 'Mixto' ? 'Mixto' : method;
-    const fiscalStatus = documentType === 'Interno' ? 'Interno' : 'Pre-emisión';
-    const salePayload = {
-      customer_name: customer || 'Consumidor final',
-      customer_id: selectedCustomerId && !String(selectedCustomerId).startsWith('quick-') ? selectedCustomerId : null,
-      payment_method: saleMethod,
-      total,
-      status: method === 'Crédito' ? 'Crédito' : 'Pagado',
-      document_type: documentType,
-      fiscal_series: fiscalMeta.series,
-      fiscal_correlative: null,
-      sunat_status: fiscalStatus,
-      customer_doc_type: documentType === 'Interno' ? null : customerDocType,
-      customer_doc_number: documentType === 'Interno' ? null : cleanDocument(customerDocNumber),
-      electronic_provider: null,
-      ...meta,
-    };
-    const { data: sale, error } = await supabase.from('sales').insert(salePayload).select().single();
-    if (error) { setNotice({ type: 'warning', icon: '⚠️', title: 'No se pudo registrar la venta', message: `${error.message}. Ejecuta primero el SQL de V02.2J si faltan columnas fiscales.` }); setSaving(false); return; }
-    const items = cart.map(item => {
+
+    const lineItems = cart.map(item => {
       const qty = asNum(item.qty);
       const afterLine = lineSubtotal(item);
       const globalShare = afterItemDiscount > 0 ? saleDiscount * (afterLine / afterItemDiscount) : 0;
       const finalSubtotal = Math.max(0, afterLine - globalShare);
-      const finalPrice = qty > 0 ? finalSubtotal / qty : 0;
-      const unitCost = asNum(item.cost);
-      const unitProfit = finalPrice - unitCost;
-      return { sale_id: sale.id, product_id: item.id, product_name: item.name, qty, price: finalPrice, unit_cost: unitCost, subtotal: finalSubtotal, profit: unitProfit * qty, margin_percent: finalPrice > 0 ? (unitProfit / finalPrice) * 100 : 0, store_id: profile?.store_id || DEFAULT_STORE_ID };
+      const finalUnitPrice = qty > 0 ? finalSubtotal / qty : 0;
+      return { product_id: item.id, qty, final_unit_price: finalUnitPrice };
     });
-    const itemsInsert = await supabase.from('sale_items').insert(items);
-    if (itemsInsert.error) { setNotice({ type: 'warning', icon: '⚠️', title: 'Venta parcialmente registrada', message: 'La venta se creó pero no se pudieron guardar todos los productos. Revisa Comprobantes antes de repetir la operación.' }); setSaving(false); return; }
-    for (const item of cart) {
-      await supabase.from('products').update({ stock: asNum(item.stock) - asNum(item.qty) }).eq('id', item.id);
-      await supabase.from('stock_movements').insert({ product_id: item.id, type: 'Salida', qty: item.qty, note: `Venta ${receiptNumber(sale)}${item.discount ? ` · Desc. ${money(item.discount)}` : ''}`, ...meta });
+    const mixed = method === 'Mixto'
+      ? Object.entries(mixedPayments).filter(([, amount]) => asNum(amount) > 0).map(([payment_method, amount]) => ({ payment_method, amount: asNum(amount) }))
+      : [];
+    const saleMethod = method === 'Mixto' ? 'Mixto' : method;
+    const rpcPayload = {
+      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+      p_customer_id: selectedCustomerId && !String(selectedCustomerId).startsWith('quick-') ? selectedCustomerId : null,
+      p_customer_name: customer || 'Consumidor final',
+      p_payment_method: saleMethod,
+      p_document_type: documentType,
+      p_items: lineItems,
+      p_mixed_payments: mixed,
+      p_due_date: null,
+      p_customer_doc_type: documentType === 'Interno' ? null : customerDocType,
+      p_customer_doc_number: documentType === 'Interno' ? null : cleanDocument(customerDocNumber),
+      p_discount_total: itemDiscountTotal + saleDiscount,
+      p_note: null,
+    };
+
+    const { data, error } = await supabase.rpc('clomar_register_sale_r3', rpcPayload);
+    if (error) {
+      console.error('Venta transaccional R3 rechazada:', error);
+      setNotice({
+        type: 'warning', icon: '⚠️', title: 'No se completó la venta',
+        message: `${error.message || 'La operación fue rechazada.'} No se registró una venta parcial: revisa caja abierta, stock, precio y permisos.`,
+      });
+      setSaving(false);
+      return;
     }
-    const discountNote = (itemDiscountTotal || saleDiscount) ? ` · Descuentos: productos ${money(itemDiscountTotal)}, venta ${money(saleDiscount)}` : '';
-    const cashErrors = [];
-    if (method === 'Mixto') {
-      const parts = Object.entries(mixedPayments).filter(([,amount]) => asNum(amount) > 0);
-      for (const [payMethod, amount] of parts) {
-        const { error: cashError } = await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: payMethod, amount: asNum(amount), note: `Venta mixta ${receiptNumber(sale)}${discountNote}`, ...meta });
-        if (cashError) cashErrors.push(`${payMethod}: ${cashError.message}`);
-      }
-    } else {
-      const { error: cashError } = await supabase.from('cash_movements').insert({ type: method === 'Crédito' ? 'Crédito' : 'Ingreso', payment_method: method, amount: total, note: `Venta ${receiptNumber(sale)}${discountNote}`, ...meta });
-      if (cashError) cashErrors.push(cashError.message);
-    }
-    const completedSale = { sale: { ...sale, payment_method: saleMethod, total, document_type: documentType, sunat_status: fiscalStatus, fiscal_series: fiscalMeta.series, customer_doc_type: customerDocType, customer_doc_number: cleanDocument(customerDocNumber) }, items };
+
+    const sale = data?.sale || data;
+    const savedItems = Array.isArray(data?.items) && data.items.length
+      ? data.items
+      : cart.map(item => ({ product_id: item.id, product_name: item.name, qty: asNum(item.qty), price: asNum(item.price), subtotal: lineSubtotal(item), unit_cost: asNum(item.cost) }));
+    const completedSale = {
+      sale: {
+        ...sale,
+        payment_method: sale?.payment_method || saleMethod,
+        total: asNum(sale?.total || total),
+        document_type: sale?.document_type || documentType,
+        sunat_status: sale?.sunat_status || (documentType === 'Interno' ? 'Interno' : 'Pre-emisión'),
+        fiscal_series: sale?.fiscal_series || fiscalMeta.series,
+        customer_doc_type: sale?.customer_doc_type || customerDocType,
+        customer_doc_number: sale?.customer_doc_number || cleanDocument(customerDocNumber),
+      },
+      items: savedItems,
+    };
     openCompletedSale(completedSale);
-    if (cashErrors.length) {
-      setNotice({ type: 'warning', icon: '⚠️', title: `Venta ${receiptNumber(sale)} registrada con observación`, message: `La venta quedó guardada, pero Caja no pudo registrar el movimiento: ${cashErrors.join(' | ')}. Ejecuta el SQL R2 y luego usa “Sincronizar ventas” en Caja.` });
-    } else {
-      setNotice({ type: 'success', icon: '✅', title: `Venta ${receiptNumber(sale)} registrada`, message: documentType === 'Interno' ? `Comprobante interno y movimiento de caja listos por ${money(total)}.` : `${fiscalMeta.label} guardada como pre-emisión; todavía no se envió a SUNAT.` });
-    }
-    setCart([]); setCustomer('Consumidor final'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setShowItemDiscounts(false); setShowGlobalDiscount(false); setShowMorePaymentMethods(false); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' }); setSaving(false);
-    await reloadProducts();
+    setNotice({
+      type: 'success', icon: '✅', title: `Venta ${receiptNumber(completedSale.sale)} registrada`,
+      message: `Caja, inventario, reporte y auditoría se actualizaron en una sola operación por ${money(completedSale.sale.total)}.`,
+    });
+    setCart([]); setCustomer('Consumidor final'); setSelectedCustomerId(''); setCustomerDocNumber(''); setCustomerDocType('DNI'); setMethod('Efectivo'); setDocumentType('Interno'); setGlobalDiscount('0'); setShowItemDiscounts(false); setShowGlobalDiscount(false); setShowMorePaymentMethods(false); setMixedPayments({ Efectivo: '', Yape: '', Plin: '', Transferencia: '', Tarjeta: '' });
+    await Promise.all([reloadProducts(), cashSession.reload?.()]);
+    setSaving(false);
     setTimeout(() => searchInputRef.current?.focus(), 250);
   }
 
@@ -1954,7 +1998,7 @@ function Inventory({ products }) {
   );
 }
 
-function StockEntry({ products, reloadProducts, profile }) {
+function StockEntry({ products, reloadProducts, profile, cashSession }) {
   const { movements, reload: reloadMovements } = useStockMovements(profile);
   const [form, setForm] = useState({ product_id:'', provider:'', qty:'1', cost:'0', method:'Efectivo', paid:'0', invoice:'', note:'' });
   const [query, setQuery] = useState('');
@@ -1971,18 +2015,27 @@ function StockEntry({ products, reloadProducts, profile }) {
   async function save(e) {
     e.preventDefault();
     if (!selected) return alert('Selecciona un producto.');
+    if (!cashSession?.session?.id) return alert('Primero abre una caja activa. La compra no se registró.');
     if (asNum(form.qty) <= 0) return alert('La cantidad debe ser mayor a cero.');
-    const newStock = asNum(selected.stock) + asNum(form.qty);
-    const { error: prodError } = await supabase.from('products').update({ stock: newStock, cost: asNum(form.cost) }).eq('id', selected.id);
-    if (prodError) return alert(prodError.message);
-    const note = `Proveedor: ${form.provider || 'Sin proveedor'} · Doc: ${form.invoice || 'Sin documento'} · Método: ${form.method} · ${form.note || ''}`;
-    await supabase.from('stock_movements').insert({ product_id: selected.id, type: 'Entrada', qty: asNum(form.qty), note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    await supabase.from('cash_movements').insert({ type: form.method === 'Crédito' ? 'Compra crédito' : 'Compra', payment_method: form.method, amount: asNum(form.paid || total), note: `Compra mercadería: ${selected.name}. ${note}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    alert(`Compra registrada. Nuevo stock: ${newStock}`);
+    if (asNum(form.cost) < 0) return alert('El costo no puede ser negativo.');
+    const { data, error } = await supabase.rpc('clomar_register_purchase_r3', {
+      p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+      p_product_id: selected.id,
+      p_provider: form.provider || 'Sin proveedor',
+      p_qty: asNum(form.qty),
+      p_unit_cost: asNum(form.cost),
+      p_payment_method: form.method,
+      p_amount_paid: form.method === 'Crédito' ? 0 : asNum(form.paid || total),
+      p_document_number: form.invoice || null,
+      p_note: form.note || null,
+    });
+    if (error) return alert(`No se pudo registrar la compra: ${error.message}. No se modificó el inventario ni la caja.`);
+    const stockAfter = asNum(data?.new_stock);
+    alert(`Compra registrada. Stock actualizado: ${stockAfter}.`);
     setForm({ product_id: selected.id, provider:'', qty:'1', cost:String(form.cost || selected.cost || 0), method:'Efectivo', paid:'0', invoice:'', note:'' });
-    await reloadProducts();
-    await reloadMovements();
+    await Promise.all([reloadProducts(), reloadMovements(), cashSession.reload?.()]);
   }
+
   return (
     <div className="page purchases-page">
       <div className="hero compact-hero"><h1>📥 Compras y proveedores</h1><p>Registra ingresos de mercadería, proveedor, documento, costo y salida de caja.</p></div>
@@ -2005,101 +2058,142 @@ function StockEntry({ products, reloadProducts, profile }) {
   );
 }
 
-function CashPage({ profile }) {
-  const { movements, reload, loading, loadError } = useCashMovements(profile);
-  const [form, setForm] = useState({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' });
-  const [closeDate, setCloseDate] = useState(todayISO());
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
-  const dayMovs = movements.filter(m => String(m.created_at || '').slice(0,10) === closeDate);
-  const ingresosList = dayMovs.filter(m => ['Ingreso','Apertura'].includes(m.type));
-  const egresosList = dayMovs.filter(m => ['Egreso','Compra','Retiro','Compra crédito'].includes(m.type));
-  const creditosList = dayMovs.filter(m => String(m.type).includes('Crédito'));
-  const ingresos = ingresosList.reduce((s,m)=>s+asNum(m.amount),0);
-  const egresos = egresosList.reduce((s,m)=>s+asNum(m.amount),0);
-  const creditos = creditosList.reduce((s,m)=>s+asNum(m.amount),0);
-  const abonos = dayMovs.filter(m => String(m.note || '').toLowerCase().includes('abono')).reduce((s,m)=>s+asNum(m.amount),0);
-  const cajaNeta = ingresos - egresos;
-  const byMethod = dayMovs.reduce((acc,m)=>{ const k=m.payment_method || 'Sin método'; acc[k]=(acc[k]||0)+asNum(m.amount); return acc; },{});
-  const groupByType = dayMovs.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + asNum(m.amount); return acc; }, {});
+function CashPage({ profile, cashSession }) {
+  const { movements, reload: reloadMovements, loading: movementsLoading, loadError: movementsError } = useCashMovements(profile);
+  const [opening, setOpening] = useState({ amount: '0', note: '' });
+  const [manual, setManual] = useState({ type: 'Ingreso', method: 'Efectivo', amount: '', note: '' });
+  const [closing, setClosing] = useState({ counted: '', note: '' });
+  const [working, setWorking] = useState('');
+  const session = cashSession?.session || null;
   const storeId = profile?.store_id || DEFAULT_STORE_ID;
+  const sessionMovements = useMemo(() => {
+    if (!session?.id) return [];
+    return (movements || []).filter(m => m.cash_session_id === session.id);
+  }, [movements, session?.id]);
+  const expectedCash = useMemo(() => sessionMovements
+    .filter(m => (m.payment_method || 'Efectivo') === 'Efectivo')
+    .reduce((sum, m) => {
+      if (['Apertura', 'Ingreso'].includes(m.type)) return sum + asNum(m.amount);
+      if (['Egreso', 'Retiro', 'Compra'].includes(m.type)) return sum - asNum(m.amount);
+      return sum;
+    }, 0), [sessionMovements]);
+  const byMethod = useMemo(() => sessionMovements.reduce((acc, m) => {
+    const key = m.payment_method || 'Sin método';
+    const signed = ['Egreso', 'Retiro', 'Compra'].includes(m.type) ? -asNum(m.amount) : asNum(m.amount);
+    acc[key] = (acc[key] || 0) + signed;
+    return acc;
+  }, {}), [sessionMovements]);
+  const totalIncome = sessionMovements.filter(m => ['Apertura', 'Ingreso'].includes(m.type)).reduce((s, m) => s + asNum(m.amount), 0);
+  const totalOut = sessionMovements.filter(m => ['Egreso', 'Retiro', 'Compra'].includes(m.type)).reduce((s, m) => s + asNum(m.amount), 0);
+  const canClose = session && (session.opened_by === profile?.id || ['dueno', 'admin'].includes(String(profile?.role || '').toLowerCase()));
 
-  async function save(e) {
+  async function openCash(e) {
     e.preventDefault();
-    if (asNum(form.amount) <= 0) return alert('El monto debe ser mayor a cero.');
-    const { error } = await supabase.from('cash_movements').insert({ type: form.type, payment_method: form.method, amount: asNum(form.amount), note: form.note, store_id: storeId, user_id: profile?.id || null });
-    if (error) alert(`No se pudo registrar el movimiento: ${error.message}`); else { setForm({ type:'Ingreso', method:'Efectivo', amount:'0', note:'' }); await reload(); }
-  }
-
-  async function syncSalesToCash() {
-    setSyncMessage('');
-    setSyncing(true);
-    const { data: salesData, error: salesError } = await supabase
-      .from('sales')
-      .select('id,receipt_number,created_at,total,payment_method,status,customer_name')
-      .eq('store_id', storeId)
-      .gte('created_at', closeDate)
-      .lt('created_at', `${closeDate}T23:59:59.999Z`)
-      .order('created_at', { ascending: true });
-    if (salesError) { setSyncMessage(`No se pudieron consultar las ventas: ${salesError.message}`); setSyncing(false); return; }
-
-    const existingNotes = (movements || []).map(m => String(m.note || '')).join(' || ');
-    const candidates = (salesData || []).filter(s => {
-      const method = String(s.payment_method || '');
-      const ref = receiptNumber(s);
-      return !method.includes('Crédito') && method !== 'Mixto' && !String(s.status || '').toLowerCase().includes('anulad') && !existingNotes.includes(ref);
+    if (asNum(opening.amount) < 0) return alert('El monto inicial no puede ser negativo.');
+    setWorking('open');
+    const { error } = await supabase.rpc('clomar_open_cash_session_r3', {
+      p_store_id: storeId,
+      p_opening_amount: asNum(opening.amount),
+      p_note: opening.note || null,
     });
-    if (!candidates.length) {
-      setSyncMessage('No hay ventas simples pendientes de sincronizar para la fecha seleccionada. Las ventas mixtas deben revisarse manualmente.');
-      setSyncing(false);
-      return;
-    }
-    if (!confirm(`Se registrarán ${candidates.length} movimiento(s) faltantes de Caja para ${closeDate}. Solo se crearán movimientos de ventas simples que aún no tengan comprobante en Caja. ¿Continuar?`)) { setSyncing(false); return; }
-    let created = 0; const errors = [];
-    for (const sale of candidates) {
-      const { error } = await supabase.from('cash_movements').insert({
-        type: 'Ingreso',
-        payment_method: sale.payment_method || 'Efectivo',
-        amount: asNum(sale.total),
-        note: `Conciliación V03-R2 · Venta ${receiptNumber(sale)}${sale.customer_name ? ` · ${sale.customer_name}` : ''}`,
-        store_id: storeId,
-        user_id: profile?.id || null,
-        created_at: sale.created_at,
-      });
-      if (error) errors.push(`${receiptNumber(sale)}: ${error.message}`); else created += 1;
-    }
-    await reload(250);
-    setSyncMessage(errors.length ? `Se sincronizaron ${created} movimiento(s). Errores: ${errors.join(' | ')}` : `Se sincronizaron ${created} movimiento(s) de ventas pendientes.`);
-    setSyncing(false);
+    setWorking('');
+    if (error) return alert(`No se pudo abrir caja: ${error.message}`);
+    setOpening({ amount: '0', note: '' });
+    await Promise.all([cashSession.reload?.(), reloadMovements(300)]);
   }
 
-  function printClose() {
-    const rows = dayMovs.map(m=>`<tr><td>${escapeHtml(fmtDate(m.created_at))}</td><td>${escapeHtml(m.type)}</td><td>${escapeHtml(m.payment_method || '')}</td><td>${escapeHtml(m.note || '')}</td><td>${money(m.amount)}</td></tr>`).join('');
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cierre de caja ${closeDate}</title><style>body{font-family:Arial;padding:24px;color:#111827}h1{margin:0}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.kpi{border:1px solid #ddd;border-radius:12px;padding:12px}.kpi span{display:block;color:#64748b;font-size:11px;text-transform:uppercase}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #eee;padding:7px;text-align:left;font-size:12px}</style></head><body><h1>Cierre de caja — Clomar Store</h1><p>Fecha: ${closeDate}</p><section class="kpis"><div class="kpi"><span>Ingresos</span><strong>${money(ingresos)}</strong></div><div class="kpi"><span>Egresos</span><strong>${money(egresos)}</strong></div><div class="kpi"><span>Créditos</span><strong>${money(creditos)}</strong></div><div class="kpi"><span>Caja neta</span><strong>${money(cajaNeta)}</strong></div></section><h2>Movimientos</h2><table><thead><tr><th>Hora</th><th>Tipo</th><th>Método</th><th>Nota</th><th>Monto</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
-    const win = window.open('', '_blank', 'width=1000,height=800');
-    if (!win) return alert('Permite ventanas emergentes para imprimir el cierre.');
-    win.document.open(); win.document.write(html); win.document.close();
+  async function registerManual(e) {
+    e.preventDefault();
+    if (!session?.id) return alert('No hay caja abierta.');
+    if (asNum(manual.amount) <= 0) return alert('El monto debe ser mayor a cero.');
+    if (!manual.note.trim()) return alert('El motivo del movimiento es obligatorio.');
+    setWorking('manual');
+    const { error } = await supabase.rpc('clomar_register_cash_movement_r3', {
+      p_store_id: storeId,
+      p_type: manual.type,
+      p_payment_method: manual.method,
+      p_amount: asNum(manual.amount),
+      p_note: manual.note,
+    });
+    setWorking('');
+    if (error) return alert(`No se pudo registrar el movimiento: ${error.message}`);
+    setManual({ type: 'Ingreso', method: 'Efectivo', amount: '', note: '' });
+    await Promise.all([cashSession.reload?.(), reloadMovements(300)]);
   }
-  function exportCloseTxt() {
-    const lines = [`CIERRE DE CAJA CLOMAR STORE`, `Fecha: ${closeDate}`, `Ingresos: ${money(ingresos)}`, `Egresos: ${money(egresos)}`, `Créditos: ${money(creditos)}`, `Abonos: ${money(abonos)}`, `Caja neta: ${money(cajaNeta)}`, '', 'MOVIMIENTOS:'];
-    dayMovs.forEach(m=>lines.push(`${fmtDate(m.created_at)} | ${m.type} | ${m.payment_method} | ${money(m.amount)} | ${m.note || ''}`));
-    downloadText(`cierre-caja-${closeDate}.txt`, lines.join('\n'));
+
+  async function closeCash(e) {
+    e.preventDefault();
+    if (!session?.id) return;
+    if (!canClose) return alert('Solo quien abrió la caja o un administrador puede cerrarla.');
+    if (asNum(closing.counted) < 0) return alert('El efectivo contado no puede ser negativo.');
+    const difference = asNum(closing.counted) - expectedCash;
+    if (Math.abs(difference) >= 0.01 && !closing.note.trim()) return alert('Explica el motivo de la diferencia de caja antes de cerrar.');
+    if (!confirm(`Cerrar caja con efectivo esperado ${money(expectedCash)} y contado ${money(closing.counted)}?`)) return;
+    setWorking('close');
+    const { error } = await supabase.rpc('clomar_close_cash_session_r3', {
+      p_cash_session_id: session.id,
+      p_counted_amount: asNum(closing.counted),
+      p_note: closing.note || null,
+    });
+    setWorking('');
+    if (error) return alert(`No se pudo cerrar caja: ${error.message}`);
+    setClosing({ counted: '', note: '' });
+    await Promise.all([cashSession.reload?.(), reloadMovements(300)]);
+    alert('Caja cerrada correctamente. Las ventas siguientes requerirán abrir un nuevo turno.');
   }
+
+  if (cashSession?.loadError) {
+    return <div className="page cash-pro-page"><div className="hero compact-hero"><h1>💰 Caja por turno</h1><p>Control automático de apertura, ventas, movimientos y cierre.</p></div><div className="data-error"><strong>No se pudo cargar la caja R3:</strong> {cashSession.loadError}. Ejecuta primero el SQL de V03.0-R3 y actualiza la página.</div></div>;
+  }
+
   return (
-    <div className="page cash-pro-page">
-      <div className="hero compact-hero"><h1>💰 Caja y cierre diario</h1><p>Ingresos, egresos, compras, créditos, abonos y conciliación de ventas.</p></div>
-      {loadError && <div className="data-error"><strong>No se pudo leer Caja:</strong> {loadError}. Ejecute el SQL R2 y pulse Actualizar.</div>}
-      {syncMessage && <div className="data-status">{syncMessage}</div>}
-      <section className="card compact-card close-cash-card"><div className="report-filter-head"><div><h3>Cierre de caja</h3><p className="muted">Selecciona fecha, revisa totales y guarda PDF o TXT.</p></div><div className="report-actions"><input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} /><button className="secondary-btn" type="button" onClick={()=>reload()}>{loading ? 'Actualizando...' : 'Actualizar'}</button><button className="secondary-btn" type="button" onClick={exportCloseTxt}>TXT</button><button className="primary-btn" type="button" onClick={printClose}>PDF / Imprimir</button></div></div></section>
-      <div className="kpi-grid"><Kpi label="Ingresos" value={money(ingresos)} helper="Ventas, abonos y entradas" /><Kpi label="Egresos" value={money(egresos)} helper="Compras, retiros y salidas" /><Kpi label="Créditos" value={money(creditos)} helper="Ventas por cobrar" /><Kpi label="Caja neta" value={money(cajaNeta)} helper="Ingresos - egresos" /></div>
-      <section className="card compact-card extra-row"><div className="report-filter-head"><div><h3>Conciliar ventas pendientes</h3><p className="muted">Corrige movimientos de caja omitidos por la versión anterior. Solo toma ventas simples de la fecha seleccionada y nunca duplica una venta que ya tenga referencia.</p></div><button className="secondary-btn" type="button" disabled={syncing} onClick={syncSalesToCash}>{syncing ? 'Sincronizando...' : 'Sincronizar ventas de la fecha'}</button></div></section>
-      <div className="two-col"><form className="card form-grid" onSubmit={save}><h3>Movimiento manual</h3><label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Ingreso</option><option>Egreso</option><option>Apertura</option><option>Retiro</option><option>Compra</option></select></label><label>Método<select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label><label>Monto<input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} inputMode="decimal" /></label><label>Nota<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Concepto del movimiento" /></label><button className="primary-btn">Registrar movimiento</button></form><section className="card compact-card"><h3>Resumen por método</h3>{Object.entries(byMethod).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos en la fecha.</p>}</section></div>
-      <div className="two-col extra-row"><section className="card compact-card"><h3>Resumen por tipo</h3>{Object.entries(groupByType).map(([k,v])=><div className="list-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>)}{!dayMovs.length && <p className="muted">Sin movimientos.</p>}</section><section className="card compact-card"><h3>Movimientos de la fecha</h3>{dayMovs.slice(0,18).map(m=><div className="list-row" key={m.id}><span>{m.type} · {m.payment_method}<small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong>{money(m.amount)}</strong></div>)}{!dayMovs.length && <p className="muted">No hay movimientos registrados.</p>}</section></div>
+    <div className="page cash-pro-page cash-r3-page">
+      <div className="hero compact-hero">
+        <div><h1>💰 Caja por turno</h1><p>Las ventas nuevas alimentan caja, inventario y reportes automáticamente.</p></div>
+        <span className={session ? 'cash-session-badge open' : 'cash-session-badge closed'}>{session ? 'Caja abierta' : 'Caja cerrada'}</span>
+      </div>
+      {movementsError && <div className="data-error"><strong>No se pudieron leer algunos movimientos:</strong> {movementsError}</div>}
+      {!session ? (
+        <section className="card compact-card cash-open-card">
+          <div className="cash-state-copy"><span className="eyebrow">Inicio de turno</span><h3>Abra caja antes de vender</h3><p className="muted">El fondo inicial quedará registrado y toda venta posterior se asociará a este turno.</p></div>
+          <form className="form-grid cash-open-form" onSubmit={openCash}>
+            <label>Fondo inicial en efectivo<input value={opening.amount} onChange={e => setOpening({ ...opening, amount: e.target.value })} inputMode="decimal" placeholder="0.00" /></label>
+            <label>Nota de apertura<input value={opening.note} onChange={e => setOpening({ ...opening, note: e.target.value })} placeholder="Ej. Fondo de cambio" /></label>
+            <button className="primary-btn" disabled={working === 'open'}>{working === 'open' ? 'Abriendo...' : 'Abrir caja'}</button>
+          </form>
+        </section>
+      ) : (
+        <>
+          <section className="card compact-card cash-session-card">
+            <div className="cash-session-head"><div><span className="eyebrow">Turno activo</span><h3>Abierta {fmtDate(session.opened_at)}</h3><p className="muted">Fondo inicial: {money(session.opening_amount)}{session.opening_note ? ` · ${session.opening_note}` : ''}</p></div><button type="button" className="secondary-btn" onClick={() => Promise.all([cashSession.reload?.(), reloadMovements(300)])}>{movementsLoading ? 'Actualizando...' : 'Actualizar'}</button></div>
+            <div className="cash-kpi-grid"><Kpi label="Efectivo esperado" value={money(expectedCash)} helper="para arqueo" /><Kpi label="Ingresos" value={money(totalIncome)} helper="incluye ventas" /><Kpi label="Egresos" value={money(totalOut)} helper="compras y retiros" /><Kpi label="Movimientos" value={sessionMovements.length} helper="en este turno" /></div>
+          </section>
+          <div className="two-col cash-r3-columns">
+            <form className="card form-grid" onSubmit={registerManual}>
+              <h3>Movimiento manual</h3>
+              <p className="muted">Use solo para ingresos, egresos o retiros que no provengan de una venta.</p>
+              <label>Tipo<select value={manual.type} onChange={e => setManual({ ...manual, type: e.target.value })}><option>Ingreso</option><option>Egreso</option><option>Retiro</option></select></label>
+              <label>Método<select value={manual.method} onChange={e => setManual({ ...manual, method: e.target.value })}><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Tarjeta</option></select></label>
+              <label>Monto<input value={manual.amount} onChange={e => setManual({ ...manual, amount: e.target.value })} inputMode="decimal" placeholder="0.00" /></label>
+              <label>Motivo obligatorio<input value={manual.note} onChange={e => setManual({ ...manual, note: e.target.value })} placeholder="Ej. Retiro para pago de proveedor" /></label>
+              <button className="secondary-btn" disabled={working === 'manual'}>{working === 'manual' ? 'Registrando...' : 'Registrar movimiento'}</button>
+            </form>
+            <section className="card compact-card"><h3>Resumen por método</h3>{Object.entries(byMethod).map(([method, amount]) => <div className="list-row" key={method}><span>{method}</span><strong>{money(amount)}</strong></div>)}{!sessionMovements.length && <p className="muted">Aún no hay movimientos en el turno.</p>}</section>
+          </div>
+          <section className="card compact-card extra-row"><div className="report-filter-head"><div><h3>Movimientos del turno</h3><p className="muted">Ventas y compras se incorporan aquí sin sincronización manual.</p></div></div>{sessionMovements.slice(0, 60).map(m => <div className="list-row" key={m.id}><span><strong>{m.type} · {m.payment_method || 'Sin método'}</strong><small>{fmtDate(m.created_at)} · {m.note || 'Sin nota'}</small></span><strong className={['Egreso','Retiro','Compra'].includes(m.type) ? 'danger-text' : ''}>{['Egreso','Retiro','Compra'].includes(m.type) ? '−' : '+'}{money(m.amount)}</strong></div>)}{!sessionMovements.length && <p className="muted">Aún no hay movimientos registrados.</p>}</section>
+          <form className="card compact-card extra-row close-cash-r3" onSubmit={closeCash}>
+            <div className="report-filter-head"><div><span className="eyebrow">Arqueo y cierre</span><h3>Cerrar turno</h3><p className="muted">Efectivo esperado: {money(expectedCash)}. Si existe diferencia, explique el motivo.</p></div></div>
+            <div className="form-split"><label>Efectivo contado<input value={closing.counted} onChange={e => setClosing({ ...closing, counted: e.target.value })} inputMode="decimal" placeholder="0.00" disabled={!canClose} /></label><label>Motivo / observación<input value={closing.note} onChange={e => setClosing({ ...closing, note: e.target.value })} placeholder="Obligatorio si hay diferencia" disabled={!canClose} /></label></div>
+            {!canClose && <p className="muted">Solo quien abrió este turno o un administrador puede cerrarlo.</p>}
+            <button className="primary-btn" disabled={!canClose || working === 'close'}>{working === 'close' ? 'Cerrando...' : 'Cerrar caja y guardar arqueo'}</button>
+          </form>
+        </>
+      )}
     </div>
   );
 }
 
-function Credits({ profile }) {
+function Credits({ profile, cashSession }) {
   const [sales, setSales] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2131,17 +2225,21 @@ function Credits({ profile }) {
   async function savePayment(e) {
     e.preventDefault();
     if (!selected) return alert('No hay crédito seleccionado.');
+    if (!cashSession?.session?.id) return alert('Primero abre una caja activa para registrar un abono.');
     const amount = Math.min(asNum(form.amount), asNum(selected.balance));
     if (amount <= 0) return alert('El abono debe ser mayor a cero.');
-    const payload = { sale_id: selected.id, customer_name: selected.customer_name || 'Cliente', amount, method: form.method, note: form.note, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null };
-    const { error } = await supabase.from('credit_payments').insert(payload);
-    if (error) return alert('Falta ejecutar la actualización SQL de V01.4: tabla credit_payments.');
-    await supabase.from('cash_movements').insert({ type: 'Ingreso', payment_method: form.method, amount, note: `Abono crédito B${selected.receipt_number}. ${form.note || ''}`, store_id: profile?.store_id || DEFAULT_STORE_ID, user_id: profile?.id || null });
-    if (amount >= asNum(selected.balance)) await supabase.from('sales').update({ status: 'Pagado' }).eq('id', selected.id);
+    const { error } = await supabase.rpc('clomar_register_credit_payment_r3', {
+      p_sale_id: selected.id,
+      p_amount: amount,
+      p_payment_method: form.method,
+      p_note: form.note || null,
+    });
+    if (error) return alert(`No se pudo registrar el abono: ${error.message}. No se realizó un registro parcial.`);
     setForm({ sale_id:'', amount:'0', method:'Efectivo', note:'' });
     setPaymentOpen(false);
-    loadCredits();
+    await Promise.all([loadCredits(), cashSession.reload?.()]);
   }
+
   const byClient = rows.reduce((acc, s) => { acc[s.customer_name || 'Cliente'] = (acc[s.customer_name || 'Cliente'] || 0) + asNum(s.balance); return acc; }, {});
   return (
     <div className="page">
@@ -3129,6 +3227,7 @@ function AppShell({ session }) {
   const { products, loading, reload } = useProducts(profile);
   const { customers, reload: reloadCustomers } = useCustomers(profile);
   const { categories, subcategories, reload: reloadCategories } = useCategories(profile);
+  const cashSession = useCashSession(profile);
 
   useEffect(() => { if (profile && !canAccess(profile.role, current)) setCurrent(firstAllowedModule(profile.role)); }, [profile?.role, current]);
   useEffect(() => { try { localStorage.setItem('clomar_last_module', current); } catch (err) {} }, [current]);
@@ -3138,7 +3237,7 @@ function AppShell({ session }) {
 
   const contentMap = {
     panel: <Panel products={products} profile={profile}/>,
-    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} menuOpen={open} onGoReceipts={() => setCurrent('comprobantes')}/>,
+    ventas: <POS products={products} reloadProducts={reload} customers={customers} profile={profile} store={store} cashSession={cashSession} menuOpen={open} onGoReceipts={() => setCurrent('comprobantes')}/>,
     comprobantes: <ReceiptsPage profile={profile} store={store}/>,
     productos: <Products products={products} reload={reload} profile={profile} categories={categories} subcategories={subcategories} reloadCategories={reloadCategories}/>,
     precios: <PricesAdmin products={products} reload={reload} profile={profile}/>,
@@ -3146,9 +3245,9 @@ function AppShell({ session }) {
     etiquetas: <LabelsAdmin products={products} categories={categories} subcategories={subcategories} store={store}/>,
     inventario: <Inventory products={products}/>,
     reportes: <Reports products={products} profile={profile}/>,
-    creditos: <Credits profile={profile}/>,
-    caja: <CashPage profile={profile} />,
-    ingreso: <StockEntry products={products} reloadProducts={reload} profile={profile}/>,
+    creditos: <Credits profile={profile} cashSession={cashSession}/>,
+    caja: <CashPage profile={profile} cashSession={cashSession} />,
+    ingreso: <StockEntry products={products} reloadProducts={reload} profile={profile} cashSession={cashSession}/>,
     clientes: <Customers customers={customers} reload={reloadCustomers} profile={profile}/>,
     usuarios: <UsersAdmin profile={profile}/>,
     tienda: <StoreSettings store={store} reloadProfile={reloadProfile}/>,
