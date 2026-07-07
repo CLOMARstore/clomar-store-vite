@@ -111,7 +111,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.2.7 · IA real + operación compacta';
+const APP_VERSION = 'V03.3 · Clomar AI Command Center';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -1042,6 +1042,7 @@ function assistantAnswerToText(answer, parsed) {
 }
 
 
+
 function AssistantAI({ profile, products = [], store, onNavigate }) {
   const [days, setDays] = useState(30);
   const [question, setQuestion] = useState('');
@@ -1049,63 +1050,189 @@ function AssistantAI({ profile, products = [], store, onNavigate }) {
   const [asking, setAsking] = useState(false);
   const [notice, setNotice] = useState('');
   const [aiMode, setAiMode] = useState('erp');
+  const [workspace, setWorkspace] = useState('decidir');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [commercialTone, setCommercialTone] = useState('Cercano');
   const [commercialText, setCommercialText] = useState('');
+  const [catalogText, setCatalogText] = useState('');
+  const [collectionForm, setCollectionForm] = useState({ name: '', amount: '', phone: '', due_date: '' });
+  const [collectionText, setCollectionText] = useState('');
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('clomar_ai_history_v328') || localStorage.getItem('clomar_ai_history_v327') || '[]'); } catch (_) { return []; }
+    try { return JSON.parse(localStorage.getItem('clomar_ai_history_v33') || localStorage.getItem('clomar_ai_history_v328') || '[]'); } catch (_) { return []; }
+  });
+  const [activity, setActivity] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('clomar_ai_activity_v33') || '[]'); } catch (_) { return []; }
   });
 
-  useEffect(() => { try { localStorage.setItem('clomar_ai_history_v328', JSON.stringify(history.slice(0, 8))); } catch (_) {} }, [history]);
+  useEffect(() => { try { localStorage.setItem('clomar_ai_history_v33', JSON.stringify(history.slice(0, 10))); } catch (_) {} }, [history]);
+  useEffect(() => { try { localStorage.setItem('clomar_ai_activity_v33', JSON.stringify(activity.slice(0, 14))); } catch (_) {} }, [activity]);
   useEffect(() => () => { try { recognitionRef.current?.stop?.(); } catch (_) {} }, []);
 
-  async function askAssistant(rawQuestion, forcedIntent = null) {
-    const prompt = String(rawQuestion || question || '').trim();
-    if (!prompt && !forcedIntent) return;
-    const intent = forcedIntent || inferAssistantIntent(prompt);
+  const selectedProduct = products.find(p => p.id === selectedProductId) || null;
+  const lowStockProducts = useMemo(() => products.filter(p => p.active !== false && asNum(p.stock) <= asNum(p.stock_min || 0)).sort((a, b) => asNum(a.stock) - asNum(b.stock)).slice(0, 12), [products]);
+  const currentRows = Array.isArray(answer?.data) ? answer.data : [];
+  const parsed = answer ? parseAssistantAnswer(answer.answer) : null;
+  const answerActions = answer ? assistantActionItems(answer.intent || inferAssistantIntent(answer.question || ''), answer.question || '') : [];
+  const answerText = answer ? assistantAnswerToText(answer, parsed) : '';
+
+  function recordActivity(label, type = 'consulta') {
+    setActivity(prev => [{ id: `${Date.now()}-${type}`, label, type, created_at: new Date().toISOString() }, ...prev].slice(0, 14));
+  }
+
+  function productContext(product) {
+    if (!product) return {};
+    const availability = asNum(product.stock) <= 0 ? 'Agotado' : asNum(product.stock) <= asNum(product.stock_min || 2) ? 'Últimas unidades' : 'Disponible';
+    return {
+      name: product.name || '',
+      code: product.code || product.barcode || '',
+      price: asNum(product.price),
+      category: product.category || '',
+      brand: product.brand || '',
+      color: product.color || '',
+      size: product.size || '',
+      availability,
+      description: product.catalog_description || product.description || '',
+    };
+  }
+
+  function fallbackCommercial(product, tone = 'Cercano') {
+    if (!product) return '';
+    const availability = asNum(product.stock) <= 0 ? 'En este momento figura agotado' : asNum(product.stock) <= asNum(product.stock_min || 2) ? 'Quedan últimas unidades' : 'Está disponible';
+    const detail = [product.brand, product.color ? `color ${product.color}` : '', product.size ? `talla ${product.size}` : ''].filter(Boolean).join(' · ');
+    const greeting = tone === 'Formal' ? 'Hola, gracias por escribir a Clomar Store.' : tone === 'Breve' ? 'Hola.' : 'Hola, gracias por comunicarte con Clomar Store.';
+    const closing = tone === 'Formal' ? '¿Desea que verifiquemos la disponibilidad final o le ayudemos con otra talla o color?' : tone === 'Breve' ? '¿Desea reservarlo?' : '¿Desea que le ayudemos a reservarlo o revisar otra talla o color?';
+    return `${greeting}\n\n${product.name}${detail ? ` (${detail})` : ''}\nPrecio: ${money(product.price)}\n${availability}.\nCódigo: ${product.code || product.barcode || '—'}\n\n${closing}`;
+  }
+
+  function fallbackCatalog(product) {
+    if (!product) return '';
+    const details = [product.brand, product.color, product.size].filter(Boolean).join(' · ');
+    return `Nombre comercial\n${product.name}\n\nDescripción para catálogo\n${product.description || `Producto disponible en Clomar Store${details ? `: ${details}` : ''}. Consulte disponibilidad antes de confirmar su pedido.`}\n\nTexto para WhatsApp\n${fallbackCommercial(product, 'Cercano')}`;
+  }
+
+  function normalizeGeneratedText(value = '') {
+    return String(value || '')
+      .replace(/^\s*Asistente IA · Gemini \+ ERP\s*/im, '')
+      .replace(/\*\*/g, '')
+      .trim();
+  }
+
+  async function callAssistant({ prompt, intent = 'resumen', task = 'analysis', context = {}, saveAsAnswer = true, addHistory = true }) {
+    const cleanPrompt = String(prompt || '').trim();
+    if (!cleanPrompt) return null;
     setAsking(true);
     setNotice('');
-    let handledByGemini = false;
+    let nextAnswer = null;
     try {
       const { data, error } = await supabase.functions.invoke('clomar-ai', {
         body: {
-          question: prompt || 'Consulta rápida',
+          question: cleanPrompt,
           intent,
+          task,
           days: Number(days || 30),
           store_id: profile?.store_id || DEFAULT_STORE_ID,
+          context,
         },
       });
-      if (!error && data?.answer) {
-        handledByGemini = true;
-        const nextAnswer = { ...data, question: prompt || 'Consulta rápida', intent, title: data.title || 'Asistente IA · Datos reales' };
+      if (error) throw error;
+      if (!data?.answer) throw new Error('El asistente no devolvió una respuesta.');
+      nextAnswer = { ...data, question: cleanPrompt, intent, task, title: data.title || (data.mode === 'gemini' ? 'Asistente IA · Gemini + ERP' : 'Análisis ERP verificado') };
+      if (saveAsAnswer) {
         setAnswer(nextAnswer);
         setAiMode(data.mode === 'gemini' ? 'gemini' : 'erp');
-        if (data.notice) setNotice(data.notice);
       }
-    } catch (_) {
-      // Mantiene el análisis ERP de respaldo si la función no está disponible.
-    }
-
-    if (!handledByGemini) {
-      const { data, error } = await supabase.rpc('clomar_management_assistant_v32', {
-        p_store_id: profile?.store_id || DEFAULT_STORE_ID,
-        p_intent: intent,
-        p_days: Number(days || 30),
-      });
-      if (error) {
-        setAnswer(null);
-        setNotice(error.message || 'No se pudo obtener la respuesta del asistente.');
+      if (data.notice) setNotice(data.notice);
+    } catch (error) {
+      if (task === 'analysis' || task === 'purchase_plan') {
+        try {
+          const { data, error: fallbackError } = await supabase.rpc('clomar_management_assistant_v32', {
+            p_store_id: profile?.store_id || DEFAULT_STORE_ID,
+            p_intent: intent,
+            p_days: Number(days || 30),
+          });
+          if (fallbackError) throw fallbackError;
+          nextAnswer = { ...data, question: cleanPrompt, intent, task, title: 'Análisis ERP verificado' };
+          if (saveAsAnswer) {
+            setAnswer(nextAnswer);
+            setAiMode('erp');
+          }
+          setNotice('Gemini no respondió en este momento. Se muestra el análisis verificado del ERP.');
+        } catch (fallbackError) {
+          setNotice(fallbackError.message || error.message || 'No se pudo obtener la respuesta del asistente.');
+        }
       } else {
-        setAnswer({ ...data, question: prompt || 'Consulta rápida', intent, title: data?.title || 'Análisis ERP' });
-        setAiMode('erp');
-        setNotice('Análisis ERP disponible. La respuesta generativa se reintentará cuando Gemini esté disponible.');
+        setNotice(error.message || 'No se pudo generar el borrador con IA. Se aplicó un formato local de respaldo cuando está disponible.');
       }
+    } finally {
+      if (addHistory) {
+        setHistory(prev => [{ id: `${Date.now()}-${intent}`, question: cleanPrompt, intent, task, created_at: new Date().toISOString() }, ...prev.filter(item => item.question !== cleanPrompt)].slice(0, 10));
+      }
+      setAsking(false);
     }
+    return nextAnswer;
+  }
 
-    setHistory(prev => [{ id: `${Date.now()}-${intent}`, question: prompt || 'Consulta rápida', intent, created_at: new Date().toISOString() }, ...prev.filter(item => item.question !== (prompt || 'Consulta rápida'))].slice(0, 8));
-    setAsking(false);
+  async function askAssistant(rawQuestion, forcedIntent = null, task = 'analysis', context = {}) {
+    const prompt = String(rawQuestion || question || '').trim();
+    const intent = forcedIntent || inferAssistantIntent(prompt);
+    const result = await callAssistant({ prompt, intent, task, context });
+    if (result) recordActivity(`Consulta IA: ${prompt.slice(0, 72)}`, 'consulta');
+    return result;
+  }
+
+  async function generateCommercialReply() {
+    if (!selectedProduct) { setNotice('Seleccione un producto para preparar una respuesta comercial.'); return; }
+    const result = await callAssistant({
+      prompt: `Prepara un mensaje de WhatsApp ${commercialTone.toLowerCase()} para consultar o vender este producto. Incluye únicamente precio, código y disponibilidad verificados. No ofrezcas descuentos ni reservas automáticas.`,
+      intent: 'resumen',
+      task: 'whatsapp_message',
+      context: { product: productContext(selectedProduct), tone: commercialTone },
+      saveAsAnswer: false,
+      addHistory: false,
+    });
+    const text = normalizeGeneratedText(result?.answer || fallbackCommercial(selectedProduct, commercialTone));
+    setCommercialText(text);
+    setWorkspace('comercial');
+    recordActivity(`Mensaje comercial preparado: ${selectedProduct.name}`, 'whatsapp');
+    if (!result) setNotice('Se preparó un mensaje local con datos reales del producto.');
+  }
+
+  async function generateCatalogCopy() {
+    if (!selectedProduct) { setNotice('Seleccione un producto para generar la ficha comercial.'); return; }
+    const result = await callAssistant({
+      prompt: 'Crea una ficha comercial breve para catálogo con nombre comercial, descripción clara y texto corto para WhatsApp. Usa solo los datos del producto proporcionado. No inventes atributos, descuentos ni disponibilidad.',
+      intent: 'resumen',
+      task: 'catalog_copy',
+      context: { product: productContext(selectedProduct) },
+      saveAsAnswer: false,
+      addHistory: false,
+    });
+    const text = normalizeGeneratedText(result?.answer || fallbackCatalog(selectedProduct));
+    setCatalogText(text);
+    setWorkspace('catalogo');
+    recordActivity(`Ficha de catálogo preparada: ${selectedProduct.name}`, 'catalogo');
+    if (!result) setNotice('Se preparó una ficha local con los datos verificados del producto.');
+  }
+
+  async function generateCollectionReply() {
+    const name = String(collectionForm.name || '').trim();
+    const amount = asNum(collectionForm.amount);
+    if (!name || amount <= 0) { setNotice('Ingrese el nombre del cliente y el monto pendiente para preparar el mensaje.'); return; }
+    const result = await callAssistant({
+      prompt: 'Redacta un mensaje respetuoso de recordatorio de pago. No uses lenguaje de presión, amenaza o descuento. Incluye únicamente el nombre, saldo y fecha proporcionados.',
+      intent: 'cobranza',
+      task: 'collection_message',
+      context: { customer: { name, amount, due_date: collectionForm.due_date || '' } },
+      saveAsAnswer: false,
+      addHistory: false,
+    });
+    const fallback = `Hola, ${name}. Le recordamos que tiene un saldo pendiente de ${money(amount)}${collectionForm.due_date ? ` con fecha de referencia ${collectionForm.due_date}` : ''}. ¿Podemos ayudarle a coordinar su pago? Gracias por su atención.`;
+    setCollectionText(normalizeGeneratedText(result?.answer || fallback));
+    setWorkspace('cobranza');
+    recordActivity(`Mensaje de cobranza preparado: ${name}`, 'cobranza');
+    if (!result) setNotice('Se preparó un recordatorio local. Revíselo antes de enviarlo.');
   }
 
   function startVoiceInput() {
@@ -1123,8 +1250,8 @@ function AssistantAI({ profile, products = [], store, onNavigate }) {
     recognition.onend = () => setListening(false);
     recognition.onerror = () => { setListening(false); setNotice('No se pudo captar el audio. Revise el permiso del micrófono e inténtelo otra vez.'); };
     recognition.onresult = (event) => {
-      const text = event?.results?.[0]?.[0]?.transcript || '';
-      setQuestion(prev => `${prev ? `${prev} ` : ''}${text}`.trim());
+      const spoken = event?.results?.[0]?.[0]?.transcript || '';
+      setQuestion(prev => `${prev ? `${prev} ` : ''}${spoken}`.trim());
     };
     recognitionRef.current = recognition;
     recognition.start();
@@ -1138,59 +1265,108 @@ function AssistantAI({ profile, products = [], store, onNavigate }) {
     onNavigate?.(target);
   }
 
-  const selectedProduct = products.find(p => p.id === selectedProductId) || null;
-  function generateCommercialReply() {
-    if (!selectedProduct) { setNotice('Seleccione un producto para preparar una respuesta comercial.'); return; }
-    const availability = asNum(selectedProduct.stock) <= 0 ? 'En este momento figura agotado' : asNum(selectedProduct.stock) <= asNum(selectedProduct.stock_min || 2) ? 'Quedan últimas unidades' : 'Está disponible';
-    const detail = [selectedProduct.brand, selectedProduct.color ? `color ${selectedProduct.color}` : '', selectedProduct.size ? `talla ${selectedProduct.size}` : ''].filter(Boolean).join(' · ');
-    const greeting = commercialTone === 'Formal' ? 'Hola, gracias por escribir a Clomar Store.' : commercialTone === 'Breve' ? 'Hola 👋' : 'Hola, gracias por comunicarte con Clomar Store 😊';
-    const closing = commercialTone === 'Formal' ? '¿Desea que verifiquemos la disponibilidad final o le ayudamos con otra talla/color?' : commercialTone === 'Breve' ? '¿Te lo reservo?' : '¿Deseas que te lo reservemos o revisar otra talla/color?';
-    setCommercialText(`${greeting}\n\n${selectedProduct.name}${detail ? ` (${detail})` : ''}\nPrecio: ${money(selectedProduct.price)}\n${availability}.\nCódigo: ${selectedProduct.code || selectedProduct.barcode || '—'}\n\n${closing}`);
-    setNotice('Mensaje verificado preparado con información real del ERP. Revíselo antes de enviarlo.');
+  function buildPurchasePlan() {
+    const fromAnswer = currentRows.filter(row => row?.name).slice(0, 12);
+    const source = fromAnswer.length ? fromAnswer : lowStockProducts;
+    return source.map((row, index) => {
+      const stock = asNum(row.stock);
+      const stockMin = asNum(row.stock_min || row.minimum || row.min_stock || 0);
+      const salesHint = asNum(row.qty || row.units_sold || row.sales_qty || 0);
+      const suggested = Math.max(1, stockMin > 0 ? Math.max(stockMin * 3 - stock, stockMin - stock) : salesHint > 0 ? salesHint : 1);
+      return {
+        id: row.product_id || row.id || `${row.code || row.name || 'item'}-${index}`,
+        name: row.name || 'Producto',
+        code: row.code || 'Sin código',
+        stock,
+        stock_min: stockMin,
+        suggested,
+        reason: stockMin > 0 ? `Stock ${fmtWhole(stock)} / mínimo ${fmtWhole(stockMin)}` : 'Revisión manual recomendada',
+      };
+    });
+  }
+
+  const purchasePlan = useMemo(() => buildPurchasePlan(), [answer, products]);
+
+  function exportPurchasePlan() {
+    if (!purchasePlan.length) { setNotice('No hay productos para exportar en el borrador de compra.'); return; }
+    const ws = XLSX.utils.json_to_sheet(purchasePlan.map((row, idx) => ({
+      Prioridad: idx + 1,
+      Producto: row.name,
+      Código: row.code,
+      'Stock actual': row.stock,
+      'Stock mínimo': row.stock_min,
+      'Cantidad sugerida': row.suggested,
+      Motivo: row.reason,
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Reposición');
+    XLSX.writeFile(wb, `clomar_lista_reposicion_${todayISO()}.xlsx`);
+    recordActivity('Lista de reposición exportada a Excel', 'reporte');
+  }
+
+  function printCommandReport() {
+    const safeTitle = escapeHtml(answer?.title || 'Reporte IA de Clomar Store');
+    const safeQuestion = escapeHtml(answer?.question || 'Resumen operativo');
+    const summary = escapeHtml(answerText || 'Aún no se ha generado una respuesta.');
+    const rows = purchasePlan.slice(0, 10).map((row, idx) => `<tr><td>${idx + 1}</td><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.code)}</td><td>${row.stock}</td><td>${row.suggested}</td></tr>`).join('') || '<tr><td colspan="5">No hay lista de reposición para este reporte.</td></tr>';
+    const activityRows = activity.slice(0, 6).map(item => `<li><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(fmtDate(item.created_at))}</small></li>`).join('') || '<li>Sin actividad registrada todavía.</li>';
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte IA Clomar Store</title><style>
+      *{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#17243a;font-family:Arial,Helvetica,sans-serif;font-size:12px}.report{width:190mm;margin:0 auto;background:#fff;padding:15mm}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #214b82;padding-bottom:12px}.brand{font-size:22px;font-weight:900;color:#17345e}.muted{color:#64748b}.badge{display:inline-block;padding:5px 8px;border-radius:999px;background:#ecfdf5;color:#166534;font-size:10px;font-weight:800}.block{margin-top:16px;border:1px solid #dce7f4;border-radius:12px;padding:12px}.block h2{margin:0 0 8px;font-size:14px}.analysis{white-space:pre-line;line-height:1.65;color:#334155}.note{font-size:10px;color:#64748b}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}.table th{font-size:10px;text-transform:uppercase;color:#64748b}.activity{margin:0;padding-left:16px}.activity li{margin:7px 0}.activity small{display:block;color:#64748b;margin-top:2px}@media print{@page{size:A4;margin:10mm}body{background:#fff}.report{width:auto;margin:0;padding:0}}</style></head><body><main class="report"><section class="head"><div><div class="brand">${escapeHtml(store?.name || 'Clomar Store')}</div><div class="muted">Reporte ejecutivo generado desde Clomar AI Command Center</div></div><div><div class="badge">Datos ERP + Gemini</div><div class="muted" style="margin-top:6px">${escapeHtml(fmtDate(new Date()))}</div></div></section><section class="block"><h2>${safeTitle}</h2><p class="muted"><strong>Consulta:</strong> ${safeQuestion}</p><div class="analysis">${summary}</div></section><section class="block"><h2>Borrador de reposición</h2><table class="table"><thead><tr><th>#</th><th>Producto</th><th>Código</th><th>Stock</th><th>Sugerido</th></tr></thead><tbody>${rows}</tbody></table><p class="note">La cantidad sugerida es un borrador. Debe revisarse antes de registrar una compra.</p></section><section class="block"><h2>Actividad del asistente</h2><ul class="activity">${activityRows}</ul></section><p class="note">Este informe interpreta datos del ERP. No reemplaza la revisión de caja, inventario ni decisiones del propietario.</p></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
+    const win = window.open('', '_blank', 'width=900,height=760');
+    if (!win) { setNotice('El navegador bloqueó la ventana de impresión. Habilite ventanas emergentes para generar el PDF.'); return; }
+    win.document.open(); win.document.write(html); win.document.close();
+    recordActivity('Reporte ejecutivo preparado para PDF', 'reporte');
   }
 
   const modeText = aiMode === 'gemini' ? 'Gemini + ERP conectado' : 'ERP verificado';
-  const parsed = answer ? parseAssistantAnswer(answer.answer) : null;
-  const answerActions = answer ? assistantActionItems(answer.intent || inferAssistantIntent(answer.question || ''), answer.question || '') : [];
-  const answerText = answer ? assistantAnswerToText(answer, parsed) : '';
+  const commercialWhatsapp = `https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText || '')}`;
+  const collectionWhatsapp = `https://wa.me/${String(collectionForm.phone || '').replace(/\D/g,'')}?text=${encodeURIComponent(collectionText || '')}`;
 
   return (
-    <div className="page ai-assistant-page ai-v328-page">
-      <section className="ai-v328-commandbar">
-        <div className="ai-v328-brandcopy">
-          <span className="eyebrow">Centro de decisiones</span>
-          <h1>Asistente IA</h1>
-          <p>Analiza datos reales del ERP y los convierte en acciones claras. No realiza cambios operativos.</p>
-        </div>
+    <div className="page ai-assistant-page ai-v33-page">
+      <section className="ai-v33-commandbar">
+        <div className="ai-v33-brandcopy"><span className="eyebrow">Clomar AI Command Center</span><h1>Copiloto operativo</h1><p>Analiza datos reales, prepara borradores y abre el módulo correcto. Toda acción que cambia el negocio sigue requiriendo confirmación humana.</p></div>
         <div className={`ai-engine-badge ${aiMode === 'gemini' ? 'online' : ''}`}><span></span>{modeText}</div>
         <label className="ai-period-compact">Periodo<select value={days} onChange={e => setDays(Number(e.target.value))}><option value="7">7 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label>
       </section>
-      <section className="ai-safety-strip ai-v328-safety"><strong>Datos controlados:</strong> la IA usa ventas, inventario, caja y créditos del ERP. No puede cambiar precios, stock, pagos, créditos ni comprobantes.</section>
+      <section className="ai-safety-strip ai-v33-safety"><strong>Control seguro:</strong> la IA puede analizar, buscar, redactar, exportar y crear borradores. No cambia precios, stock, caja, pagos, créditos ni ventas sin una confirmación posterior del usuario.</section>
       {notice && <div className="catalog-toast ai-toast">{notice}</div>}
-      <div className="ai-v328-workspace">
-        <section className="card compact-card ai-v328-chat-card">
-          <header className="assistant-section-head ai-v328-section-head"><div><span className="eyebrow">Consulta operativa</span><h3>¿Qué necesita decidir hoy?</h3></div><button type="button" className="ai-daily-brief" onClick={() => askAssistant('Genera mi resumen operativo de hoy con ventas, caja, stock crítico, créditos y una acción prioritaria.', 'resumen')}>Resumen del día</button></header>
-          <div className="ai-v328-composer">
-            <textarea value={question} onChange={e => setQuestion(e.target.value)} rows="3" placeholder="Ej.: ¿Qué productos debo reponer esta semana y por qué?" />
-            <div className="ai-v328-composer-actions"><button type="button" className={`secondary-btn ai-voice-btn ${listening ? 'listening' : ''}`} onClick={startVoiceInput}>{listening ? 'Escuchando…' : 'Dictar'}</button><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando…' : 'Analizar'}</button></div>
-          </div>
-          <div className="ai-v328-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
-          {answer ? <article className="ai-v328-answer-card">
-            <div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Respuesta verificada'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answerText); setNotice('Respuesta copiada.'); }}>⧉</button></div>
-            {parsed?.intro && <p className="ai-v328-answer-intro">{parsed.intro}</p>}
-            <div className="ai-v328-sections">{(parsed?.sections || []).map((section, idx) => <section className="ai-v328-section" key={`${section.title}-${idx}`}><header><span>{String(idx + 1).padStart(2, '0')}</span><h4>{section.title}</h4></header><div>{(section.items || []).map((item, itemIdx) => <p key={itemIdx}>{item}</p>)}</div></section>)}</div>
-            {Array.isArray(answer.data) && answer.data.length > 0 && <details className="ai-v328-evidence"><summary>Ver datos del ERP utilizados</summary><div className="ai-result-list">{answer.data.slice(0, 6).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div></details>}
-            <footer className="ai-v328-actionbar"><span>Acciones sugeridas</span><div>{answerActions.map(action => <button type="button" className="secondary-btn" key={action.key} onClick={() => goTo(action.target, action.focus)}>{action.label} →</button>)}</div></footer>
-          </article> : <div className="assistant-empty-state ai-v328-empty"><span>✦</span><div><strong>Listo para ayudarle a decidir</strong><small>Pregunte por reposición, ventas, rentabilidad, cobranza, caja o productos lentos.</small></div></div>}
-          {history.length > 0 && <div className="assistant-history ai-v328-history"><div><span>Consultas recientes</span><button type="button" onClick={() => setHistory([])}>Limpiar</button></div><section>{history.map(item => <button type="button" key={item.id} onClick={() => { setQuestion(item.question); askAssistant(item.question, item.intent); }}><span>{item.question}</span><small>{fmtDate(item.created_at)}</small></button>)}</section></div>}
+
+      <section className="ai-v33-command-grid">
+        <button type="button" className="ai-v33-command-card stock" onClick={() => { setWorkspace('compra'); askAssistant('Prioriza los productos que debo reponer esta semana. Indica riesgo, motivo y qué revisar antes de comprar.', 'reponer', 'purchase_plan'); }}><span>01</span><div><strong>Reponer stock</strong><small>{lowStockProducts.length} producto(s) requieren revisión</small></div><b>Preparar compra →</b></button>
+        <button type="button" className="ai-v33-command-card sales" onClick={() => { setWorkspace('decidir'); askAssistant('Analiza ventas, utilidad y productos lentos. Dame las tres decisiones comerciales más importantes para esta semana.', 'resumen'); }}><span>02</span><div><strong>Decidir qué vender</strong><small>Ventas, margen y rotación</small></div><b>Analizar →</b></button>
+        <button type="button" className="ai-v33-command-card collections" onClick={() => { setWorkspace('cobranza'); askAssistant('Resume la cobranza pendiente y señala qué riesgo debo atender primero.', 'cobranza'); }}><span>03</span><div><strong>Gestionar cobros</strong><small>Créditos pendientes y vencidos</small></div><b>Ver cobranza →</b></button>
+        <button type="button" className="ai-v33-command-card catalog" onClick={() => setWorkspace('catalogo')}><span>04</span><div><strong>Mejorar catálogo</strong><small>Ficha, descripción y WhatsApp</small></div><b>Crear contenido →</b></button>
+      </section>
+
+      <div className="ai-v33-workspace">
+        <section className="card compact-card ai-v33-chat-card">
+          <header className="assistant-section-head ai-v33-section-head"><div><span className="eyebrow">Consulta estratégica</span><h3>¿Qué necesita resolver ahora?</h3></div><button type="button" className="ai-daily-brief" onClick={() => askAssistant('Genera mi resumen operativo de hoy con ventas, caja, stock crítico, créditos y una acción prioritaria.', 'resumen')}>Resumen del día</button></header>
+          <div className="ai-v33-composer"><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="3" placeholder="Ej.: ¿Qué productos debo reponer primero y cuáles debo promocionar?" /><div className="ai-v33-composer-actions"><button type="button" className={`secondary-btn ai-voice-btn ${listening ? 'listening' : ''}`} onClick={startVoiceInput}>{listening ? 'Escuchando…' : 'Dictar'}</button><button type="button" className="primary-btn" disabled={asking} onClick={() => askAssistant()}>{asking ? 'Analizando…' : 'Preguntar'}</button></div></div>
+          <div className="ai-v33-quick-grid">{ASSISTANT_QUICK_QUESTIONS.map(item => <button type="button" key={item.intent} onClick={() => { setQuestion(item.text); askAssistant(item.text, item.intent); }}>{item.label}</button>)}</div>
+
+          {answer ? <article className="ai-v33-answer-card">
+            <div className="ai-answer-head"><div><span className="eyebrow">{answer.title || 'Respuesta verificada'}</span><h3>{answer.question}</h3></div><button type="button" className="icon-btn ai-copy-btn" title="Copiar respuesta" onClick={() => { copyTextToClipboard(answerText); setNotice('Respuesta copiada.'); recordActivity('Respuesta IA copiada', 'accion'); }}>⧉</button></div>
+            {parsed?.intro && <p className="ai-v33-answer-intro">{parsed.intro}</p>}
+            <div className="ai-v33-sections">{(parsed?.sections || []).map((section, idx) => <section className="ai-v33-section" key={`${section.title}-${idx}`}><header><span>{String(idx + 1).padStart(2, '0')}</span><h4>{section.title}</h4></header><div>{(section.items || []).map((item, itemIdx) => <p key={itemIdx}>{item}</p>)}</div></section>)}</div>
+            {Array.isArray(answer.data) && answer.data.length > 0 && <details className="ai-v33-evidence"><summary>Ver datos del ERP utilizados</summary><div className="ai-result-list">{answer.data.slice(0, 8).map((row, idx) => <div className="list-row" key={idx}><span><strong>{row.name || row.customer_name || row.seller || row.product_a || row.method || row.title || 'Dato'}</strong><small>{row.code || row.product_b || row.message || row.due_date || ''}</small></span><b>{row.amount !== undefined ? money(row.amount) : row.balance !== undefined ? money(row.balance) : row.stock !== undefined ? fmtWhole(row.stock) : row.qty !== undefined ? fmtWhole(row.qty) : row.times_together !== undefined ? fmtWhole(row.times_together) : ''}</b></div>)}</div></details>}
+            <footer className="ai-v33-actionbar"><span>Acciones disponibles</span><div>{answerActions.map(action => <button type="button" className="secondary-btn" key={action.key} onClick={() => { recordActivity(`Abrir módulo: ${action.label}`, 'navegacion'); goTo(action.target, action.focus); }}>{action.label} →</button>)}<button type="button" className="secondary-btn" onClick={() => { setWorkspace('reportes'); }}>Reporte PDF →</button></div></footer>
+          </article> : <div className="assistant-empty-state ai-v33-empty"><span>IA</span><div><strong>Su centro de decisiones está listo</strong><small>Pregunte por reposición, ventas, utilidad, cobranza, catálogo o un plan comercial.</small></div></div>}
+          {history.length > 0 && <div className="assistant-history ai-v33-history"><div><span>Consultas recientes</span><button type="button" onClick={() => setHistory([])}>Limpiar</button></div><section>{history.map(item => <button type="button" key={item.id} onClick={() => { setQuestion(item.question); askAssistant(item.question, item.intent, item.task || 'analysis'); }}><span>{item.question}</span><small>{fmtDate(item.created_at)}</small></button>)}</section></div>}
         </section>
-        <aside className="card compact-card ai-v328-commercial">
-          <header className="assistant-section-head ai-v328-section-head"><div><span className="eyebrow">WhatsApp oficial</span><h3>Respuesta comercial</h3></div><span className="assistant-state-pill verified">Datos reales</span></header>
-          <p className="muted">Prepare una respuesta con precio, código y disponibilidad desde el ERP. El mensaje siempre requiere revisión humana.</p>
-          <label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label>
-          <label>Tono<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label>
-          <button type="button" className="primary-btn" onClick={generateCommercialReply}>Preparar mensaje</button>
-          {commercialText ? <div className="commercial-preview ai-v328-preview"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="7" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar</button><a className="primary-btn" href={`https://wa.me/${String(store?.whatsapp_number || '51931709871').replace(/\D/g,'')}?text=${encodeURIComponent(commercialText)}`} target="_blank" rel="noreferrer">Abrir WhatsApp</a></div></div> : <div className="commercial-empty-state ai-v328-commercial-empty"><span>💬</span><div><strong>Mensaje listo al elegir un producto</strong><small>Incluye solo información validada: precio, código y disponibilidad.</small></div></div>}
+
+        <aside className="card compact-card ai-v33-command-desk">
+          <div className="ai-v33-desk-tabs"><button type="button" className={workspace === 'compra' ? 'active' : ''} onClick={() => setWorkspace('compra')}>Compra</button><button type="button" className={workspace === 'comercial' ? 'active' : ''} onClick={() => setWorkspace('comercial')}>WhatsApp</button><button type="button" className={workspace === 'catalogo' ? 'active' : ''} onClick={() => setWorkspace('catalogo')}>Catálogo</button><button type="button" className={workspace === 'cobranza' ? 'active' : ''} onClick={() => setWorkspace('cobranza')}>Cobranza</button><button type="button" className={workspace === 'reportes' ? 'active' : ''} onClick={() => setWorkspace('reportes')}>Reportes</button></div>
+
+          {(workspace === 'comercial' || workspace === 'catalogo') && <section className="ai-v33-desk-section ai-v33-product-tools"><header><span className="eyebrow">Producto real</span><h3>{workspace === 'catalogo' ? 'Contenido para catálogo' : 'Respuesta comercial'}</h3><p>La IA recibe solo nombre, precio, código y características verificadas del producto seleccionado.</p></header><label>Producto<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}><option value="">Seleccione un producto</option>{products.filter(p => p.active !== false && asNum(p.price) > 0 && productPriceStatus(p) === 'Validado').slice(0, 500).map(p => <option value={p.id} key={p.id}>{p.name} · {money(p.price)}{p.color ? ` · ${p.color}` : ''}{p.size ? ` · ${p.size}` : ''}</option>)}</select></label>{workspace === 'comercial' && <label>Tono<select value={commercialTone} onChange={e => setCommercialTone(e.target.value)}><option>Cercano</option><option>Formal</option><option>Breve</option></select></label>}<button type="button" className="primary-btn" disabled={asking} onClick={workspace === 'catalogo' ? generateCatalogCopy : generateCommercialReply}>{workspace === 'catalogo' ? 'Generar ficha comercial' : 'Preparar mensaje WhatsApp'}</button>{workspace === 'catalogo' && catalogText && <div className="ai-v33-output"><textarea value={catalogText} onChange={e => setCatalogText(e.target.value)} rows="10" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(catalogText); setNotice('Ficha de catálogo copiada.'); }}>Copiar</button><button type="button" className="secondary-btn" onClick={() => goTo('catalogo')}>Abrir catálogo</button></div></div>}{workspace === 'comercial' && commercialText && <div className="ai-v33-output"><textarea value={commercialText} onChange={e => setCommercialText(e.target.value)} rows="9" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(commercialText); setNotice('Mensaje comercial copiado.'); }}>Copiar</button><a className="primary-btn" href={commercialWhatsapp} target="_blank" rel="noreferrer" onClick={() => recordActivity('Mensaje comercial abierto en WhatsApp', 'whatsapp')}>Abrir WhatsApp</a></div></div>}</section>}
+
+          {workspace === 'compra' && <section className="ai-v33-desk-section"><header><span className="eyebrow">Borrador de compra</span><h3>Reposición inteligente</h3><p>La lista propone cantidades orientativas. Revise proveedor, costo y demanda antes de registrar la compra.</p></header><div className="ai-v33-plan-list">{purchasePlan.length ? purchasePlan.map((row, idx) => <div className="ai-v33-plan-row" key={row.id}><span className="ai-v33-plan-number">{idx + 1}</span><div><strong>{row.name}</strong><small>{row.code} · {row.reason}</small></div><b>{row.suggested} u.</b></div>) : <div className="commercial-empty-state"><span>—</span><div><strong>No hay productos para el borrador</strong><small>Ejecute “Reponer stock” o cargue productos con stock mínimo.</small></div></div>}</div><div className="ai-v33-desk-actions"><button type="button" className="secondary-btn" onClick={() => { setWorkspace('compra'); askAssistant('Prioriza los productos que debo reponer esta semana. Indica riesgo, motivo y qué revisar antes de comprar.', 'reponer', 'purchase_plan'); }}>Actualizar análisis</button><button type="button" className="primary-btn" onClick={exportPurchasePlan}>Exportar Excel</button></div><button type="button" className="link-action" onClick={() => goTo('ingresos')}>Registrar compra manualmente →</button></section>}
+
+          {workspace === 'cobranza' && <section className="ai-v33-desk-section"><header><span className="eyebrow">Cobranza responsable</span><h3>Preparar recordatorio</h3><p>La IA redacta un mensaje cordial. No confirma pagos ni modifica la cuenta del cliente.</p></header><div className="ai-v33-form-grid"><label>Cliente<input value={collectionForm.name} onChange={e => setCollectionForm({ ...collectionForm, name: e.target.value })} placeholder="Nombre del cliente" /></label><label>Saldo pendiente<input value={collectionForm.amount} onChange={e => setCollectionForm({ ...collectionForm, amount: e.target.value })} inputMode="decimal" placeholder="0.00" /></label><label>WhatsApp<input value={collectionForm.phone} onChange={e => setCollectionForm({ ...collectionForm, phone: e.target.value })} inputMode="tel" placeholder="519XXXXXXXX" /></label><label>Fecha de referencia<input value={collectionForm.due_date} onChange={e => setCollectionForm({ ...collectionForm, due_date: e.target.value })} type="date" /></label></div><button type="button" className="primary-btn" disabled={asking} onClick={generateCollectionReply}>Generar mensaje de cobranza</button>{collectionText && <div className="ai-v33-output"><textarea value={collectionText} onChange={e => setCollectionText(e.target.value)} rows="8" /><div className="button-row"><button type="button" className="secondary-btn" onClick={() => { copyTextToClipboard(collectionText); setNotice('Mensaje de cobranza copiado.'); }}>Copiar</button>{collectionForm.phone ? <a className="primary-btn" href={collectionWhatsapp} target="_blank" rel="noreferrer" onClick={() => recordActivity(`Recordatorio de cobranza abierto: ${collectionForm.name}`, 'cobranza')}>Abrir WhatsApp</a> : <button type="button" className="secondary-btn" onClick={() => goTo('creditos')}>Abrir créditos</button>}</div></div>}<button type="button" className="link-action" onClick={() => goTo('creditos')}>Ver cuentas por cobrar →</button></section>}
+
+          {workspace === 'reportes' && <section className="ai-v33-desk-section"><header><span className="eyebrow">Reporte ejecutivo</span><h3>PDF y Excel bajo demanda</h3><p>El ERP aporta las cifras; la IA redacta el diagnóstico. Revise el contenido antes de compartirlo.</p></header><div className="ai-v33-report-preview"><div><span>Respuesta actual</span><strong>{answer ? answer.title : 'Aún no hay análisis'}</strong></div><div><span>Lista de reposición</span><strong>{purchasePlan.length} producto(s)</strong></div><div><span>Actividad local</span><strong>{activity.length} acción(es)</strong></div></div><div className="ai-v33-desk-actions"><button type="button" className="primary-btn" disabled={!answer} onClick={printCommandReport}>Generar PDF</button><button type="button" className="secondary-btn" onClick={exportPurchasePlan}>Excel reposición</button></div><small className="muted">El PDF se abre en una ventana de impresión. Seleccione “Guardar como PDF”. El historial de actividad se guarda localmente en este navegador.</small></section>}
+
+          {workspace === 'decidir' && <section className="ai-v33-desk-section"><header><span className="eyebrow">Acciones seguras</span><h3>Cómo usar el copiloto</h3><p>Empiece por una consulta o elija una orden rápida. La IA analiza; usted decide y confirma.</p></header><div className="ai-v33-guide-list"><div><b>1</b><span><strong>Analizar</strong><small>Ventas, stock, caja, créditos y rotación.</small></span></div><div><b>2</b><span><strong>Preparar</strong><small>Listas de compra, mensajes y contenido comercial.</small></span></div><div><b>3</b><span><strong>Confirmar</strong><small>Las acciones reales se registran en los módulos del ERP.</small></span></div></div><button type="button" className="primary-btn" onClick={() => askAssistant('Con los datos disponibles, dime las tres decisiones más importantes que debo tomar esta semana y qué módulo debo abrir para cada una.', 'resumen')}>Generar prioridades</button></section>}
         </aside>
       </div>
     </div>
