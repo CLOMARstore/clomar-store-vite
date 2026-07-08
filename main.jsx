@@ -85,7 +85,7 @@ const buildReceiptHTML = ({ sale, items = [], store = {}, profile = {}, format =
   .center{text-align:center}.logo{width:${isA4?'70px':'42px'};height:${isA4?'70px':'42px'};object-fit:contain;margin:0 auto 4px;display:block}.store{font-weight:900;font-size:${isA4?'24px':'14px'};letter-spacing:.02em}.muted{color:#64748b}.line{border-top:1px dashed #94a3b8;margin:8px 0}.meta{display:grid;gap:2px;margin:6px 0}.meta div{display:flex;justify-content:space-between;gap:8px}.title{font-weight:900;margin:7px 0;text-align:center}table{width:100%;border-collapse:collapse;margin-top:6px}th,td{padding:3px 0;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}th{font-size:9px;text-transform:uppercase;color:#64748b}.num{text-align:right;white-space:nowrap}.total{font-size:${isA4?'18px':'14px'};font-weight:900}.qr{width:${isA4?'90px':'58px'};height:${isA4?'90px':'58px'};object-fit:contain;margin:8px auto 3px;display:block}.thanks{font-weight:800;margin-top:8px}.a4-grid{display:${isA4?'grid':'block'};grid-template-columns:1fr 1fr;gap:14mm}.a4-box{border:${isA4?'1px solid #e5e7eb':'0'};border-radius:${isA4?'12px':'0'};padding:${isA4?'10mm':'0'}}
   @media print{body{background:#fff}.receipt{margin:0}.no-print{display:none!important}@page{size:${isA4?'A4':'auto'};margin:${isA4?'10mm':'2mm'}}}
 
-@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.1px!important}.label.orientation-vertical.vertical-compact{gap:.55mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:22px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:4.2mm 14.8mm 12.2mm 27.4mm!important;gap:.5mm!important;padding:2mm 2.05mm 1.65mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:21.2px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:19.5px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:18.3mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.2mm 20.6mm 16.6mm 34mm!important;gap:.7mm!important;padding:2.9mm 3.1mm 2.45mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:30px!important}.density-vertical-large.orientation-vertical .price strong{font-size:27px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important}.qr-large .qr-wrap{grid-template-columns:12.4mm!important;grid-template-rows:12.4mm auto!important}.qr-large .qr{width:12.4mm!important;height:12.4mm!important}.qr-max .qr-wrap{grid-template-columns:16mm!important;grid-template-rows:16mm auto!important}.qr-max .qr{width:16mm!important;height:16mm!important}}
+@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.6px!important}.label.orientation-vertical.vertical-compact{gap:.38mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:26px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:3.95mm 11.9mm 14.3mm 25.4mm!important;gap:.38mm!important;padding:1.95mm 2.05mm 1.6mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:25.8px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:22.8px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:17.4mm!important}.density-vertical-compact.orientation-vertical{grid-template-rows:3.65mm 10.4mm 13.4mm 24.2mm!important;gap:.34mm!important;padding:1.7mm 1.7mm 1.45mm!important}.density-vertical-compact.orientation-vertical .price strong{font-size:20.2px!important}.density-vertical-compact.orientation-vertical.price-max .price strong{font-size:22.8px!important}.density-vertical-compact.orientation-vertical.mode-barcode .barcode-svg{height:16.8mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.1mm 18.6mm 18.7mm 32.4mm!important;gap:.58mm!important;padding:2.75mm 2.95mm 2.35mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:33px!important}.density-vertical-large.orientation-vertical .price strong{font-size:29.2px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important;align-items:baseline!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important;font-size:22px!important}.qr-large .qr-wrap{grid-template-columns:13.8mm!important;grid-template-rows:13.8mm auto!important}.qr-large .qr{width:13.8mm!important;height:13.8mm!important}.qr-max .qr-wrap{grid-template-columns:17mm!important;grid-template-rows:17mm auto!important}.qr-max .qr{width:17mm!important;height:17mm!important}}
 </style></head><body><main class="receipt"><section class="${isA4?'a4-box':''}">
   <div class="center"><img class="logo" src="${escapeHtml(publicAssetUrl(store?.logo_url || APP_ICON))}"/><div class="store">${escapeHtml(store?.name || 'Clomar Store')}</div><div class="muted">${escapeHtml(store?.ruc ? `RUC: ${store.ruc}` : '')}</div><div class="muted">${escapeHtml(store?.address || '')}</div><div class="muted">${escapeHtml(store?.phone ? `Tel: ${store.phone}` : '')}</div></div>
   <div class="line"></div><div class="title">${receiptTitle}</div>
@@ -113,7 +113,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.4.1-R3 · Etiquetas Comerciales Pro';
+const APP_VERSION = 'V03.4.4-R3 · Editor visual de etiquetas + plantillas por rubro';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -239,6 +239,7 @@ const LABEL_LAYOUTS = {
   a4_4x8: { key: 'a4_4x8', label: 'A4 · 4 columnas × 8 filas', paper: 'a4', columns: 4, rows: 8, width: 43, height: 32, gapX: 2, gapY: 2, density: 'compact' },
   a4_vertical_2x3: { key: 'a4_vertical_2x3', label: 'A4 vertical premium · 2 columnas × 3 filas', paper: 'a4', columns: 2, rows: 3, width: 90, height: 84, gapX: 6, gapY: 4, density: 'vertical-large' },
   a4_vertical_3x4: { key: 'a4_vertical_3x4', label: 'A4 vertical retail · 3 columnas × 4 filas', paper: 'a4', columns: 3, rows: 4, width: 58, height: 63, gapX: 4, gapY: 3, density: 'vertical-medium' },
+  a4_vertical_4x4: { key: 'a4_vertical_4x4', label: 'A4 vertical compacto · 4 columnas × 4 filas', paper: 'a4', columns: 4, rows: 4, width: 43, height: 63, gapX: 2, gapY: 3, density: 'vertical-compact' },
   a4_vertical_3x3: { key: 'a4_vertical_3x3', label: 'A4 vertical largo · 3 columnas × 3 filas', paper: 'a4', columns: 3, rows: 3, width: 52, height: 80, gapX: 5, gapY: 5, density: 'vertical' },
   roll_1col: { key: 'roll_1col', label: 'Rollo térmico · 1 columna', paper: 'roll', columns: 1, rows: 1, width: 60, height: 40, gapX: 0, gapY: 2, density: 'commercial' },
 };
@@ -246,6 +247,7 @@ const LABEL_TEMPLATE_INFO = {
   commercial: { label: 'Venta profesional', help: 'Para ropa, calzado y artículos con precio, variante y código POS.' },
   compact: { label: 'Control / almacén', help: 'Para reposición, caja o artículos pequeños. Prioriza código de barras.' },
   showcase: { label: 'Góndola / exhibición', help: 'Para mostrador. Precio grande y QR para que el cliente vea la ficha pública.' },
+  minimal: { label: 'Solo tienda + precio + códigos', help: 'Etiqueta minimalista: muestra solo la tienda, precio, QR catálogo y código de barras.' },
 };
 const LABEL_USE_INFO = {
   auto: { label: 'Automático por rubro', help: 'Detecta ropa, calzado, hogar o accesorio y adapta los campos.' },
@@ -263,10 +265,14 @@ const LABEL_VISUAL_PRESETS = {
   ropa_colgante_premium: { label: 'Ropa colgante premium', help: 'Etiqueta vertical grande, más aire y precio protagonista.', labelUse: 'apparel', orientation: 'vertical', composition: 'price', mode: 'barcode', labelTemplate: 'showcase', sheetLayout: 'a4_vertical_2x3', priceEmphasis: 'max', qrEmphasis: 'small', verticalDensity: 'relaxed' },
   ropa_vertical_qr: { label: 'Ropa vertical QR', help: 'Vertical con QR de catálogo y barras POS en dos columnas.', labelUse: 'apparel', orientation: 'vertical', composition: 'two-column', mode: 'both', labelTemplate: 'commercial', sheetLayout: 'a4_vertical_3x4', priceEmphasis: 'max', qrEmphasis: 'large', verticalDensity: 'compact' },
   accesorio_vertical: { label: 'Accesorio vertical', help: 'Para lentes, billeteras o accesorios pequeños con precio visible.', labelUse: 'accessories', orientation: 'vertical', composition: 'price', mode: 'barcode', labelTemplate: 'commercial', sheetLayout: 'a4_vertical_3x4', priceEmphasis: 'max', qrEmphasis: 'small', verticalDensity: 'compact' },
+  ropa_vertical_compacta: { label: 'Ropa vertical compacta', help: 'Más contenido útil y menos espacio muerto en formato vertical mediano.', labelUse: 'apparel', orientation: 'vertical', composition: 'classic', mode: 'barcode', labelTemplate: 'commercial', sheetLayout: 'a4_vertical_3x4', priceEmphasis: 'max', qrEmphasis: 'small', verticalDensity: 'compact' },
+  ropa_vertical_destacada: { label: 'Ropa vertical destacada', help: 'Precio muy visible y diseño formal para exhibición vertical.', labelUse: 'apparel', orientation: 'vertical', composition: 'price', mode: 'both', labelTemplate: 'commercial', sheetLayout: 'a4_vertical_2x3', priceEmphasis: 'max', qrEmphasis: 'large', verticalDensity: 'compact' },
   calzado_caja: { label: 'Calzado caja', help: 'Horizontal de dos columnas para talla, color, QR y barras.', labelUse: 'footwear', orientation: 'horizontal', composition: 'two-column', mode: 'both', labelTemplate: 'commercial', sheetLayout: 'a4_3x7', priceEmphasis: 'max', qrEmphasis: 'large', verticalDensity: 'compact' },
   hogar_detalle: { label: 'Hogar / bazar detalle', help: 'Dos columnas: precio y QR a un lado, detalle al otro.', labelUse: 'home', orientation: 'horizontal', composition: 'two-column', mode: 'both', labelTemplate: 'commercial', sheetLayout: 'a4_3x7', priceEmphasis: 'featured', qrEmphasis: 'large', verticalDensity: 'compact' },
   gondola_qr: { label: 'Góndola QR premium', help: 'Precio y QR grandes para cliente; sin barras POS.', labelUse: 'gondola', orientation: 'horizontal', composition: 'qr', mode: 'qr', labelTemplate: 'showcase', sheetLayout: 'a4_2x6', priceEmphasis: 'max', qrEmphasis: 'max', verticalDensity: 'compact' },
   almacen_barra: { label: 'Almacén operativo', help: 'Compacta, código escrito y barras grandes para control.', labelUse: 'inventory', orientation: 'horizontal', composition: 'barcode', mode: 'barcode', labelTemplate: 'compact', sheetLayout: 'a4_4x8', priceEmphasis: 'normal', qrEmphasis: 'small', verticalDensity: 'compact' },
+  vertical_4x4_compacta: { label: 'Vertical 4 por fila', help: 'Formato vertical compacto con 4 etiquetas por fila.', labelUse: 'apparel', orientation: 'vertical', composition: 'classic', mode: 'barcode', labelTemplate: 'commercial', sheetLayout: 'a4_vertical_4x4', priceEmphasis: 'max', qrEmphasis: 'small', verticalDensity: 'compact' },
+  precio_qr_barras: { label: 'Solo tienda + precio + QR + barras', help: 'Etiqueta minimalista con marca, precio protagonista, QR catálogo y código de barras.', labelUse: 'gondola', orientation: 'vertical', composition: 'price', mode: 'both', labelTemplate: 'minimal', sheetLayout: 'a4_vertical_4x4', priceEmphasis: 'max', qrEmphasis: 'large', verticalDensity: 'compact' },
 };
 const labelText = (value = '') => normalizeText(value);
 const inferredLabelProfile = (product = {}) => {
@@ -283,7 +289,7 @@ const resolveLabelOrientation = (orientation = 'auto', profile = 'general') => {
   if (orientation !== 'auto') return orientation;
   return profile === 'apparel' ? 'vertical' : 'horizontal';
 };
-const VERTICAL_LABEL_LAYOUTS = ['a4_vertical_2x3', 'a4_vertical_3x4', 'a4_vertical_3x3'];
+const VERTICAL_LABEL_LAYOUTS = ['a4_vertical_2x3', 'a4_vertical_3x4', 'a4_vertical_3x3', 'a4_vertical_4x4'];
 const resolveAdaptiveLayout = (layoutKey = 'a4_3x7', orientation = 'auto', labelUse = 'auto') => {
   const preferredProfile = labelUse === 'auto' ? 'general' : labelUse;
   const resolvedOrientation = resolveLabelOrientation(orientation, preferredProfile);
@@ -332,6 +338,7 @@ const labelMetaFor = (product = {}, profile = 'general') => {
 };
 
 const labelPrintEsc = (value = '') => escapeHtml(String(value ?? ''));
+const labelPriceEsc = (value = '') => labelPrintEsc(String(value ?? '').replace(/^S\/\s+/, 'S/\u00A0'));
 const splitEvery = (items, chunkSize) => {
   const groups = [];
   for (let i = 0; i < items.length; i += chunkSize) groups.push(items.slice(i, i + chunkSize));
@@ -363,7 +370,7 @@ const buildLabelsPrintHTML = ({
   const pages = splitEvery(items, perPage);
   const logo = publicAssetUrl(store?.logo_url || APP_ICON);
   const storeName = store?.name || 'Clomar Store';
-  const selectedTemplate = ['commercial', 'compact', 'showcase'].includes(labelTemplate) ? labelTemplate : 'commercial';
+  const selectedTemplate = ['commercial', 'compact', 'showcase', 'minimal'].includes(labelTemplate) ? labelTemplate : 'commercial';
   const styleClass = labelStyle === 'small' ? 'style-compact' : labelStyle === 'large' ? 'style-detailed' : 'style-standard';
   const compactTitle = (value, max = 56) => {
     const raw = String(value || 'Producto').replace(/\s+/g, ' ').trim();
@@ -390,13 +397,16 @@ const buildLabelsPrintHTML = ({
     const titleClass = rawTitle.length > titleLimit ? 'name-long' : rawTitle.length > Math.round(titleLimit * .68) ? 'name-medium' : 'name-short';
     const logoBlock = showLogo ? `<div class="brand"><img src="${labelPrintEsc(logo)}" alt="" onerror="this.style.display='none'"/><span>${labelPrintEsc(storeName)}</span></div>` : '';
     const priceBlock = !showPrice ? '' : priceIsReady
-      ? `<div class="price"><span>${profile === 'inventory' ? 'PRECIO REF.' : 'PRECIO'}</span><strong>${labelPrintEsc(money(product.price))}</strong></div>`
+      ? `<div class="price"><span>${profile === 'inventory' ? 'PRECIO REF.' : 'PRECIO'}</span><strong>${labelPriceEsc(money(product.price))}</strong></div>`
       : `<div class="price pending"><strong>PRECIO PENDIENTE</strong></div>`;
     const qrCaption = profile === 'gondola' ? 'Escanea y consulta' : layout.width <= 43 ? 'Catálogo' : 'Ver catálogo';
     const qrBlock = hasQr ? `<div class="qr-wrap"><img class="qr" src="${labelPrintEsc(qrUrl(catalogQrValue(product, catalogUrl)))}" alt="QR catálogo ${labelPrintEsc(code)}"/><small>${qrCaption}</small></div>` : '';
     const barcodeBlock = hasBarcode ? `<div class="barcode-wrap">${barcodeSvgMarkup(code, 46)}${showCodeText ? `<div class="code-text">${labelPrintEsc(code)}</div>` : ''}</div>` : '';
     const meta = `<div class="meta">${labelPrintEsc(variant)}</div>`;
-    return `<article class="label template-${effectiveTemplate} profile-${profile} orientation-${effectiveOrientation} composition-${effectiveComposition} ${styleClass} density-${layout.density} mode-${effectiveMode} ${titleClass} price-${priceEmphasis} qr-${qrEmphasis} vertical-${verticalDensity} preset-${visualPreset}">${logoBlock}<div class="label-title"><div class="name ${titleClass}">${labelPrintEsc(visibleTitle)}</div>${meta}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div></article>`;
+    const minimalMarkup = effectiveTemplate === 'minimal'
+      ? `${logoBlock}${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div>`
+      : `${logoBlock}<div class="label-title"><div class="name ${titleClass}">${labelPrintEsc(visibleTitle)}</div>${meta}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div>`;
+    return `<article class="label template-${effectiveTemplate} profile-${profile} orientation-${effectiveOrientation} composition-${effectiveComposition} ${styleClass} density-${layout.density} mode-${effectiveMode} ${titleClass} price-${priceEmphasis} qr-${qrEmphasis} vertical-${verticalDensity} preset-${visualPreset}">${minimalMarkup}</article>`;
   };
 
   const pagesMarkup = pages.map((pageItems, pageIndex) => {
@@ -419,7 +429,7 @@ const buildLabelsPrintHTML = ({
   .brand{min-height:3.4mm;display:flex;align-items:center;justify-content:center;gap:1mm;color:var(--navy);font-size:7.2px;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand img{width:3.3mm;height:3.3mm;object-fit:contain;flex:0 0 auto}.label-title{height:7.1mm;overflow:hidden;display:block}.name{display:block;height:5.3mm;max-height:5.3mm;overflow:hidden;word-break:break-word;font-size:9.7px;line-height:1.06;font-weight:950;color:#05070b}.name.name-medium{font-size:9.15px;line-height:1.03}.name.name-long{font-size:8.45px;line-height:1.01;letter-spacing:-.012em}.meta{height:1.35mm;font-size:6.2px;line-height:1.05;font-weight:700;letter-spacing:.025em;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .price{min-height:6mm;display:flex;align-items:center;justify-content:center;gap:1.3mm;padding:.85mm 1.3mm;border-radius:1.25mm;background:var(--navy);color:#fff}.price span{font-size:5.4px;font-weight:900;letter-spacing:.09em}.price strong{font-size:12.3px;line-height:1;font-weight:950}.price.pending{background:#fff3e0;color:#9a3412;font-size:6.2px;letter-spacing:.035em}
   .codes{height:12mm;display:flex;align-items:center;justify-content:center;gap:1.55mm;min-width:0}.codes-both{justify-content:space-between}.qr-wrap{display:grid;grid-template-columns:11.4mm;grid-template-rows:11.4mm auto;place-items:center;gap:.2mm}.qr{width:11.4mm;height:11.4mm;object-fit:contain}.qr-wrap small{font-size:4.7px;line-height:1;color:#64748b;white-space:nowrap}.barcode-wrap{display:grid;grid-template-rows:9.6mm auto;align-items:center;justify-items:center;min-width:0;flex:1}.barcode-svg{width:100%;height:9.6mm;display:block;fill:#000;background:#fff}.codes-both .barcode-wrap{width:calc(var(--label-w) - 21.5mm)}.code-text{margin-top:.35mm;font-size:5.8px;line-height:1;font-weight:850;letter-spacing:.065em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111827}
-  .template-showcase .price{background:#0f172a;border-radius:1.6mm;min-height:7.2mm}.template-showcase .price strong{font-size:15px}.template-showcase .name{font-size:10.6px}.template-compact{padding:1.15mm 1.2mm;grid-template-rows:2.7mm 5.3mm 4.8mm 8.6mm;gap:.3mm}.template-compact .brand{font-size:6.1px;min-height:2.7mm}.template-compact .brand img{width:2.7mm;height:2.7mm}.template-compact .label-title{height:5.3mm}.template-compact .name{height:4.1mm;max-height:4.1mm;font-size:7.3px}.template-compact .meta{height:1.1mm;font-size:5.3px}.template-compact .price{min-height:4.8mm;padding:.5mm 1mm}.template-compact .price strong{font-size:9.5px}.template-compact .price span{font-size:4.5px}.template-compact .codes{height:8.6mm;gap:1mm}.template-compact .qr-wrap{grid-template-columns:8.3mm;grid-template-rows:8.3mm auto}.template-compact .qr{width:8.3mm;height:8.3mm}.template-compact .qr-wrap small{display:none}.template-compact .barcode-wrap{grid-template-rows:7.3mm auto}.template-compact .barcode-svg{height:7.3mm}.template-compact .code-text{font-size:4.8px}.template-compact .codes-both .barcode-wrap{width:calc(var(--label-w) - 15mm)}
+  .template-showcase .price{background:#0f172a;border-radius:1.6mm;min-height:7.2mm}.template-showcase .price strong{font-size:15px}.template-showcase .name{font-size:10.6px}.template-minimal{padding:1.25mm 1.25mm 1.1mm;grid-template-rows:3.2mm 8.4mm 13.2mm;gap:.55mm;align-content:center}.template-minimal .brand{min-height:3.2mm;font-size:6.35px;justify-content:center}.template-minimal .brand img{width:2.8mm;height:2.8mm}.template-minimal .price{min-height:8.4mm;border-radius:1.7mm;padding:.8mm 1mm}.template-minimal .price span{font-size:4.7px}.template-minimal .price strong{font-size:14.6px}.template-minimal .codes{height:13.2mm;gap:1mm}.template-minimal .qr-wrap{grid-template-columns:10.4mm;grid-template-rows:10.4mm auto}.template-minimal .qr{width:10.4mm;height:10.4mm}.template-minimal .qr-wrap small{font-size:4.4px;font-weight:800;line-height:1.02}.template-minimal .barcode-wrap{grid-template-rows:8.3mm auto}.template-minimal .barcode-svg{height:8.3mm}.template-minimal .code-text{font-size:4.7px}.template-minimal .codes-both .barcode-wrap{width:auto;flex:1}.template-minimal.orientation-vertical{padding:1.8mm 1.8mm 1.5mm;grid-template-rows:4mm 15mm 25mm;gap:.55mm;border-radius:2.8mm}.template-minimal.orientation-vertical .brand{min-height:4mm;font-size:7.1px}.template-minimal.orientation-vertical .brand img{width:3.4mm;height:3.4mm}.template-minimal.orientation-vertical .price{min-height:15mm;padding:1.05mm 1.1mm}.template-minimal.orientation-vertical .price span{font-size:5.8px}.template-minimal.orientation-vertical .price strong{font-size:22px}.template-minimal.orientation-vertical.price-max .price strong{font-size:25px!important}.template-minimal.orientation-vertical .codes{height:25mm}.template-minimal.orientation-vertical.mode-both .qr-wrap{grid-template-columns:14.5mm;grid-template-rows:14.5mm auto}.template-minimal.orientation-vertical.mode-both .qr{width:14.5mm;height:14.5mm}.template-minimal.orientation-vertical.mode-both .barcode-wrap{grid-template-rows:13.6mm auto}.template-minimal.orientation-vertical.mode-both .barcode-svg{height:13.6mm}.template-compact{padding:1.15mm 1.2mm;grid-template-rows:2.7mm 5.3mm 4.8mm 8.6mm;gap:.3mm}.template-compact .brand{font-size:6.1px;min-height:2.7mm}.template-compact .brand img{width:2.7mm;height:2.7mm}.template-compact .label-title{height:5.3mm}.template-compact .name{height:4.1mm;max-height:4.1mm;font-size:7.3px}.template-compact .meta{height:1.1mm;font-size:5.3px}.template-compact .price{min-height:4.8mm;padding:.5mm 1mm}.template-compact .price strong{font-size:9.5px}.template-compact .price span{font-size:4.5px}.template-compact .codes{height:8.6mm;gap:1mm}.template-compact .qr-wrap{grid-template-columns:8.3mm;grid-template-rows:8.3mm auto}.template-compact .qr{width:8.3mm;height:8.3mm}.template-compact .qr-wrap small{display:none}.template-compact .barcode-wrap{grid-template-rows:7.3mm auto}.template-compact .barcode-svg{height:7.3mm}.template-compact .code-text{font-size:4.8px}.template-compact .codes-both .barcode-wrap{width:calc(var(--label-w) - 15mm)}
   /* Impresión estable: evita que Chrome o Adobe PDF colapsen el título cuando la etiqueta es pequeña. */
   .density-compact.template-commercial{padding:1.25mm 1.25mm 1.05mm;grid-template-rows:2.85mm 6.25mm 5.2mm 10.35mm;gap:.28mm;align-content:space-between}.density-compact.template-commercial .brand{min-height:2.85mm;font-size:6.1px}.density-compact.template-commercial .brand img{width:2.55mm;height:2.55mm}.density-compact.template-commercial .label-title{height:6.25mm;display:block;overflow:hidden}.density-compact.template-commercial .name{display:block;min-height:4.85mm;max-height:4.85mm;overflow:hidden;word-break:break-word;font-size:7.15px;line-height:1.01;font-weight:950;letter-spacing:-.008em}.density-compact.template-commercial .name.name-medium{font-size:6.82px;line-height:1.005}.density-compact.template-commercial .name.name-long{font-size:6.32px;line-height:1;letter-spacing:-.015em}.density-compact.template-commercial .meta{height:1.1mm;font-size:4.75px;line-height:1.02}.density-compact.template-commercial .price{min-height:5.2mm;padding:.52mm .85mm;border-radius:1.35mm;box-shadow:inset 0 -.18mm 0 rgba(255,255,255,.1)}.density-compact.template-commercial .price span{font-size:4.15px;letter-spacing:.09em}.density-compact.template-commercial .price strong{font-size:9.55px;line-height:1}.density-compact.template-commercial .codes{height:10.35mm;gap:.92mm}.density-compact.template-commercial .qr-wrap{grid-template-columns:9mm;grid-template-rows:9mm auto}.density-compact.template-commercial .qr{width:9mm;height:9mm}.density-compact.template-commercial .qr-wrap small{display:none}.density-compact.template-commercial .barcode-wrap{grid-template-rows:7.25mm auto}.density-compact.template-commercial .barcode-svg{height:7.25mm}.density-compact.template-commercial .code-text{font-size:4.4px}.density-compact.template-commercial .codes-both .barcode-wrap{width:calc(var(--label-w) - 15mm)}
   /* V03.4.1-R4 — Arquitectura de impresión por formato y plantilla.
@@ -447,100 +457,142 @@ const buildLabelsPrintHTML = ({
   .label.orientation-vertical{padding:2.4mm 2.55mm 2.15mm;grid-template-rows:4.2mm 15mm 11mm 31.5mm;gap:.9mm;border-radius:3mm;align-content:start}.label.orientation-vertical .brand{min-height:4.2mm;font-size:8px}.label.orientation-vertical .brand img{width:4mm;height:4mm}.label.orientation-vertical .label-title{height:15mm}.label.orientation-vertical .name{height:11.2mm;max-height:11.2mm;font-size:12.1px;line-height:1.05}.label.orientation-vertical .name.name-medium{font-size:11px}.label.orientation-vertical .name.name-long{font-size:9.8px}.label.orientation-vertical .meta{height:2.25mm;font-size:7px}.label.orientation-vertical .price{min-height:11mm;border-radius:2mm;padding:1.1mm}.label.orientation-vertical .price span{font-size:6.2px}.label.orientation-vertical .price strong{font-size:21px}.label.orientation-vertical.price-max .price strong{font-size:24px}.label.orientation-vertical .codes{height:31.5mm;align-items:start;justify-content:center}.label.orientation-vertical .barcode-wrap{width:100%;grid-template-rows:18mm auto}.label.orientation-vertical .barcode-svg{height:18mm}.label.orientation-vertical .code-text{font-size:7.2px;margin-top:.7mm}.label.orientation-vertical.vertical-compact{grid-template-rows:4mm 14.2mm 11.2mm 28.5mm;gap:.75mm}.label.orientation-vertical.vertical-compact .label-title{height:14.2mm}.label.orientation-vertical.vertical-compact .codes{height:28.5mm;align-items:start}.label.orientation-vertical.mode-both .codes{align-items:start}.label.orientation-vertical.mode-both .qr-wrap{grid-template-columns:16mm;grid-template-rows:16mm auto}.label.orientation-vertical.mode-both .qr{width:16mm;height:16mm}.label.orientation-vertical.mode-both .barcode-wrap{width:calc(var(--label-w) - 22mm);grid-template-rows:14mm auto}.label.orientation-vertical.mode-both .barcode-svg{height:14mm}.label.orientation-vertical.mode-qr .codes{align-items:start}.label.orientation-vertical.mode-qr .qr-wrap{grid-template-columns:29mm;grid-template-rows:29mm auto}.label.orientation-vertical.mode-qr .qr{width:29mm;height:29mm}.label.orientation-vertical.mode-qr .qr-wrap small{font-size:6.3px;font-weight:900}
   .label.composition-two-column{grid-template-columns:34% 1fr;grid-template-rows:3.5mm 13.2mm 11.8mm;grid-template-areas:"brand brand" "price title" "codes codes";column-gap:1.4mm;row-gap:.65mm;text-align:left}.label.composition-two-column .brand{grid-area:brand;justify-content:flex-start}.label.composition-two-column .label-title{grid-area:title;height:13.2mm;padding-top:.2mm}.label.composition-two-column .name{height:9.8mm;max-height:9.8mm;font-size:10.25px;line-height:1.04}.label.composition-two-column .meta{height:2.6mm;font-size:6.1px}.label.composition-two-column .price{grid-area:price;display:grid;align-content:center;justify-items:center;gap:.5mm;min-height:13.2mm;border-radius:1.8mm;padding:1mm}.label.composition-two-column .price span{font-size:5px}.label.composition-two-column .price strong{font-size:13.4px}.label.composition-two-column .codes{grid-area:codes;height:11.8mm}.label.composition-two-column .qr-wrap{grid-template-columns:10.2mm;grid-template-rows:10.2mm auto}.label.composition-two-column .qr{width:10.2mm;height:10.2mm}.label.composition-two-column .barcode-wrap{grid-template-rows:8mm auto}.label.composition-two-column .barcode-svg{height:8mm}.label.composition-two-column .codes-both .barcode-wrap{width:auto;flex:1}
 
-  /* V03.4.4-R1 — Vertical retail optimizado.
-     Corrige marco, elimina espacios muertos y evita que S/ y monto se partan. */
+  /* V03.4.4-R2 — Vertical retail experto.
+     Reduce espacios muertos, mejora el marco y convierte el precio
+     en el protagonista real del formato vertical. */
   .label.orientation-vertical{
-    border:.28mm solid #b8c2d2;
-    box-shadow:inset 0 0 0 .16mm #f8fafc;
-    background:linear-gradient(180deg,#fff 0%,#fff 72%,#fbfcff 100%);
-  }
-  .label.orientation-vertical .price{
-    background:#0f172a;
-    min-width:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-wrap:nowrap;
-    gap:1.15mm;
-    box-shadow:0 .55mm 1.1mm rgba(15,23,42,.16);
-  }
-  .label.orientation-vertical .price strong{
-    white-space:nowrap!important;
-    letter-spacing:-.04em;
-  }
-  .label.orientation-vertical .price span{
-    flex:0 0 auto;
-    white-space:nowrap;
-  }
-  .density-vertical-medium.orientation-vertical{
-    padding:2.05mm 2.15mm 1.75mm;
-    grid-template-rows:4.4mm 15.2mm 12.4mm 27.4mm;
-    gap:.55mm;
+    padding:2.05mm 2.1mm 1.7mm;
+    grid-template-rows:4mm 12.4mm 14.8mm 26.3mm;
+    gap:.48mm;
+    border:.22mm solid #cbd5e1;
     border-radius:2.8mm;
+    box-shadow:inset 0 0 0 .16mm #ffffff;
+    background:linear-gradient(180deg,#ffffff 0%,#ffffff 77%,#f8fbff 100%);
     align-content:start;
   }
-  .density-vertical-medium.orientation-vertical .brand{min-height:4.4mm;font-size:7.5px}
-  .density-vertical-medium.orientation-vertical .brand img{width:3.5mm;height:3.5mm}
-  .density-vertical-medium.orientation-vertical .label-title{height:15.2mm}
-  .density-vertical-medium.orientation-vertical .name{height:11.6mm;max-height:11.6mm;font-size:11.2px;line-height:1.04}
-  .density-vertical-medium.orientation-vertical .name.name-medium{font-size:10.4px}
-  .density-vertical-medium.orientation-vertical .name.name-long{font-size:9.45px;line-height:1.02}
-  .density-vertical-medium.orientation-vertical .meta{height:2.35mm;font-size:6.8px}
-  .density-vertical-medium.orientation-vertical .price{min-height:12.4mm;border-radius:2mm}
-  .density-vertical-medium.orientation-vertical.price-max .price strong{font-size:22px!important}
-  .density-vertical-medium.orientation-vertical .price strong{font-size:20px}
-  .density-vertical-medium.orientation-vertical .codes{height:27.4mm;align-items:center}
-  .density-vertical-medium.orientation-vertical.mode-barcode .barcode-wrap{grid-template-rows:18.5mm auto}
-  .density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:18.5mm}
-  .density-vertical-medium.orientation-vertical.mode-both .qr-wrap{grid-template-columns:15.8mm;grid-template-rows:15.8mm auto}
-  .density-vertical-medium.orientation-vertical.mode-both .qr{width:15.8mm;height:15.8mm}
-  .density-vertical-medium.orientation-vertical.mode-both .barcode-wrap{grid-template-rows:15.7mm auto}
-  .density-vertical-medium.orientation-vertical.mode-both .barcode-svg{height:15.7mm}
+  .label.orientation-vertical .brand{min-height:4mm;font-size:7.25px;justify-content:center}
+  .label.orientation-vertical .brand img{width:3.5mm;height:3.5mm}
+  .label.orientation-vertical .label-title{height:12.4mm;display:flex;flex-direction:column;justify-content:flex-start}
+  .label.orientation-vertical .name{height:9.5mm;max-height:9.5mm;font-size:11px;line-height:1.03;font-weight:950;letter-spacing:-.012em}
+  .label.orientation-vertical .name.name-medium{font-size:10.35px}
+  .label.orientation-vertical .name.name-long{font-size:9.45px;line-height:1.01}
+  .label.orientation-vertical .meta{height:2.15mm;font-size:6.6px;line-height:1.05}
+  .label.orientation-vertical .price{
+    min-height:14.8mm;
+    border-radius:2.2mm;
+    padding:1.2mm 1.4mm;
+    background:#0f172a;
+    color:#fff;
+    display:flex;
+    flex-wrap:nowrap;
+    align-items:baseline;
+    justify-content:center;
+    gap:1.25mm;
+    box-shadow:0 .7mm 1.4mm rgba(15,23,42,.16), inset 0 -.18mm 0 rgba(255,255,255,.12);
+  }
+  .label.orientation-vertical .price span{font-size:6.2px;font-weight:900;letter-spacing:.08em;white-space:nowrap;flex:0 0 auto}
+  .label.orientation-vertical .price strong{font-size:24px;line-height:1;font-weight:950;white-space:nowrap!important;letter-spacing:-.035em;flex:0 0 auto}
+  .label.orientation-vertical.price-max .price strong{font-size:27.8px!important}
+  .label.orientation-vertical .codes{height:26.3mm;align-items:center;justify-content:center}
+  .label.orientation-vertical .barcode-wrap{width:100%;grid-template-rows:17.2mm auto}
+  .label.orientation-vertical .barcode-svg{height:17.2mm}
+  .label.orientation-vertical .code-text{font-size:6.85px;margin-top:.55mm}
+  .label.orientation-vertical.vertical-compact{padding:1.9mm 1.95mm 1.55mm;grid-template-rows:3.85mm 11.7mm 14.1mm 25mm;gap:.42mm}
+  .label.orientation-vertical.vertical-compact .label-title{height:11.7mm}
+  .label.orientation-vertical.vertical-compact .name{height:8.9mm;max-height:8.9mm;font-size:10.5px}
+  .label.orientation-vertical.vertical-compact .meta{font-size:6.3px}
+  .label.orientation-vertical.vertical-compact .price{min-height:14.1mm;padding:1.1mm 1.25mm}
+  .label.orientation-vertical.vertical-compact .price strong{font-size:23px}
+  .label.orientation-vertical.vertical-compact.price-max .price strong{font-size:26px!important}
+  .label.orientation-vertical.vertical-compact .codes{height:25mm}
+  .label.orientation-vertical.mode-both .codes{align-items:center}
+  .label.orientation-vertical.mode-both .qr-wrap{grid-template-columns:15mm;grid-template-rows:15mm auto}
+  .label.orientation-vertical.mode-both .qr{width:15mm;height:15mm}
+  .label.orientation-vertical.mode-both .barcode-wrap{width:calc(var(--label-w) - 20.5mm);grid-template-rows:13.8mm auto}
+  .label.orientation-vertical.mode-both .barcode-svg{height:13.8mm}
+  .label.orientation-vertical.mode-qr .qr-wrap{grid-template-columns:26mm;grid-template-rows:26mm auto}
+  .label.orientation-vertical.mode-qr .qr{width:26mm;height:26mm}
+  .label.orientation-vertical.mode-qr .qr-wrap small{font-size:6px;font-weight:900}
+  .density-vertical-medium.orientation-vertical{
+    padding:1.95mm 2.05mm 1.6mm;
+    grid-template-rows:3.95mm 11.9mm 14.3mm 25.4mm;
+    gap:.42mm;
+    border-radius:2.7mm;
+  }
+  .density-vertical-medium.orientation-vertical .brand{min-height:3.95mm;font-size:7px}
+  .density-vertical-medium.orientation-vertical .brand img{width:3.25mm;height:3.25mm}
+  .density-vertical-medium.orientation-vertical .label-title{height:11.9mm}
+  .density-vertical-medium.orientation-vertical .name{height:9.1mm;max-height:9.1mm;font-size:10.55px;line-height:1.02}
+  .density-vertical-medium.orientation-vertical .name.name-medium{font-size:10px}
+  .density-vertical-medium.orientation-vertical .name.name-long{font-size:9.05px}
+  .density-vertical-medium.orientation-vertical .meta{height:2.05mm;font-size:6.25px}
+  .density-vertical-medium.orientation-vertical .price{min-height:14.3mm;border-radius:2mm}
+  .density-vertical-medium.orientation-vertical .price strong{font-size:22.8px}
+  .density-vertical-medium.orientation-vertical.price-max .price strong{font-size:25.8px!important}
+  .density-vertical-medium.orientation-vertical .codes{height:25.4mm;align-items:center}
+  .density-vertical-medium.orientation-vertical.mode-barcode .barcode-wrap{grid-template-rows:17.5mm auto}
+  .density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:17.5mm}
+  .density-vertical-medium.orientation-vertical.mode-both .qr-wrap{grid-template-columns:14.7mm;grid-template-rows:14.7mm auto}
+  .density-vertical-medium.orientation-vertical.mode-both .qr{width:14.7mm;height:14.7mm}
+  .density-vertical-medium.orientation-vertical.mode-both .barcode-wrap{grid-template-rows:13.5mm auto}
+  .density-vertical-medium.orientation-vertical.mode-both .barcode-svg{height:13.5mm}
+  .density-vertical-compact.orientation-vertical{padding:1.7mm 1.7mm 1.45mm;grid-template-rows:3.65mm 10.4mm 13.4mm 24.2mm;gap:.38mm;border-radius:2.45mm;align-content:start}.density-vertical-compact.orientation-vertical .brand{min-height:3.65mm;font-size:6.55px}.density-vertical-compact.orientation-vertical .brand img{width:3mm;height:3mm}.density-vertical-compact.orientation-vertical .label-title{height:10.4mm}.density-vertical-compact.orientation-vertical .name{height:7.95mm;max-height:7.95mm;font-size:9.55px;line-height:1.02}.density-vertical-compact.orientation-vertical .name.name-medium{font-size:9px}.density-vertical-compact.orientation-vertical .name.name-long{font-size:8.2px}.density-vertical-compact.orientation-vertical .meta{height:1.95mm;font-size:5.8px}.density-vertical-compact.orientation-vertical .price{min-height:13.4mm;border-radius:1.9mm;padding:1mm 1.05mm}.density-vertical-compact.orientation-vertical .price strong{font-size:20.2px}.density-vertical-compact.orientation-vertical.price-max .price strong{font-size:22.8px!important}.density-vertical-compact.orientation-vertical .price span{font-size:5.2px}.density-vertical-compact.orientation-vertical .codes{height:24.2mm;align-items:center}.density-vertical-compact.orientation-vertical.mode-barcode .barcode-wrap{grid-template-rows:16.8mm auto}.density-vertical-compact.orientation-vertical.mode-barcode .barcode-svg{height:16.8mm}.density-vertical-compact.orientation-vertical.mode-both .qr-wrap{grid-template-columns:13.5mm;grid-template-rows:13.5mm auto}.density-vertical-compact.orientation-vertical.mode-both .qr{width:13.5mm;height:13.5mm}.density-vertical-compact.orientation-vertical.mode-both .barcode-wrap{width:calc(var(--label-w) - 18.2mm);grid-template-rows:12.6mm auto}.density-vertical-compact.orientation-vertical.mode-both .barcode-svg{height:12.6mm}.density-vertical-compact.orientation-vertical.mode-qr .qr-wrap{grid-template-columns:23mm;grid-template-rows:23mm auto}.density-vertical-compact.orientation-vertical.mode-qr .qr{width:23mm;height:23mm}.density-vertical-compact.orientation-vertical.mode-qr .qr-wrap small{font-size:5.5px;font-weight:800}
   .density-vertical-large.orientation-vertical{
-    padding:3mm 3.2mm 2.6mm;
-    grid-template-rows:5.4mm 21mm 17mm 34.2mm;
-    gap:.75mm;
-    border-radius:3.6mm;
-    align-content:start;
+    padding:2.75mm 2.95mm 2.35mm;
+    grid-template-rows:5.1mm 18.6mm 18.7mm 32.4mm;
+    gap:.62mm;
+    border-radius:3.45mm;
   }
-  .density-vertical-large.orientation-vertical .brand{min-height:5.4mm;font-size:8.8px}
-  .density-vertical-large.orientation-vertical .brand img{width:4.4mm;height:4.4mm}
-  .density-vertical-large.orientation-vertical .label-title{height:21mm}
-  .density-vertical-large.orientation-vertical .name{height:16.4mm;max-height:16.4mm;font-size:14.3px;line-height:1.05}
-  .density-vertical-large.orientation-vertical .name.name-medium{font-size:13.2px}
-  .density-vertical-large.orientation-vertical .name.name-long{font-size:12px}
-  .density-vertical-large.orientation-vertical .meta{height:2.8mm;font-size:7.6px}
-  .density-vertical-large.orientation-vertical .price{min-height:17mm;border-radius:2.4mm}
-  .density-vertical-large.orientation-vertical.price-max .price strong{font-size:31px!important}
-  .density-vertical-large.orientation-vertical .price strong{font-size:28px}
-  .density-vertical-large.orientation-vertical .price span{font-size:7.2px}
-  .density-vertical-large.orientation-vertical .codes{height:34.2mm;align-items:center}
-  .density-vertical-large.orientation-vertical.mode-barcode .barcode-wrap{grid-template-rows:22mm auto}
-  .density-vertical-large.orientation-vertical.mode-barcode .barcode-svg{height:22mm}
-  .density-vertical-large.orientation-vertical.mode-both .qr-wrap{grid-template-columns:20mm;grid-template-rows:20mm auto}
-  .density-vertical-large.orientation-vertical.mode-both .qr{width:20mm;height:20mm}
-  .density-vertical-large.orientation-vertical.mode-both .barcode-wrap{grid-template-rows:19mm auto}
-  .density-vertical-large.orientation-vertical.mode-both .barcode-svg{height:19mm}
+  .density-vertical-large.orientation-vertical .brand{min-height:5.1mm;font-size:8.45px}
+  .density-vertical-large.orientation-vertical .brand img{width:4.1mm;height:4.1mm}
+  .density-vertical-large.orientation-vertical .label-title{height:18.6mm}
+  .density-vertical-large.orientation-vertical .name{height:14.6mm;max-height:14.6mm;font-size:13.55px;line-height:1.04}
+  .density-vertical-large.orientation-vertical .name.name-medium{font-size:12.85px}
+  .density-vertical-large.orientation-vertical .name.name-long{font-size:11.8px}
+  .density-vertical-large.orientation-vertical .meta{height:2.65mm;font-size:7.2px}
+  .density-vertical-large.orientation-vertical .price{min-height:18.7mm;border-radius:2.5mm}
+  .density-vertical-large.orientation-vertical .price strong{font-size:29.5px}
+  .density-vertical-large.orientation-vertical.price-max .price strong{font-size:33.5px!important}
+  .density-vertical-large.orientation-vertical .price span{font-size:7px}
+  .density-vertical-large.orientation-vertical .codes{height:32.4mm;align-items:center}
+  .density-vertical-large.orientation-vertical.mode-barcode .barcode-wrap{grid-template-rows:21mm auto}
+  .density-vertical-large.orientation-vertical.mode-barcode .barcode-svg{height:21mm}
+  .density-vertical-large.orientation-vertical.mode-both .qr-wrap{grid-template-columns:19mm;grid-template-rows:19mm auto}
+  .density-vertical-large.orientation-vertical.mode-both .qr{width:19mm;height:19mm}
+  .density-vertical-large.orientation-vertical.mode-both .barcode-wrap{grid-template-rows:17.8mm auto}
+  .density-vertical-large.orientation-vertical.mode-both .barcode-svg{height:17.8mm}
   .label.orientation-vertical.composition-two-column{
-    grid-template-columns:1fr 1fr!important;
-    grid-template-areas:"brand brand" "title title" "price price" "codes codes"!important;
-    text-align:center!important;
-    column-gap:1.2mm!important;
+    grid-template-columns:21.5mm 1fr!important;
+    grid-template-rows:3.9mm 13.7mm 25.2mm!important;
+    grid-template-areas:"brand brand" "price title" "codes codes"!important;
+    column-gap:1.1mm!important;
+    row-gap:.42mm!important;
+    text-align:left!important;
   }
   .label.orientation-vertical.composition-two-column .brand{grid-area:brand!important;justify-content:center!important}
-  .label.orientation-vertical.composition-two-column .label-title{grid-area:title!important}
+  .label.orientation-vertical.composition-two-column .label-title{grid-area:title!important;height:13.7mm!important;text-align:left!important;padding-top:.2mm}
+  .label.orientation-vertical.composition-two-column .name{height:10.15mm!important;max-height:10.15mm!important;font-size:10.35px!important;line-height:1.02!important}
+  .label.orientation-vertical.composition-two-column .meta{font-size:6.2px!important;height:2.1mm!important}
   .label.orientation-vertical.composition-two-column .price{
     grid-area:price!important;
+    min-height:13.7mm!important;
     display:flex!important;
     flex-direction:row!important;
+    align-items:baseline!important;
     justify-content:center!important;
-    align-items:center!important;
+    gap:1mm!important;
+    padding:1mm .8mm!important;
   }
+  .label.orientation-vertical.composition-two-column .price span{font-size:5.9px!important}
+  .label.orientation-vertical.composition-two-column .price strong{font-size:19.8px!important;white-space:nowrap!important}
+  .label.orientation-vertical.composition-two-column.price-max .price strong{font-size:22.5px!important}
   .label.orientation-vertical.composition-two-column .codes{
     grid-area:codes!important;
+    height:25.2mm!important;
     display:flex!important;
     align-items:center!important;
     justify-content:space-between!important;
+    gap:1mm!important;
   }
   .label.orientation-vertical.composition-two-column .codes-both .barcode-wrap{width:auto!important;flex:1!important}
 
@@ -548,7 +600,7 @@ const buildLabelsPrintHTML = ({
   @media screen{body{background:#f3f4f6;padding:12mm}.label-page{margin:0 auto 12mm;box-shadow:0 2mm 8mm rgba(15,23,42,.18)}}@media print{html,body{width:100%;height:auto;background:#fff}.label-page{box-shadow:none;margin:0}.label{border-color:#aeb5bf}.label-title{display:block!important;overflow:hidden!important}.name{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:initial!important;overflow:hidden!important}.density-compact.template-commercial{padding:1.2mm 1.2mm 1mm!important;grid-template-rows:2.75mm 6.05mm 5.05mm 10.05mm!important;gap:.22mm!important;align-content:space-between!important}.density-compact.template-commercial .brand{min-height:2.75mm!important;font-size:5.95px!important}.density-compact.template-commercial .brand img{width:2.45mm!important;height:2.45mm!important}.density-compact.template-commercial .label-title{height:6.05mm!important}.density-compact.template-commercial .name{min-height:4.72mm!important;max-height:4.72mm!important;font-size:6.95px!important;line-height:1!important}.density-compact.template-commercial .name.name-medium{font-size:6.62px!important}.density-compact.template-commercial .name.name-long{font-size:6.12px!important;letter-spacing:-.016em!important}.density-compact.template-commercial .meta{height:1.05mm!important;font-size:4.62px!important}.density-compact.template-commercial .price{min-height:5.05mm!important;padding:.46mm .76mm!important}.density-compact.template-commercial .price strong{font-size:9.28px!important}.density-compact.template-commercial .price span{font-size:4.02px!important}.density-compact.template-commercial .codes{height:10.05mm!important;gap:.84mm!important}.density-compact.template-commercial .qr-wrap{grid-template-columns:8.75mm!important;grid-template-rows:8.75mm auto!important}.density-compact.template-commercial .qr{width:8.75mm!important;height:8.75mm!important}.density-compact.template-commercial .barcode-wrap{grid-template-rows:7.05mm auto!important}.density-compact.template-commercial .barcode-svg{height:7.05mm!important}.density-compact.template-commercial .code-text{font-size:4.28px!important}.density-compact.template-commercial .codes-both .barcode-wrap{width:calc(var(--label-w) - 14.7mm)!important}}
 @media print{.density-compact.template-commercial,.density-compact.template-showcase{padding:1.0mm 1.1mm .9mm!important;grid-template-rows:2.7mm 6.25mm 5.15mm 10.95mm!important;gap:.24mm!important;align-content:center!important}.density-compact.template-commercial .label-title,.density-compact.template-showcase .label-title{height:6.25mm!important}.density-compact.template-commercial .name,.density-compact.template-showcase .name{height:4.9mm!important;max-height:4.9mm!important;font-size:7.0px!important}.density-compact.template-commercial .name.name-medium,.density-compact.template-showcase .name.name-medium{font-size:6.65px!important}.density-compact.template-commercial .name.name-long,.density-compact.template-showcase .name.name-long{font-size:6.15px!important}.density-compact.template-commercial .price,.density-compact.template-showcase .price{min-height:5.15mm!important}.density-compact.template-commercial .price strong{font-size:9.45px!important}.density-compact.template-showcase .price strong{font-size:10.1px!important}.density-compact.template-commercial .codes,.density-compact.template-showcase .codes{height:10.95mm!important}.density-compact.template-commercial .qr-wrap,.density-compact.template-showcase .qr-wrap{grid-template-columns:8.9mm!important;grid-template-rows:8.9mm 1.15mm!important}.density-compact.template-commercial .qr,.density-compact.template-showcase .qr{width:8.9mm!important;height:8.9mm!important}.density-compact.template-commercial .qr-wrap small,.density-compact.template-showcase .qr-wrap small{display:block!important;font-size:4.1px!important}.density-compact.template-commercial .barcode-wrap,.density-compact.template-showcase .barcode-wrap{grid-template-rows:7mm auto!important}.density-compact.template-commercial .barcode-svg,.density-compact.template-showcase .barcode-svg{height:7mm!important}.density-compact.template-commercial .codes-both .barcode-wrap,.density-compact.template-showcase .codes-both .barcode-wrap{width:auto!important;flex:1!important}}
 
-@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.1px!important}.label.orientation-vertical.vertical-compact{gap:.55mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:22px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:4.2mm 14.8mm 12.2mm 27.4mm!important;gap:.5mm!important;padding:2mm 2.05mm 1.65mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:21.2px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:19.5px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:18.3mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.2mm 20.6mm 16.6mm 34mm!important;gap:.7mm!important;padding:2.9mm 3.1mm 2.45mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:30px!important}.density-vertical-large.orientation-vertical .price strong{font-size:27px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important}.qr-large .qr-wrap{grid-template-columns:12.4mm!important;grid-template-rows:12.4mm auto!important}.qr-large .qr{width:12.4mm!important;height:12.4mm!important}.qr-max .qr-wrap{grid-template-columns:16mm!important;grid-template-rows:16mm auto!important}.qr-max .qr{width:16mm!important;height:16mm!important}}
+@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.6px!important}.label.orientation-vertical.vertical-compact{gap:.38mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:26px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:3.95mm 11.9mm 14.3mm 25.4mm!important;gap:.38mm!important;padding:1.95mm 2.05mm 1.6mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:25.8px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:22.8px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:17.4mm!important}.density-vertical-compact.orientation-vertical{grid-template-rows:3.65mm 10.4mm 13.4mm 24.2mm!important;gap:.34mm!important;padding:1.7mm 1.7mm 1.45mm!important}.density-vertical-compact.orientation-vertical .price strong{font-size:20.2px!important}.density-vertical-compact.orientation-vertical.price-max .price strong{font-size:22.8px!important}.density-vertical-compact.orientation-vertical.mode-barcode .barcode-svg{height:16.8mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.1mm 18.6mm 18.7mm 32.4mm!important;gap:.58mm!important;padding:2.75mm 2.95mm 2.35mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:33px!important}.density-vertical-large.orientation-vertical .price strong{font-size:29.2px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important;align-items:baseline!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important;font-size:22px!important}.qr-large .qr-wrap{grid-template-columns:13.8mm!important;grid-template-rows:13.8mm auto!important}.qr-large .qr{width:13.8mm!important;height:13.8mm!important}.qr-max .qr-wrap{grid-template-columns:17mm!important;grid-template-rows:17mm auto!important}.qr-max .qr{width:17mm!important;height:17mm!important}}
 </style></head><body>${pagesMarkup || '<section class="label-page"><p>No hay etiquetas seleccionadas.</p></section>'}
 <script>
   const waitForImages = () => Promise.all(Array.from(document.images).map((image) => image.complete ? Promise.resolve() : new Promise((resolve) => { image.addEventListener('load', resolve, { once:true }); image.addEventListener('error', resolve, { once:true }); setTimeout(resolve, 2200); })));
@@ -1573,7 +1625,7 @@ function AssistantAI({ profile, products = [], store, onNavigate }) {
     const activityRows = activity.slice(0, 6).map(item => `<li><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(fmtDate(item.created_at))}</small></li>`).join('') || '<li>Sin actividad registrada todavía.</li>';
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte IA Clomar Store</title><style>
       *{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#17243a;font-family:Arial,Helvetica,sans-serif;font-size:12px}.report{width:190mm;margin:0 auto;background:#fff;padding:15mm}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #214b82;padding-bottom:12px}.brand{font-size:22px;font-weight:900;color:#17345e}.muted{color:#64748b}.badge{display:inline-block;padding:5px 8px;border-radius:999px;background:#ecfdf5;color:#166534;font-size:10px;font-weight:800}.block{margin-top:16px;border:1px solid #dce7f4;border-radius:12px;padding:12px}.block h2{margin:0 0 8px;font-size:14px}.analysis{white-space:pre-line;line-height:1.65;color:#334155}.note{font-size:10px;color:#64748b}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}.table th{font-size:10px;text-transform:uppercase;color:#64748b}.activity{margin:0;padding-left:16px}.activity li{margin:7px 0}.activity small{display:block;color:#64748b;margin-top:2px}@media print{@page{size:A4;margin:10mm}body{background:#fff}.report{width:auto;margin:0;padding:0}}
-@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.1px!important}.label.orientation-vertical.vertical-compact{gap:.55mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:22px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:4.2mm 14.8mm 12.2mm 27.4mm!important;gap:.5mm!important;padding:2mm 2.05mm 1.65mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:21.2px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:19.5px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:18.3mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.2mm 20.6mm 16.6mm 34mm!important;gap:.7mm!important;padding:2.9mm 3.1mm 2.45mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:30px!important}.density-vertical-large.orientation-vertical .price strong{font-size:27px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important}.qr-large .qr-wrap{grid-template-columns:12.4mm!important;grid-template-rows:12.4mm auto!important}.qr-large .qr{width:12.4mm!important;height:12.4mm!important}.qr-max .qr-wrap{grid-template-columns:16mm!important;grid-template-rows:16mm auto!important}.qr-max .qr{width:16mm!important;height:16mm!important}}
+@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.6px!important}.label.orientation-vertical.vertical-compact{gap:.38mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:26px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:3.95mm 11.9mm 14.3mm 25.4mm!important;gap:.38mm!important;padding:1.95mm 2.05mm 1.6mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:25.8px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:22.8px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:17.4mm!important}.density-vertical-compact.orientation-vertical{grid-template-rows:3.65mm 10.4mm 13.4mm 24.2mm!important;gap:.34mm!important;padding:1.7mm 1.7mm 1.45mm!important}.density-vertical-compact.orientation-vertical .price strong{font-size:20.2px!important}.density-vertical-compact.orientation-vertical.price-max .price strong{font-size:22.8px!important}.density-vertical-compact.orientation-vertical.mode-barcode .barcode-svg{height:16.8mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.1mm 18.6mm 18.7mm 32.4mm!important;gap:.58mm!important;padding:2.75mm 2.95mm 2.35mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:33px!important}.density-vertical-large.orientation-vertical .price strong{font-size:29.2px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important;align-items:baseline!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important;font-size:22px!important}.qr-large .qr-wrap{grid-template-columns:13.8mm!important;grid-template-rows:13.8mm auto!important}.qr-large .qr{width:13.8mm!important;height:13.8mm!important}.qr-max .qr-wrap{grid-template-columns:17mm!important;grid-template-rows:17mm auto!important}.qr-max .qr{width:17mm!important;height:17mm!important}}
 </style></head><body><main class="report"><section class="head"><div><div class="brand">${escapeHtml(store?.name || 'Clomar Store')}</div><div class="muted">Reporte ejecutivo generado desde Clomar AI Command Center</div></div><div><div class="badge">Datos ERP + Gemini</div><div class="muted" style="margin-top:6px">${escapeHtml(fmtDate(new Date()))}</div></div></section><section class="block"><h2>${safeTitle}</h2><p class="muted"><strong>Consulta:</strong> ${safeQuestion}</p><div class="analysis">${summary}</div></section><section class="block"><h2>Borrador de reposición</h2><table class="table"><thead><tr><th>#</th><th>Producto</th><th>Código</th><th>Stock</th><th>Sugerido</th></tr></thead><tbody>${rows}</tbody></table><p class="note">La cantidad sugerida es un borrador. Debe revisarse antes de registrar una compra.</p></section><section class="block"><h2>Actividad del asistente</h2><ul class="activity">${activityRows}</ul></section><p class="note">Este informe interpreta datos del ERP. No reemplaza la revisión de caja, inventario ni decisiones del propietario.</p></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
     const win = window.open('', '_blank', 'width=900,height=760');
     if (!win) { setNotice('El navegador bloqueó la ventana de impresión. Habilite ventanas emergentes para generar el PDF.'); return; }
@@ -3384,7 +3436,7 @@ function Reports({ products, profile }) {
       table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border-bottom:1px solid #e5e7eb;padding:7px;text-align:left;font-size:12px}th{text-transform:uppercase;color:#64748b;font-size:10px}
       @media print{@page{size:A4;margin:12mm}}
     
-@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.1px!important}.label.orientation-vertical.vertical-compact{gap:.55mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:22px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:4.2mm 14.8mm 12.2mm 27.4mm!important;gap:.5mm!important;padding:2mm 2.05mm 1.65mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:21.2px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:19.5px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:18.3mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.2mm 20.6mm 16.6mm 34mm!important;gap:.7mm!important;padding:2.9mm 3.1mm 2.45mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:30px!important}.density-vertical-large.orientation-vertical .price strong{font-size:27px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important}.qr-large .qr-wrap{grid-template-columns:12.4mm!important;grid-template-rows:12.4mm auto!important}.qr-large .qr{width:12.4mm!important;height:12.4mm!important}.qr-max .qr-wrap{grid-template-columns:16mm!important;grid-template-rows:16mm auto!important}.qr-max .qr{width:16mm!important;height:16mm!important}}
+@media print{.price strong{white-space:nowrap!important}.composition-two-column .price strong{white-space:nowrap!important}.composition-two-column.price-max .price strong{font-size:13.6px!important}.label.orientation-vertical.vertical-compact{gap:.38mm!important;align-content:start!important}.label.orientation-vertical.vertical-compact .codes{align-items:center!important}.label.orientation-vertical.price-max .price strong{font-size:26px!important}.density-vertical-medium.orientation-vertical{grid-template-rows:3.95mm 11.9mm 14.3mm 25.4mm!important;gap:.38mm!important;padding:1.95mm 2.05mm 1.6mm!important}.density-vertical-medium.orientation-vertical.price-max .price strong{font-size:25.8px!important}.density-vertical-medium.orientation-vertical .price strong{font-size:22.8px!important}.density-vertical-medium.orientation-vertical.mode-barcode .barcode-svg{height:17.4mm!important}.density-vertical-compact.orientation-vertical{grid-template-rows:3.65mm 10.4mm 13.4mm 24.2mm!important;gap:.34mm!important;padding:1.7mm 1.7mm 1.45mm!important}.density-vertical-compact.orientation-vertical .price strong{font-size:20.2px!important}.density-vertical-compact.orientation-vertical.price-max .price strong{font-size:22.8px!important}.density-vertical-compact.orientation-vertical.mode-barcode .barcode-svg{height:16.8mm!important}.density-vertical-large.orientation-vertical{grid-template-rows:5.1mm 18.6mm 18.7mm 32.4mm!important;gap:.58mm!important;padding:2.75mm 2.95mm 2.35mm!important}.density-vertical-large.orientation-vertical.price-max .price strong{font-size:33px!important}.density-vertical-large.orientation-vertical .price strong{font-size:29.2px!important}.label.orientation-vertical.composition-two-column .price{display:flex!important;flex-direction:row!important;align-items:baseline!important}.label.orientation-vertical.composition-two-column .price strong{white-space:nowrap!important;font-size:22px!important}.qr-large .qr-wrap{grid-template-columns:13.8mm!important;grid-template-rows:13.8mm auto!important}.qr-large .qr{width:13.8mm!important;height:13.8mm!important}.qr-max .qr-wrap{grid-template-columns:17mm!important;grid-template-rows:17mm auto!important}.qr-max .qr{width:17mm!important;height:17mm!important}}
 </style></head><body>
       <h1>Clomar Store — Reporte profesional</h1>
       <p class="muted">Periodo: ${escapeHtml(startDate)} a ${escapeHtml(endDate)} · Generado: ${escapeHtml(fmtDate(new Date()))}</p>
