@@ -186,15 +186,26 @@ const barcodeSvgMarkup = (value, height = 46) => {
 const qrUrl = (value) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(String(value || ''))}`;
 const productScanCode = (product) => String(product?.barcode || product?.code || product?.id || '').trim();
 const CATALOG_WHATSAPP_FALLBACK = '51931709871';
-/* El catálogo debe usar una URL estable de producción, nunca una URL temporal de preview.
-   Configure VITE_PUBLIC_CATALOG_URL en Vercel si luego usa un dominio propio. */
-const RUNTIME_CATALOG_FALLBACK = typeof window !== 'undefined' ? `${window.location.origin}/#/catalogo` : 'https://clomar-store-vite.vercel.app/#/catalogo';
-const CONFIGURED_CATALOG_URL = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || RUNTIME_CATALOG_FALLBACK).trim();
-const catalogBaseUrl = () => {
-  const base = CONFIGURED_CATALOG_URL.replace(/\/+$/, '');
-  return base.includes('#/catalogo') ? base : `${base}/#/catalogo`;
+/*
+  El QR debe apuntar a un dominio público estable, no a un preview temporal de Vercel.
+  Prioridad: URL guardada por el dueño > VITE_PUBLIC_CATALOG_URL > dominio actual.
+  Si no se configura una URL estable, el módulo muestra una advertencia antes de imprimir QR.
+*/
+const CATALOG_URL_STORAGE_KEY = 'clomar_public_catalog_url';
+const normalizeCatalogBaseUrl = (value = '') => {
+  const raw = String(value || '').trim().replace(/\/+$/, '');
+  if (!raw) return '';
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  return withProtocol.includes('#/catalogo') ? withProtocol : `${withProtocol}/#/catalogo`;
 };
-const catalogProductUrl = (product) => `${catalogBaseUrl()}?product=${encodeURIComponent(String(product?.id || ''))}`;
+const getSavedCatalogBaseUrl = () => {
+  try { return normalizeCatalogBaseUrl(localStorage.getItem(CATALOG_URL_STORAGE_KEY) || ''); } catch (_) { return ''; }
+};
+const RUNTIME_CATALOG_FALLBACK = typeof window !== 'undefined' ? `${window.location.origin}/#/catalogo` : '';
+const CONFIGURED_CATALOG_URL = normalizeCatalogBaseUrl(String(import.meta.env.VITE_PUBLIC_CATALOG_URL || '').trim());
+const catalogBaseUrl = (override = '') => normalizeCatalogBaseUrl(override) || getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || normalizeCatalogBaseUrl(RUNTIME_CATALOG_FALLBACK);
+const hasStableCatalogUrl = (value = '') => Boolean(normalizeCatalogBaseUrl(value) || getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL);
+const catalogProductUrl = (product, override = '') => `${catalogBaseUrl(override)}?product=${encodeURIComponent(String(product?.id || ''))}`;
 const catalogAvailabilityLabel = (value) => ({ 'Disponible': 'Disponible', 'Últimas unidades': 'Últimas unidades', 'Agotado': 'Agotado' }[value] || 'Disponible');
 const normalizeWhatsappNumber = (value) => {
   let digits = String(value || '').replace(/\D/g, '');
@@ -202,7 +213,7 @@ const normalizeWhatsappNumber = (value) => {
   return digits || CATALOG_WHATSAPP_FALLBACK;
 };
 const publicWhatsAppLink = (phone, message) => `https://wa.me/${normalizeWhatsappNumber(phone)}?text=${encodeURIComponent(String(message || ''))}`;
-const catalogQrValue = (product) => catalogProductUrl(product);
+const catalogQrValue = (product, override = '') => catalogProductUrl(product, override);
 
 const PRICE_STATUS_OPTIONS = ['Pendiente', 'Validado', 'Revisar'];
 const normalizePriceStatus = (value) => {
@@ -227,9 +238,50 @@ const LABEL_LAYOUTS = {
   roll_1col: { key: 'roll_1col', label: 'Rollo térmico · 1 columna', paper: 'roll', columns: 1, rows: 1, width: 60, height: 40, gapX: 0, gapY: 2, density: 'commercial' },
 };
 const LABEL_TEMPLATE_INFO = {
-  commercial: { label: 'Comercial Pro', help: 'Diseño retail equilibrado: precio protagonista, QR a catálogo y barras POS.' },
-  compact: { label: 'Compacta', help: 'Alta densidad para etiquetas pequeñas o muchas unidades.' },
-  showcase: { label: 'Góndola / mostrador', help: 'Precio grande y lectura inmediata para exhibición.' },
+  commercial: { label: 'Venta profesional', help: 'Para ropa, calzado y artículos con precio, variante y código POS.' },
+  compact: { label: 'Control / almacén', help: 'Para reposición, caja o artículos pequeños. Prioriza código de barras.' },
+  showcase: { label: 'Góndola / exhibición', help: 'Para mostrador. Precio grande y QR para que el cliente vea la ficha pública.' },
+};
+const LABEL_USE_INFO = {
+  auto: { label: 'Automático por rubro', help: 'Detecta ropa, calzado, hogar o accesorio y adapta los campos.' },
+  apparel: { label: 'Ropa y prendas', help: 'Resalta talla, color, precio y código de barras.' },
+  footwear: { label: 'Calzado', help: 'Resalta talla, modelo/color, precio y barras para caja.' },
+  home: { label: 'Hogar / bazar', help: 'Muestra medida, diseño o característica y QR cuando corresponde.' },
+  accessories: { label: 'Accesorios', help: 'Nombre visual, marca/color y precio.' },
+  gondola: { label: 'Góndola / cliente', help: 'Etiqueta comercial: precio y QR; no sobrecarga con código interno.' },
+  inventory: { label: 'Almacén / control', help: 'Etiqueta operativa: código de barras, SKU y variante.' },
+};
+const labelText = (value = '') => normalizeText(value);
+const inferredLabelProfile = (product = {}) => {
+  const source = labelText([product.category, product.subcategory, product.name, product.brand].filter(Boolean).join(' '));
+  if (/(calzado|zapatilla|zapatillas|bota|botas|zapato|sandalia|taco)/.test(source)) return 'footwear';
+  if (/(ropa|prenda|camisa|camiseta|polo|polera|casaca|sudadera|boxer|bóxer|calzoncillo|calcetin|calcetines|media|medias|pantalon|pantalón|falda|vestido)/.test(source)) return 'apparel';
+  if (/(hogar|alfombra|decoracion|decoración|bazar|utilitario|electro|vaso|taza|cocina|mueble)/.test(source)) return 'home';
+  if (/(accesorio|lente|gafa|mochila|billetera|morral|sombrero|llavero|cartera|bolso)/.test(source)) return 'accessories';
+  return 'general';
+};
+const resolveLabelProfile = (product, labelUse = 'auto') => labelUse === 'auto' ? inferredLabelProfile(product) : labelUse;
+const resolveLabelTemplate = (template = 'commercial', labelUse = 'auto') => labelUse === 'gondola' ? 'showcase' : labelUse === 'inventory' ? 'compact' : template;
+const resolveLabelCodeMode = (mode = 'auto', profile = 'general', layout = {}) => {
+  if (mode !== 'auto') return mode;
+  if (profile === 'gondola') return 'qr';
+  if (profile === 'inventory') return 'barcode';
+  if (layout.width <= 43) return 'barcode';
+  if (profile === 'home' || profile === 'accessories') return 'both';
+  return 'barcode';
+};
+const labelMetaFor = (product = {}, profile = 'general') => {
+  const code = product?.code || productScanCode(product);
+  const size = String(product?.size || '').trim();
+  const color = String(product?.color || '').trim();
+  const brand = String(product?.brand || '').trim();
+  if (profile === 'apparel') return [size ? `Talla ${size}` : '', color ? `Color ${color}` : '', code].filter(Boolean).join(' · ');
+  if (profile === 'footwear') return [size ? `Talla ${size}` : '', color ? color : '', code].filter(Boolean).join(' · ');
+  if (profile === 'home') return [size ? `Medida ${size}` : '', color ? `Diseño ${color}` : '', brand].filter(Boolean).join(' · ') || code;
+  if (profile === 'accessories') return [brand, color, size].filter(Boolean).join(' · ') || code;
+  if (profile === 'gondola') return [product?.category, size].filter(Boolean).join(' · ') || 'Consulte disponibilidad';
+  if (profile === 'inventory') return [code, size, color].filter(Boolean).join(' · ');
+  return [code, size, color].filter(Boolean).join(' · ') || code;
 };
 
 const labelPrintEsc = (value = '') => escapeHtml(String(value ?? ''));
@@ -242,20 +294,22 @@ const splitEvery = (items, chunkSize) => {
 const buildLabelsPrintHTML = ({
   items = [],
   store = {},
-  mode = 'both',
+  mode = 'auto',
   showPrice = true,
   showLogo = true,
   showCodeText = true,
   sheetLayout = 'a4_3x7',
   labelStyle = 'medium',
   labelTemplate = 'commercial',
+  labelUse = 'auto',
+  catalogUrl = '',
 }) => {
   const layout = LABEL_LAYOUTS[sheetLayout] || LABEL_LAYOUTS.a4_3x7;
   const perPage = layout.paper === 'a4' ? layout.columns * layout.rows : 1;
   const pages = splitEvery(items, perPage);
   const logo = publicAssetUrl(store?.logo_url || APP_ICON);
   const storeName = store?.name || 'Clomar Store';
-  const safeTemplate = ['commercial', 'compact', 'showcase'].includes(labelTemplate) ? labelTemplate : 'commercial';
+  const selectedTemplate = ['commercial', 'compact', 'showcase'].includes(labelTemplate) ? labelTemplate : 'commercial';
   const styleClass = labelStyle === 'small' ? 'style-compact' : labelStyle === 'large' ? 'style-detailed' : 'style-standard';
   const compactTitle = (value, max = 56) => {
     const raw = String(value || 'Producto').replace(/\s+/g, ' ').trim();
@@ -266,22 +320,26 @@ const buildLabelsPrintHTML = ({
   };
   const labelMarkup = ({ product }) => {
     const code = productScanCode(product);
+    const profile = resolveLabelProfile(product, labelUse);
+    const effectiveTemplate = resolveLabelTemplate(selectedTemplate, labelUse);
+    const effectiveMode = resolveLabelCodeMode(mode, profile, layout);
     const priceIsReady = productPriceStatus(product) === 'Validado' && Number(product?.price || 0) > 0;
-    const hasQr = mode === 'qr' || mode === 'both';
-    const hasBarcode = mode === 'barcode' || mode === 'both';
-    const variant = [product?.code || code, product?.size, product?.color].filter(Boolean).join(' · ') || code;
-    const titleLimit = layout.width <= 43 ? 48 : layout.width <= 58 ? 62 : 82;
+    const hasQr = effectiveMode === 'qr' || effectiveMode === 'both';
+    const hasBarcode = effectiveMode === 'barcode' || effectiveMode === 'both';
+    const variant = labelMetaFor(product, profile);
+    const titleLimit = layout.width <= 43 ? 46 : layout.width <= 58 ? 60 : 80;
     const rawTitle = String(product?.name || 'Producto').replace(/\s+/g, ' ').trim();
     const visibleTitle = compactTitle(rawTitle, titleLimit);
     const titleClass = rawTitle.length > titleLimit ? 'name-long' : rawTitle.length > Math.round(titleLimit * .68) ? 'name-medium' : 'name-short';
     const logoBlock = showLogo ? `<div class="brand"><img src="${labelPrintEsc(logo)}" alt="" onerror="this.style.display='none'"/><span>${labelPrintEsc(storeName)}</span></div>` : '';
     const priceBlock = !showPrice ? '' : priceIsReady
-      ? `<div class="price"><span>PRECIO</span><strong>${labelPrintEsc(money(product.price))}</strong></div>`
+      ? `<div class="price"><span>${profile === 'inventory' ? 'PRECIO REF.' : 'PRECIO'}</span><strong>${labelPrintEsc(money(product.price))}</strong></div>`
       : `<div class="price pending"><strong>PRECIO PENDIENTE</strong></div>`;
-    const qrBlock = hasQr ? `<div class="qr-wrap"><img class="qr" src="${labelPrintEsc(qrUrl(catalogQrValue(product)))}" alt="QR catálogo ${labelPrintEsc(code)}"/><small>Ver catálogo</small></div>` : '';
+    const qrCaption = profile === 'gondola' ? 'Escanea y consulta' : layout.width <= 43 ? 'Catálogo' : 'Ver catálogo';
+    const qrBlock = hasQr ? `<div class="qr-wrap"><img class="qr" src="${labelPrintEsc(qrUrl(catalogQrValue(product, catalogUrl)))}" alt="QR catálogo ${labelPrintEsc(code)}"/><small>${qrCaption}</small></div>` : '';
     const barcodeBlock = hasBarcode ? `<div class="barcode-wrap">${barcodeSvgMarkup(code, 46)}${showCodeText ? `<div class="code-text">${labelPrintEsc(code)}</div>` : ''}</div>` : '';
     const meta = `<div class="meta">${labelPrintEsc(variant)}</div>`;
-    return `<article class="label template-${safeTemplate} ${styleClass} density-${layout.density} mode-${labelPrintEsc(mode)} ${titleClass}">${logoBlock}<div class="label-title"><div class="name ${titleClass}">${labelPrintEsc(visibleTitle)}</div>${meta}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div></article>`;
+    return `<article class="label template-${effectiveTemplate} profile-${profile} ${styleClass} density-${layout.density} mode-${effectiveMode} ${titleClass}">${logoBlock}<div class="label-title"><div class="name ${titleClass}">${labelPrintEsc(visibleTitle)}</div>${meta}</div>${priceBlock}<div class="codes ${hasQr && hasBarcode ? 'codes-both' : ''}">${qrBlock}${barcodeBlock}</div></article>`;
   };
 
   const pagesMarkup = pages.map((pageItems, pageIndex) => {
@@ -3557,9 +3615,10 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('all');
   const [subcategoryId, setSubcategoryId] = useState('all');
-  const [mode, setMode] = useState('both');
+  const [mode, setMode] = useState('auto');
   const [labelSize, setLabelSize] = useState('medium');
   const [labelTemplate, setLabelTemplate] = useState('commercial');
+  const [labelUse, setLabelUse] = useState('auto');
   const [sheetLayout, setSheetLayout] = useState('a4_3x7');
   const [showPrice, setShowPrice] = useState(true);
   const [showLogo, setShowLogo] = useState(true);
@@ -3567,6 +3626,8 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   const [defaultQty, setDefaultQty] = useState(1);
   const [selected, setSelected] = useState(new Set());
   const [quantities, setQuantities] = useState({});
+  const [catalogUrlInput, setCatalogUrlInput] = useState(() => getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || '');
+  const [catalogNotice, setCatalogNotice] = useState('');
 
   const activeProducts = useMemo(() => products.filter(p => p.active !== false && p.status !== 'Inactivo'), [products]);
   const filtered = useMemo(() => activeProducts.filter(p => {
@@ -3588,7 +3649,8 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
     return items;
   }, [basePrintable, quantities, defaultQty]);
   const sheetInfo = LABEL_LAYOUTS[sheetLayout]?.label || 'A4 · 3 columnas × 7 filas';
-  const publicCatalog = catalogBaseUrl();
+  const stableCatalogUrl = normalizeCatalogBaseUrl(catalogUrlInput);
+  const requiresQr = basePrintable.some(product => { const profile = resolveLabelProfile(product, labelUse); const effectiveMode = resolveLabelCodeMode(mode, profile, LABEL_LAYOUTS[sheetLayout] || {}); return effectiveMode === 'qr' || effectiveMode === 'both'; });
 
   function toggleProduct(id) { setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; }); }
   function selectFiltered() { setSelected(new Set(filtered.map(p => p.id))); }
@@ -3596,20 +3658,37 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   function setQty(id, value) { const qty = Math.max(1, Math.min(500, Number(value || 1))); setQuantities(prev => ({ ...prev, [id]: qty })); }
   function applyQtyToFiltered() { const qty = Math.max(1, Math.min(500, Number(defaultQty || 1))); const next = { ...quantities }; filtered.forEach(p => { next[p.id] = qty; }); setQuantities(next); }
   function applyStockQtyToFiltered() { const next = { ...quantities }; filtered.forEach(p => { next[p.id] = Math.max(1, Math.min(500, Number(p.stock || 1))); }); setQuantities(next); }
+  function saveCatalogUrl() {
+    if (!stableCatalogUrl) return setCatalogNotice('Ingrese la URL pública real del catálogo antes de imprimir QR.');
+    try { localStorage.setItem(CATALOG_URL_STORAGE_KEY, stableCatalogUrl); } catch (_) {}
+    setCatalogUrlInput(stableCatalogUrl);
+    setCatalogNotice('Enlace público guardado. Los próximos QR usarán este dominio.');
+  }
+  function testCatalogUrl() {
+    if (!stableCatalogUrl) return setCatalogNotice('Ingrese primero el enlace público del catálogo.');
+    const sample = basePrintable[0] || activeProducts[0];
+    window.open(sample ? catalogProductUrl(sample, stableCatalogUrl) : stableCatalogUrl, '_blank', 'noopener,noreferrer');
+  }
   function printLabels() {
     if (!printableItems.length) return alert('No hay productos para imprimir.');
-    openLabelsPrintWindow({ items: printableItems, store, mode, showPrice, showLogo, showCodeText, sheetLayout, labelStyle: labelSize, labelTemplate });
+    if (requiresQr && !stableCatalogUrl) {
+      setCatalogNotice('Para QR de catálogo configure primero una URL pública estable. No use la URL temporal de preview de Vercel.');
+      return;
+    }
+    openLabelsPrintWindow({ items: printableItems, store, mode, showPrice, showLogo, showCodeText, sheetLayout, labelStyle: labelSize, labelTemplate, labelUse, catalogUrl: stableCatalogUrl });
   }
+  const previewItems = printableItems.slice(0,4).length ? printableItems.slice(0,4) : filtered.slice(0,4).map(product=>({product,key:product.id}));
 
-  return <div className="page labels-page labels-pro-page">
-    <div className="hero labels-pro-hero"><div><span className="eyebrow">Etiquetas comerciales pro</span><h1>Etiquetas que venden y conectan al catálogo</h1><p>El QR abre el producto público; el código de barras sirve para venta e inventario. El precio queda como protagonista.</p></div><button className="secondary-btn" onClick={()=>navigator.clipboard?.writeText(publicCatalog).then(()=>alert('Enlace del catálogo copiado.')).catch(()=>alert(publicCatalog))}>Copiar enlace del catálogo</button></div>
-    <div className="labels-pro-flow"><span><b>1</b> Seleccione productos</span><i>→</i><span><b>2</b> Elija plantilla</span><i>→</i><span><b>3</b> Imprima o guarde PDF</span><small>QR: ficha del producto · Barras: código interno</small></div>
+  return <div className="page labels-page labels-pro-page labels-v342-page">
+    <div className="hero labels-pro-hero labels-v342-hero"><div><span className="eyebrow">V03.4.2 · Etiquetado por rubro y uso</span><h1>Etiquetas inteligentes para cada tipo de producto</h1><p>Ropa, calzado, hogar, accesorios, góndola y almacén no deben usar la misma etiqueta. Seleccione el uso y el sistema organiza los campos correctos.</p></div><div className="labels-v342-hero-actions"><span className={stableCatalogUrl ? 'labels-url-state ready' : 'labels-url-state'}>{stableCatalogUrl ? 'QR público configurado' : 'QR público pendiente'}</span><button className="secondary-btn" onClick={testCatalogUrl}>Probar catálogo público</button></div></div>
+    <div className="labels-pro-flow"><span><b>1</b> Filtre productos</span><i>→</i><span><b>2</b> Elija rubro y finalidad</span><i>→</i><span><b>3</b> Revise QR y PDF</span><small>Ropa y calzado: barras · Góndola: QR · Hogar: ficha con detalle</small></div>
+    <section className="card labels-v342-catalog-url"><div><span className="eyebrow">Enlace público obligatorio para QR</span><h2>Dominio de catálogo para clientes</h2><p>El QR no debe usar una URL temporal ni una vista privada de Vercel. Pegue aquí el enlace público que abre el catálogo sin iniciar sesión.</p></div><div className="labels-v342-url-controls"><input value={catalogUrlInput} onChange={e=>{ setCatalogUrlInput(e.target.value); setCatalogNotice(''); }} placeholder="Ej.: https://mitienda.com/#/catalogo" /><button type="button" className="secondary-btn" onClick={saveCatalogUrl}>Guardar enlace</button><button type="button" className="primary-btn" onClick={testCatalogUrl}>Abrir prueba</button></div>{catalogNotice && <small className={stableCatalogUrl ? 'labels-v342-ok' : 'labels-v342-warn'}>{catalogNotice}</small>}<small className="labels-v342-help">Use siempre la URL de producción. Si al abrir la prueba aparece inicio de sesión de Vercel, debe quitar la protección del dominio público antes de imprimir etiquetas con QR.</small></section>
     <div className="labels-pro-layout">
       <section className="card labels-pro-filter"><h2>Productos</h2><label>Buscar producto<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, código, barcode, marca o color" /></label><div className="form-split"><label>Categoría<select value={categoryId} onChange={e=>{ setCategoryId(e.target.value); setSubcategoryId('all'); }}><option value="all">Todas</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Subcategoría<select value={subcategoryId} onChange={e=>setSubcategoryId(e.target.value)}><option value="all">Todas</option>{visibleSubcategories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div><div className="labels-pro-stats"><Kpi label="Filtrados" value={filtered.length} helper="productos" /><Kpi label="Seleccionados" value={chosen.length || filtered.length} helper={chosen.length ? 'manual' : 'por filtro'} /><Kpi label="Etiquetas" value={printableItems.length} helper="a imprimir" /></div><div className="button-row"><button className="secondary-btn" onClick={selectFiltered}>Seleccionar filtrados</button><button className="secondary-btn" onClick={clearSelection}>Limpiar selección</button></div></section>
-      <section className="card labels-pro-design"><h2>Diseño e impresión</h2><div className="label-template-grid">{Object.entries(LABEL_TEMPLATE_INFO).map(([key, info])=><button type="button" key={key} onClick={()=>setLabelTemplate(key)} className={`label-template-option ${labelTemplate===key?'active':''}`}><strong>{info.label}</strong><small>{info.help}</small></button>)}</div><div className="form-split"><label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="both">QR catálogo + barras POS</option><option value="qr">Solo QR catálogo</option><option value="barcode">Solo código de barras</option></select></label><label>Formato<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas × 6 filas (90 × 43 mm)</option><option value="a4_3x7">A4: 3 columnas × 7 filas (58 × 37 mm)</option><option value="a4_4x8">A4: 4 columnas × 8 filas (43 × 32 mm)</option><option value="roll_1col">Rollo térmico: 1 columna (60 × 40 mm)</option></select></label></div><div className="form-split"><label>Escala de contenido<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Compacta</option><option value="medium">Equilibrada</option><option value="large">Destacada</option></select></label><label>Cantidad rápida<input type="number" min="1" max="500" value={defaultQty} onChange={e=>setDefaultQty(e.target.value)} /></label></div><div className="labels-pro-checks"><label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Precio destacado</label><label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Marca Clomar Store</label><label className="check-row"><input type="checkbox" checked={showCodeText} onChange={e=>setShowCodeText(e.target.checked)} /> Código escrito</label></div><div className="button-row"><button className="secondary-btn" onClick={applyQtyToFiltered}>Aplicar cantidad</button><button className="secondary-btn" onClick={applyStockQtyToFiltered}>Usar stock como cantidad</button></div><button className="primary-btn labels-pro-print" onClick={printLabels}>Imprimir / Guardar PDF · {printableItems.length} etiquetas</button><p className="muted">Formato elegido: <strong>{sheetInfo}</strong>. En impresión: A4, escala 100 %, márgenes Ninguno y encabezados/pies desactivados.</p></section>
+      <section className="card labels-pro-design labels-v342-design"><h2>Rubro, finalidad y diseño</h2><div className="labels-v342-use-grid">{Object.entries(LABEL_USE_INFO).map(([key, info])=><button type="button" key={key} onClick={()=>setLabelUse(key)} className={`labels-v342-use-option ${labelUse===key?'active':''}`}><strong>{info.label}</strong><small>{info.help}</small></button>)}</div><div className="label-template-grid">{Object.entries(LABEL_TEMPLATE_INFO).map(([key, info])=><button type="button" key={key} onClick={()=>setLabelTemplate(key)} className={`label-template-option ${labelTemplate===key?'active':''}`}><strong>{info.label}</strong><small>{info.help}</small></button>)}</div><div className="form-split"><label>Tipo de código<select value={mode} onChange={e=>setMode(e.target.value)}><option value="auto">Automático según rubro y formato</option><option value="both">QR catálogo + barras POS</option><option value="qr">Solo QR catálogo</option><option value="barcode">Solo código de barras</option></select></label><label>Formato<select value={sheetLayout} onChange={e=>setSheetLayout(e.target.value)}><option value="a4_2x6">A4: 2 columnas × 6 filas (90 × 43 mm)</option><option value="a4_3x7">A4: 3 columnas × 7 filas (58 × 37 mm)</option><option value="a4_4x8">A4: 4 columnas × 8 filas (43 × 32 mm)</option><option value="roll_1col">Rollo térmico: 1 columna (60 × 40 mm)</option></select></label></div><div className="form-split"><label>Escala de contenido<select value={labelSize} onChange={e=>setLabelSize(e.target.value)}><option value="small">Compacta</option><option value="medium">Equilibrada</option><option value="large">Destacada</option></select></label><label>Cantidad rápida<input type="number" min="1" max="500" value={defaultQty} onChange={e=>setDefaultQty(e.target.value)} /></label></div><div className="labels-pro-checks"><label className="check-row"><input type="checkbox" checked={showPrice} onChange={e=>setShowPrice(e.target.checked)} /> Precio destacado</label><label className="check-row"><input type="checkbox" checked={showLogo} onChange={e=>setShowLogo(e.target.checked)} /> Marca Clomar Store</label><label className="check-row"><input type="checkbox" checked={showCodeText} onChange={e=>setShowCodeText(e.target.checked)} /> Código escrito</label></div><div className="button-row"><button className="secondary-btn" onClick={applyQtyToFiltered}>Aplicar cantidad</button><button className="secondary-btn" onClick={applyStockQtyToFiltered}>Usar stock como cantidad</button></div><button className="primary-btn labels-pro-print" onClick={printLabels}>Imprimir / Guardar PDF · {printableItems.length} etiquetas</button><p className="muted">Formato elegido: <strong>{sheetInfo}</strong>. En impresión: A4, escala 100 %, márgenes Ninguno y encabezados/pies desactivados.</p></section>
     </div>
-    <section className="card labels-pro-products"><div className="section-row"><div><span className="eyebrow">Selección de impresión</span><h2>Productos para etiquetas</h2></div><span className="muted">El QR enlaza directamente a la ficha pública del producto.</span></div><div className="labels-pro-product-grid">{filtered.map(p=>{const code=productScanCode(p); const selectedNow=selected.has(p.id); return <article key={p.id} className={`labels-pro-product ${selectedNow?'selected':''}`}><label className="labels-pro-product-check"><input type="checkbox" checked={selectedNow} onChange={()=>toggleProduct(p.id)} /> Seleccionar</label><img src={productImageSrc(p)} alt={p.name}/><div className="labels-pro-product-body"><strong>{p.name}</strong><small>{[p.code || code,p.size,p.color].filter(Boolean).join(' · ')}</small><div><span className={productPriceStatus(p)==='Validado'?'label-ready':'label-review'}>{productPriceStatus(p)==='Validado' ? money(p.price) : 'Precio pendiente'}</span><em>Stock {p.stock ?? 0}</em></div></div><label className="labels-pro-qty"><small>Copias</small><input type="number" min="1" max="500" value={quantities[p.id] || defaultQty} onChange={e=>setQty(p.id,e.target.value)} /></label></article>})}{!filtered.length&&<p className="muted">No hay productos con esos filtros.</p>}</div></section>
-    <section className="card labels-pro-preview"><div className="section-row"><div><span className="eyebrow">Vista previa</span><h2>Etiqueta Comercial Pro</h2></div><span className="preview-link">QR enlazado al catálogo</span></div><div className={`labels-pro-preview-grid template-${labelTemplate}`}>{(printableItems.slice(0, 4).length ? printableItems.slice(0,4) : filtered.slice(0,4).map(product=>({product,key:product.id}))).map(({product,key})=>{const code=productScanCode(product); const ready=productPriceStatus(product)==='Validado'&&Number(product.price||0)>0; return <article className={`labels-pro-card template-${labelTemplate}`} key={key}>{showLogo&&<div className="label-pro-brand"><img src={APP_ICON} alt=""/><span>{store?.name||'Clomar Store'}</span></div>}<div className="label-pro-name">{product.name}</div><div className="label-pro-meta">{[product.code||code,product.size,product.color].filter(Boolean).join(' · ')}</div>{showPrice&&<div className={`label-pro-price ${ready?'':'pending'}`}><small>{ready?'PRECIO':'REVISAR'}</small><b>{ready?money(product.price):'Precio pendiente'}</b></div>}<div className={`label-pro-codes mode-${mode}`}>{(mode==='qr'||mode==='both')&&<div><img src={qrUrl(catalogQrValue(product))} alt="QR catálogo"/><small>Catálogo</small></div>}{(mode==='barcode'||mode==='both')&&<div className="label-pro-barcode"><BarcodeSVG value={code}/>{showCodeText&&<small>{code}</small>}</div>}</div></article>})}</div></section>
+    <section className="card labels-pro-products"><div className="section-row"><div><span className="eyebrow">Selección de impresión</span><h2>Productos para etiquetas</h2></div><span className="muted">El perfil automático adapta talla, color, medida o marca según el rubro.</span></div><div className="labels-pro-product-grid">{filtered.map(p=>{const code=productScanCode(p); const selectedNow=selected.has(p.id); const profile=inferredLabelProfile(p); return <article key={p.id} className={`labels-pro-product ${selectedNow?'selected':''}`}><label className="labels-pro-product-check"><input type="checkbox" checked={selectedNow} onChange={()=>toggleProduct(p.id)} /> Seleccionar</label><img src={productImageSrc(p)} alt={p.name}/><div className="labels-pro-product-body"><strong>{p.name}</strong><small>{labelMetaFor(p, profile)}</small><div><span className={`labels-v342-profile-tag ${profile}`}>{LABEL_USE_INFO[profile]?.label || 'General'}</span><em>{productPriceStatus(p)==='Validado' ? money(p.price) : 'Precio pendiente'}</em></div></div><label className="labels-pro-qty"><small>Copias</small><input type="number" min="1" max="500" value={quantities[p.id] || defaultQty} onChange={e=>setQty(p.id,e.target.value)} /></label></article>})}{!filtered.length&&<p className="muted">No hay productos con esos filtros.</p>}</div></section>
+    <section className="card labels-pro-preview labels-v342-preview"><div className="section-row"><div><span className="eyebrow">Vista previa contextual</span><h2>{LABEL_USE_INFO[labelUse]?.label || 'Etiqueta inteligente'}</h2></div><span className={stableCatalogUrl ? 'preview-link' : 'preview-link warning'}>{stableCatalogUrl ? 'QR enlazado a catálogo público' : 'Configure URL pública para QR'}</span></div><div className={`labels-pro-preview-grid template-${resolveLabelTemplate(labelTemplate,labelUse)}`}>{previewItems.map(({product,key})=>{const code=productScanCode(product);const profile=resolveLabelProfile(product,labelUse);const template=resolveLabelTemplate(labelTemplate,labelUse);const effectiveMode=resolveLabelCodeMode(mode,profile,LABEL_LAYOUTS[sheetLayout]||{});const ready=productPriceStatus(product)==='Validado'&&Number(product.price||0)>0;return <article className={`labels-pro-card template-${template} profile-${profile}`} key={key}>{showLogo&&<div className="label-pro-brand"><img src={APP_ICON} alt=""/><span>{store?.name||'Clomar Store'}</span></div>}<div className="label-pro-name">{product.name}</div><div className="label-pro-meta">{labelMetaFor(product, profile)}</div>{showPrice&&<div className={`label-pro-price ${ready?'':'pending'}`}><small>{profile==='inventory'?'PRECIO REF.':ready?'PRECIO':'REVISAR'}</small><b>{ready?money(product.price):'Precio pendiente'}</b></div>}<div className={`label-pro-codes mode-${effectiveMode}`}>{(effectiveMode==='qr'||effectiveMode==='both')&&<div><img src={qrUrl(catalogQrValue(product, stableCatalogUrl))} alt="QR catálogo"/><small>{profile==='gondola'?'Escanea':'Catálogo'}</small></div>}{(effectiveMode==='barcode'||effectiveMode==='both')&&<div className="label-pro-barcode"><BarcodeSVG value={code}/>{showCodeText&&<small>{code}</small>}</div>}</div></article>})}</div></section>
   </div>;
 }
 
