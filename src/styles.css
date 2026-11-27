@@ -7027,3 +7027,989 @@ body.clomar-public-catalog #root {
     transform: none !important;
   }
 }
+
+/* ============================================================
+   CLOMAR STORE V03.5.0 — Inicio comercial responsive + detalle
+   de producto por encima de todas las barras persistentes.
+   ============================================================ */
+
+/* El detalle debe quedar por encima del encabezado y de la franja
+   fija del catálogo. Antes, z-index 150 lo dejaba debajo de la banda
+   de controles (z-index 160), ocultando la parte superior del modal. */
+.catalog-v337-detail-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 360 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: clamp(12px, 2.5vw, 28px) !important;
+  overflow-y: auto !important;
+  background: rgba(5, 17, 35, .64) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  backdrop-filter: blur(4px) !important;
+}
+.catalog-v337-detail-modal {
+  position: relative !important;
+  z-index: 361 !important;
+  width: min(920px, calc(100vw - 40px)) !important;
+  max-height: calc(100dvh - 48px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr) !important;
+  gap: clamp(14px, 2vw, 22px) !important;
+  padding: 18px !important;
+}
+.catalog-v337-detail-image {
+  height: min(54vh, 420px) !important;
+  max-height: 420px !important;
+}
+.catalog-v338-cart-backdrop {
+  z-index: 370 !important;
+}
+
+/* HOME — identidad visual inspirada en la referencia de escritorio,
+   laptop y móvil, construida con datos e imágenes reales del catálogo. */
+.catalog-v337-home-view {
+  background:
+    radial-gradient(circle at 8% 20%, rgba(242, 199, 88, .09), transparent 26%),
+    linear-gradient(180deg, #f4f7fc 0%, #f8f9fc 100%) !important;
+}
+.catalog-v337-home-view .clomar-home-hero {
+  position: relative !important;
+  isolation: isolate !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.02fr) minmax(360px, .98fr) !important;
+  align-items: center !important;
+  gap: clamp(18px, 3vw, 42px) !important;
+  width: min(calc(100% - 56px), 1540px) !important;
+  min-height: 390px !important;
+  margin: 18px auto 0 !important;
+  padding: 34px clamp(28px, 4vw, 58px) !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 28px !important;
+  color: #fff !important;
+  background:
+    radial-gradient(circle at 78% 16%, rgba(255, 208, 83, .25), transparent 26%),
+    radial-gradient(circle at 92% 100%, rgba(218, 62, 83, .18), transparent 34%),
+    linear-gradient(112deg, #061a36 0%, #0b2c55 53%, #164575 100%) !important;
+  box-shadow: 0 24px 58px rgba(7, 28, 57, .19), inset 0 1px 0 rgba(255,255,255,.16) !important;
+  animation: clomar-home-enter .65s cubic-bezier(.2,.7,.2,1) both !important;
+}
+.catalog-v337-home-view .clomar-home-hero::before,
+.catalog-v337-home-view .clomar-home-hero::after {
+  content: "" !important;
+  position: absolute !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+}
+.catalog-v337-home-view .clomar-home-hero::before {
+  top: -220px !important;
+  right: 13% !important;
+  width: 520px !important;
+  height: 520px !important;
+  border: 1px solid rgba(255, 207, 79, .28) !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 32px rgba(255,255,255,.025), 0 0 0 70px rgba(255,255,255,.018) !important;
+}
+.catalog-v337-home-view .clomar-home-hero::after {
+  right: -120px !important;
+  bottom: -220px !important;
+  width: 430px !important;
+  height: 430px !important;
+  border-radius: 50% !important;
+  background: radial-gradient(circle, rgba(245, 192, 58, .17), transparent 68%) !important;
+}
+.catalog-v337-home-view .clomar-home-hero-copy {
+  position: relative !important;
+  z-index: 3 !important;
+  min-width: 0 !important;
+  max-width: 660px !important;
+}
+.catalog-v337-home-view .clomar-home-eyebrow {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 17px !important;
+  padding: 8px 12px !important;
+  border: 1px solid rgba(255, 213, 103, .28) !important;
+  border-radius: 999px !important;
+  color: #ffdc7a !important;
+  background: rgba(255,255,255,.075) !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+  letter-spacing: .13em !important;
+}
+.catalog-v337-home-view .clomar-home-eyebrow svg { color: #ffd45c !important; }
+.catalog-v337-home-view .clomar-home-hero-copy h1 {
+  max-width: 680px !important;
+  margin: 0 !important;
+  color: #fff !important;
+  font-size: clamp(36px, 4.2vw, 62px) !important;
+  font-weight: 950 !important;
+  line-height: .99 !important;
+  letter-spacing: -.055em !important;
+  text-transform: uppercase !important;
+  text-wrap: balance !important;
+}
+.catalog-v337-home-view .clomar-home-hero-copy h1 em {
+  color: #ffd24f !important;
+  font-style: normal !important;
+  text-shadow: 0 7px 22px rgba(255, 195, 42, .18) !important;
+}
+.catalog-v337-home-view .clomar-home-hero-copy > p {
+  max-width: 540px !important;
+  margin: 17px 0 0 !important;
+  color: #d9e5f5 !important;
+  font-size: clamp(12px, 1.15vw, 15px) !important;
+  line-height: 1.65 !important;
+}
+.catalog-v337-home-view .clomar-home-hero-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 11px !important;
+  margin-top: 23px !important;
+}
+.catalog-v337-home-view .clomar-home-hero-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  min-height: 47px !important;
+  padding: 0 19px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  transition: transform .22s ease, box-shadow .22s ease, background .22s ease !important;
+}
+.catalog-v337-home-view .clomar-home-primary {
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color: #fff !important;
+  background: linear-gradient(110deg, #e83f57, #cf2948) !important;
+  box-shadow: 0 10px 24px rgba(216, 42, 73, .27) !important;
+}
+.catalog-v337-home-view .clomar-home-secondary {
+  border: 1px solid rgba(255, 213, 103, .78) !important;
+  color: #ffdc70 !important;
+  background: rgba(5, 25, 51, .28) !important;
+}
+.catalog-v337-home-view .clomar-home-hero-actions button:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 15px 27px rgba(0,0,0,.22) !important;
+}
+.catalog-v337-home-view .clomar-home-hero-points {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 17px !important;
+  margin-top: 23px !important;
+  color: #c6d6e9 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+}
+.catalog-v337-home-view .clomar-home-hero-points span {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.catalog-v337-home-view .clomar-home-hero-points svg { color: #f4c54b !important; }
+
+.catalog-v337-home-view .clomar-home-hero-showcase {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 320px !important;
+  perspective: 1000px !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-orbit {
+  position: absolute !important;
+  border: 1px solid rgba(255, 213, 103, .25) !important;
+  border-radius: 50% !important;
+  pointer-events: none !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-orbit-one {
+  top: 4% !important;
+  right: 3% !important;
+  width: 310px !important;
+  height: 310px !important;
+  box-shadow: 0 0 0 22px rgba(255,255,255,.025) !important;
+  animation: clomar-home-orbit 12s ease-in-out infinite alternate !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-orbit-two {
+  right: 13% !important;
+  bottom: 0 !important;
+  width: 210px !important;
+  height: 210px !important;
+  border-color: rgba(255,255,255,.15) !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-card {
+  position: absolute !important;
+  top: 6% !important;
+  right: 8% !important;
+  z-index: 2 !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  width: 61% !important;
+  height: 88% !important;
+  padding: 13px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255,255,255,.9) !important;
+  border-radius: 24px !important;
+  background: linear-gradient(145deg, #fff 0%, #f4f7fb 100%) !important;
+  box-shadow: 0 22px 50px rgba(0,0,0,.25) !important;
+  transform: rotate(2.5deg) !important;
+  animation: clomar-home-card-float 6s ease-in-out infinite !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-label {
+  justify-self: start !important;
+  padding: 6px 9px !important;
+  border-radius: 999px !important;
+  color: #17365d !important;
+  background: #ffe8a4 !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+  letter-spacing: .1em !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-image {
+  display: grid !important;
+  min-height: 0 !important;
+  place-items: center !important;
+  overflow: hidden !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-image img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  mix-blend-mode: multiply !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-copy {
+  display: grid !important;
+  gap: 3px !important;
+  padding: 8px 4px 2px !important;
+  border-top: 1px solid #e8edf4 !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-copy span {
+  color: #8a98aa !important;
+  font-size: 8px !important;
+  font-weight: 850 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .07em !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-copy strong {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  color: #17365e !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  -webkit-line-clamp: 1 !important;
+  -webkit-box-orient: vertical !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-main-copy b {
+  color: #c63c4f !important;
+  font-size: 12px !important;
+}
+.catalog-v337-home-view .clomar-home-float-card {
+  position: absolute !important;
+  z-index: 3 !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  width: 34% !important;
+  height: 42% !important;
+  padding: 8px !important;
+  overflow: hidden !important;
+  border: 1px solid #fff !important;
+  border-radius: 18px !important;
+  color: #17365e !important;
+  background: #fff !important;
+  box-shadow: 0 16px 35px rgba(0,0,0,.22) !important;
+  transition: transform .25s ease !important;
+}
+.catalog-v337-home-view .clomar-home-float-card:hover { transform: translateY(-5px) rotate(0) !important; }
+.catalog-v337-home-view .clomar-home-float-card img {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  mix-blend-mode: multiply !important;
+}
+.catalog-v337-home-view .clomar-home-float-card span {
+  overflow: hidden !important;
+  padding: 5px 2px 1px !important;
+  color: #53657d !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.catalog-v337-home-view .clomar-home-float-card-1 { top: 10% !important; left: 0 !important; transform: rotate(-7deg) !important; }
+.catalog-v337-home-view .clomar-home-float-card-2 { bottom: 2% !important; left: 3% !important; transform: rotate(6deg) !important; }
+.catalog-v337-home-view .clomar-home-showcase-stamp {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 1% !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 8px 11px 8px 8px !important;
+  border: 1px solid rgba(255,255,255,.6) !important;
+  border-radius: 999px !important;
+  color: #142f55 !important;
+  background: linear-gradient(135deg, #ffdf7b, #f2b932) !important;
+  box-shadow: 0 9px 22px rgba(0,0,0,.18) !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-stamp > span {
+  display: grid !important;
+  width: 31px !important;
+  height: 31px !important;
+  place-items: center !important;
+  border: 1px solid rgba(19,47,84,.35) !important;
+  border-radius: 50% !important;
+  font-family: Georgia, serif !important;
+  font-size: 15px !important;
+  font-weight: 950 !important;
+}
+.catalog-v337-home-view .clomar-home-showcase-stamp small {
+  font-size: 7px !important;
+  font-weight: 950 !important;
+  line-height: 1.15 !important;
+  letter-spacing: .07em !important;
+}
+
+.catalog-v337-home-view .clomar-home-benefits {
+  width: min(calc(100% - 88px), 1460px) !important;
+  min-height: 76px !important;
+  margin: 14px auto 24px !important;
+  padding: 7px 16px !important;
+  border: 1px solid #fff !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.97) !important;
+  box-shadow: 0 12px 28px rgba(12, 35, 67, .075) !important;
+}
+.catalog-v337-home-view .clomar-home-benefits article { min-height: 58px !important; }
+
+.catalog-v337-home-view .clomar-home-categories,
+.catalog-v337-home-view .clomar-home-featured {
+  width: min(calc(100% - 88px), 1460px) !important;
+  margin: 0 auto 28px !important;
+}
+.catalog-v337-home-view .clomar-home-section-head {
+  display: flex !important;
+  align-items: end !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin-bottom: 14px !important;
+}
+.catalog-v337-home-view .clomar-home-section-head > div > span {
+  display: block !important;
+  margin-bottom: 5px !important;
+  color: #bd881b !important;
+  font-size: 9px !important;
+  font-weight: 950 !important;
+  letter-spacing: .15em !important;
+}
+.catalog-v337-home-view .clomar-home-section-head h2 {
+  margin: 0 !important;
+  color: #122f55 !important;
+  font-size: clamp(22px, 2.1vw, 29px) !important;
+  font-weight: 950 !important;
+  letter-spacing: -.045em !important;
+  line-height: 1.1 !important;
+}
+.catalog-v337-home-view .clomar-home-section-head p {
+  margin: 5px 0 0 !important;
+  color: #718098 !important;
+  font-size: 11px !important;
+}
+.catalog-v337-home-view .clomar-home-section-head > button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: #fff !important;
+  background: #173b69 !important;
+  box-shadow: 0 7px 18px rgba(16, 48, 86, .15) !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  transition: transform .2s ease, background .2s ease !important;
+}
+.catalog-v337-home-view .clomar-home-section-head > button:hover {
+  transform: translateY(-2px) !important;
+  background: #d83d52 !important;
+}
+.catalog-v337-home-view .clomar-home-category-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 13px !important;
+}
+.catalog-v337-home-view .clomar-home-category-card {
+  position: relative !important;
+  display: block !important;
+  min-width: 0 !important;
+  height: clamp(130px, 13vw, 176px) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255,255,255,.9) !important;
+  border-radius: 19px !important;
+  text-align: left !important;
+  background: linear-gradient(145deg, #fff, #eaf0f7) !important;
+  box-shadow: 0 10px 24px rgba(17, 42, 72, .10) !important;
+  transition: transform .24s ease, box-shadow .24s ease !important;
+}
+.catalog-v337-home-view .clomar-home-category-card:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 17px 30px rgba(17, 42, 72, .17) !important;
+}
+.catalog-v337-home-view .clomar-home-category-card > img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 8px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  mix-blend-mode: multiply !important;
+  transition: transform .45s ease !important;
+}
+.catalog-v337-home-view .clomar-home-category-card:hover > img { transform: scale(1.07) !important; }
+.catalog-v337-home-view .clomar-home-category-shade {
+  position: absolute !important;
+  inset: 0 !important;
+  background: linear-gradient(0deg, rgba(5, 25, 51, .91) 0%, rgba(5, 25, 51, .30) 43%, rgba(5,25,51,0) 78%) !important;
+}
+.catalog-v337-home-view .clomar-home-category-copy {
+  position: absolute !important;
+  right: 12px !important;
+  bottom: 11px !important;
+  left: 14px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 31px !important;
+  align-items: end !important;
+  gap: 4px 8px !important;
+  color: #fff !important;
+}
+.catalog-v337-home-view .clomar-home-category-copy small {
+  grid-column: 1 !important;
+  color: #ffda70 !important;
+  font-size: 7px !important;
+  font-weight: 950 !important;
+  letter-spacing: .15em !important;
+}
+.catalog-v337-home-view .clomar-home-category-copy strong {
+  grid-column: 1 !important;
+  font-size: clamp(13px, 1.2vw, 17px) !important;
+  font-weight: 950 !important;
+  line-height: 1.1 !important;
+  text-shadow: 0 2px 9px rgba(0,0,0,.24) !important;
+}
+.catalog-v337-home-view .clomar-home-category-copy i {
+  display: grid !important;
+  grid-column: 2 !important;
+  grid-row: 1 / span 2 !important;
+  width: 30px !important;
+  height: 30px !important;
+  place-items: center !important;
+  border-radius: 50% !important;
+  color: #10294c !important;
+  background: #ffd052 !important;
+  font-style: normal !important;
+}
+
+.catalog-v337-home-view .clomar-home-featured-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 13px !important;
+}
+.catalog-v337-home-view .clomar-home-product-card {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #e5ebf3 !important;
+  border-radius: 17px !important;
+  background: #fff !important;
+  box-shadow: 0 8px 22px rgba(16, 42, 75, .065) !important;
+  animation: clomar-home-enter .5s ease both !important;
+  animation-delay: calc(var(--home-card-index, 0) * 65ms) !important;
+  transition: transform .22s ease, box-shadow .22s ease !important;
+}
+.catalog-v337-home-view .clomar-home-product-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 15px 30px rgba(16, 42, 75, .12) !important;
+}
+.catalog-v337-home-view .clomar-home-product-image {
+  position: relative !important;
+  display: grid !important;
+  width: 100% !important;
+  height: clamp(145px, 15vw, 190px) !important;
+  padding: 10px !important;
+  place-items: center !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-bottom: 1px solid #edf1f6 !important;
+  background: linear-gradient(145deg, #fff, #f4f7fb) !important;
+}
+.catalog-v337-home-view .clomar-home-product-image img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  mix-blend-mode: multiply !important;
+  transition: transform .35s ease !important;
+}
+.catalog-v337-home-view .clomar-home-product-card:hover .clomar-home-product-image img { transform: scale(1.045) !important; }
+.catalog-v337-home-view .clomar-home-product-image > span {
+  position: absolute !important;
+  top: 10px !important;
+  left: 10px !important;
+  padding: 5px 8px !important;
+  border-radius: 999px !important;
+  color: #21466d !important;
+  background: #edf3fa !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+}
+.catalog-v337-home-view .clomar-home-product-image > span.is-featured {
+  color: #71300e !important;
+  background: #ffdc78 !important;
+}
+.catalog-v337-home-view .clomar-home-product-info {
+  display: grid !important;
+  gap: 6px !important;
+  padding: 11px !important;
+}
+.catalog-v337-home-view .clomar-home-product-info > small {
+  color: #7c8ca2 !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  letter-spacing: .07em !important;
+  text-transform: uppercase !important;
+}
+.catalog-v337-home-view .clomar-home-product-info h3 {
+  display: -webkit-box !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  color: #172f53 !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  line-height: 1.25 !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+}
+.catalog-v337-home-view .clomar-home-product-price {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 5px !important;
+}
+.catalog-v337-home-view .clomar-home-product-price strong {
+  color: #102f58 !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+}
+.catalog-v337-home-view .clomar-home-product-price span {
+  overflow: hidden !important;
+  color: #32945a !important;
+  font-size: 8px !important;
+  font-weight: 850 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.catalog-v337-home-view .clomar-home-product-price span.is-soldout { color: #b43d4c !important; }
+.catalog-v337-home-view .clomar-home-product-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 6px !important;
+  margin-top: 2px !important;
+}
+.catalog-v337-home-view .clomar-home-product-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  min-height: 34px !important;
+  padding: 0 5px !important;
+  border: 1px solid #e1e8f1 !important;
+  border-radius: 10px !important;
+  color: #18375f !important;
+  background: #fff !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+}
+.catalog-v337-home-view .clomar-home-product-actions button:last-child {
+  border-color: #d7485a !important;
+  color: #fff !important;
+  background: linear-gradient(110deg, #e65362, #c9384e) !important;
+}
+.catalog-v337-home-view .clomar-home-product-actions button:disabled {
+  cursor: not-allowed !important;
+  border-color: #e1e6ed !important;
+  color: #8793a4 !important;
+  background: #edf1f6 !important;
+}
+.catalog-v337-home-view .clomar-home-empty {
+  padding: 24px !important;
+  border: 1px dashed #cbd6e4 !important;
+  border-radius: 16px !important;
+  color: #718098 !important;
+  background: #fff !important;
+}
+
+.catalog-v337-home-view .clomar-home-promo {
+  position: relative !important;
+  isolation: isolate !important;
+  display: grid !important;
+  grid-template-columns: 62px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 17px !important;
+  width: min(calc(100% - 88px), 1460px) !important;
+  min-height: 126px !important;
+  margin: 0 auto 34px !important;
+  padding: 22px 28px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 22px !important;
+  color: #fff !important;
+  background: linear-gradient(110deg, #071d3b 0%, #123d6a 68%, #0b2a50 100%) !important;
+  box-shadow: 0 15px 32px rgba(9, 34, 67, .16) !important;
+}
+.catalog-v337-home-view .clomar-home-promo::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: -1 !important;
+  top: -100px !important;
+  right: 17% !important;
+  width: 260px !important;
+  height: 260px !important;
+  border: 1px solid rgba(255,211,93,.26) !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 22px rgba(255,255,255,.025), 0 0 0 48px rgba(255,255,255,.02) !important;
+}
+.catalog-v337-home-view .clomar-home-promo-icon {
+  display: grid !important;
+  width: 58px !important;
+  height: 58px !important;
+  place-items: center !important;
+  border: 1px solid rgba(255,220,120,.48) !important;
+  border-radius: 18px !important;
+  color: #ffd25a !important;
+  background: rgba(255,255,255,.08) !important;
+}
+.catalog-v337-home-view .clomar-home-promo > div:nth-child(2) > span {
+  color: #ffd76a !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+  letter-spacing: .14em !important;
+}
+.catalog-v337-home-view .clomar-home-promo h2 {
+  margin: 4px 0 !important;
+  color: #fff !important;
+  font-size: clamp(18px, 2vw, 26px) !important;
+  font-weight: 950 !important;
+  letter-spacing: -.03em !important;
+}
+.catalog-v337-home-view .clomar-home-promo p {
+  margin: 0 !important;
+  color: #cbd9e9 !important;
+  font-size: 10px !important;
+}
+.catalog-v337-home-view .clomar-home-promo > button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-height: 42px !important;
+  padding: 0 17px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: #fff !important;
+  background: linear-gradient(110deg, #e94a5c, #cb2f4b) !important;
+  box-shadow: 0 9px 20px rgba(205, 43, 72, .24) !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+  transition: transform .2s ease !important;
+}
+.catalog-v337-home-view .clomar-home-promo > button:hover { transform: translateY(-3px) !important; }
+.catalog-v337-home-view .clomar-home-promo-orb {
+  position: absolute !important;
+  right: 4% !important;
+  bottom: -95px !important;
+  z-index: -1 !important;
+  width: 190px !important;
+  height: 190px !important;
+  border-radius: 50% !important;
+  background: radial-gradient(circle, rgba(245, 190, 58, .25), transparent 68%) !important;
+}
+
+@keyframes clomar-home-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes clomar-home-card-float {
+  from { translate: 0 0; }
+  to { translate: 0 -7px; }
+}
+@keyframes clomar-home-orbit {
+  from { transform: rotate(-7deg) scale(.97); opacity: .6; }
+  to { transform: rotate(8deg) scale(1.035); opacity: 1; }
+}
+
+@media (min-width: 901px) and (max-width: 1199px) {
+  .catalog-v337-home-view .clomar-home-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, .82fr) !important;
+    min-height: 350px !important;
+    padding: 28px 30px !important;
+    gap: 15px !important;
+  }
+  .catalog-v337-home-view .clomar-home-hero-copy h1 { font-size: clamp(34px, 4.2vw, 47px) !important; }
+  .catalog-v337-home-view .clomar-home-hero-showcase { min-height: 290px !important; }
+  .catalog-v337-home-view .clomar-home-categories,
+  .catalog-v337-home-view .clomar-home-featured,
+  .catalog-v337-home-view .clomar-home-promo { width: calc(100% - 48px) !important; }
+  .catalog-v337-home-view .clomar-home-benefits { width: calc(100% - 48px) !important; }
+}
+
+@media (max-width: 900px) {
+  .catalog-v337-home-view .clomar-home-hero {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: calc(100% - 22px) !important;
+    min-height: 0 !important;
+    margin: 10px auto 0 !important;
+    padding: 23px 21px 13px !important;
+    gap: 4px !important;
+    border-radius: 22px !important;
+  }
+  .catalog-v337-home-view .clomar-home-eyebrow { margin-bottom: 12px !important; font-size: 8px !important; }
+  .catalog-v337-home-view .clomar-home-hero-copy h1 { font-size: clamp(32px, 7.4vw, 48px) !important; }
+  .catalog-v337-home-view .clomar-home-hero-copy > p { max-width: 620px !important; margin-top: 11px !important; font-size: 11px !important; }
+  .catalog-v337-home-view .clomar-home-hero-actions { gap: 8px !important; margin-top: 15px !important; }
+  .catalog-v337-home-view .clomar-home-hero-actions button { min-height: 41px !important; padding: 0 13px !important; font-size: 10px !important; }
+  .catalog-v337-home-view .clomar-home-hero-points { gap: 11px !important; margin-top: 14px !important; font-size: 8px !important; }
+  .catalog-v337-home-view .clomar-home-hero-showcase { min-height: 250px !important; margin-top: 4px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-main-card { top: 3% !important; right: 13% !important; width: 53% !important; height: 91% !important; }
+  .catalog-v337-home-view .clomar-home-float-card { width: 31% !important; height: 43% !important; }
+  .catalog-v337-home-view .clomar-home-float-card-1 { top: 8% !important; left: 5% !important; }
+  .catalog-v337-home-view .clomar-home-float-card-2 { bottom: 3% !important; left: 6% !important; }
+  .catalog-v337-home-view .clomar-home-showcase-orbit-one { right: 8% !important; width: 250px !important; height: 250px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-orbit-two { right: 18% !important; width: 170px !important; height: 170px !important; }
+  .catalog-v337-home-view .clomar-home-benefits,
+  .catalog-v337-home-view .clomar-home-categories,
+  .catalog-v337-home-view .clomar-home-featured,
+  .catalog-v337-home-view .clomar-home-promo { width: calc(100% - 28px) !important; }
+  .catalog-v337-home-view .clomar-home-benefits { margin: 10px auto 20px !important; }
+  .catalog-v337-home-view .clomar-home-section-head h2 { font-size: 22px !important; }
+  .catalog-v337-home-view .clomar-home-category-grid,
+  .catalog-v337-home-view .clomar-home-featured-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 9px !important; }
+  .catalog-v337-home-view .clomar-home-category-card { height: clamp(116px, 24vw, 158px) !important; border-radius: 15px !important; }
+  .catalog-v337-home-view .clomar-home-product-image { height: clamp(125px, 28vw, 175px) !important; }
+  .catalog-v337-home-view .clomar-home-promo { grid-template-columns: 48px minmax(0, 1fr) !important; gap: 12px !important; padding: 17px !important; }
+  .catalog-v337-home-view .clomar-home-promo-icon { width: 46px !important; height: 46px !important; border-radius: 14px !important; }
+  .catalog-v337-home-view .clomar-home-promo-icon svg { width: 25px !important; height: 25px !important; }
+  .catalog-v337-home-view .clomar-home-promo > button { grid-column: 2 !important; justify-self: start !important; min-height: 38px !important; }
+}
+
+@media (max-width: 520px) {
+  .catalog-v337-home-view .clomar-home-hero { padding: 19px 16px 10px !important; }
+  .catalog-v337-home-view .clomar-home-hero-copy h1 { font-size: clamp(30px, 9vw, 39px) !important; }
+  .catalog-v337-home-view .clomar-home-hero-copy > p { font-size: 10px !important; line-height: 1.5 !important; }
+  .catalog-v337-home-view .clomar-home-hero-actions { display: grid !important; grid-template-columns: 1fr 1fr !important; }
+  .catalog-v337-home-view .clomar-home-hero-actions button { min-width: 0 !important; padding: 0 7px !important; gap: 5px !important; font-size: 8px !important; }
+  .catalog-v337-home-view .clomar-home-hero-actions button svg { width: 14px !important; height: 14px !important; }
+  .catalog-v337-home-view .clomar-home-hero-points { gap: 8px 11px !important; font-size: 7px !important; }
+  .catalog-v337-home-view .clomar-home-hero-showcase { min-height: 210px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-main-card { right: 12% !important; width: 57% !important; height: 92% !important; padding: 8px !important; border-radius: 16px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-label { padding: 4px 6px !important; font-size: 6px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-main-copy { gap: 2px !important; padding-top: 5px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-main-copy span { font-size: 6px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-main-copy strong { font-size: 8px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-main-copy b { font-size: 10px !important; }
+  .catalog-v337-home-view .clomar-home-float-card { width: 31% !important; height: 39% !important; padding: 5px !important; border-radius: 12px !important; }
+  .catalog-v337-home-view .clomar-home-float-card span { font-size: 6px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-stamp { right: -2px !important; bottom: 0 !important; gap: 4px !important; padding: 5px 7px 5px 5px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-stamp > span { width: 23px !important; height: 23px !important; font-size: 11px !important; }
+  .catalog-v337-home-view .clomar-home-showcase-stamp small { font-size: 5px !important; }
+  .catalog-v337-home-view .clomar-home-benefits { margin: 9px auto 17px !important; }
+  .catalog-v337-home-view .clomar-home-section-head { align-items: flex-start !important; gap: 8px !important; margin-bottom: 10px !important; }
+  .catalog-v337-home-view .clomar-home-section-head h2 { font-size: 18px !important; }
+  .catalog-v337-home-view .clomar-home-section-head p { font-size: 9px !important; }
+  .catalog-v337-home-view .clomar-home-section-head > button { min-height: 33px !important; padding: 0 8px !important; font-size: 7px !important; }
+  .catalog-v337-home-view .clomar-home-section-head > button svg { width: 13px !important; }
+  .catalog-v337-home-view .clomar-home-category-grid,
+  .catalog-v337-home-view .clomar-home-featured-grid { gap: 7px !important; }
+  .catalog-v337-home-view .clomar-home-category-card { height: 116px !important; border-radius: 12px !important; }
+  .catalog-v337-home-view .clomar-home-category-card > img { padding: 5px !important; }
+  .catalog-v337-home-view .clomar-home-category-copy { left: 9px !important; right: 8px !important; bottom: 8px !important; grid-template-columns: minmax(0,1fr) 24px !important; }
+  .catalog-v337-home-view .clomar-home-category-copy strong { font-size: 10px !important; }
+  .catalog-v337-home-view .clomar-home-category-copy i { width: 23px !important; height: 23px !important; }
+  .catalog-v337-home-view .clomar-home-product-card { border-radius: 12px !important; }
+  .catalog-v337-home-view .clomar-home-product-image { height: 118px !important; padding: 6px !important; }
+  .catalog-v337-home-view .clomar-home-product-image > span { top: 6px !important; left: 6px !important; padding: 4px 6px !important; font-size: 6px !important; }
+  .catalog-v337-home-view .clomar-home-product-info { gap: 4px !important; padding: 8px !important; }
+  .catalog-v337-home-view .clomar-home-product-info h3 { min-height: 29px !important; font-size: 8px !important; }
+  .catalog-v337-home-view .clomar-home-product-price strong { font-size: 14px !important; }
+  .catalog-v337-home-view .clomar-home-product-price span { font-size: 6px !important; }
+  .catalog-v337-home-view .clomar-home-product-actions { gap: 4px !important; }
+  .catalog-v337-home-view .clomar-home-product-actions button { min-height: 30px !important; font-size: 6.5px !important; }
+  .catalog-v337-home-view .clomar-home-product-actions button svg { width: 11px !important; height: 11px !important; }
+  .catalog-v337-home-view .clomar-home-promo { margin-bottom: 22px !important; padding: 13px !important; border-radius: 16px !important; }
+  .catalog-v337-home-view .clomar-home-promo h2 { font-size: 15px !important; }
+  .catalog-v337-home-view .clomar-home-promo p { font-size: 8px !important; line-height: 1.4 !important; }
+  .catalog-v337-home-view .clomar-home-promo > div:nth-child(2) > span { font-size: 6px !important; }
+  .catalog-v337-home-view .clomar-home-promo > button { min-height: 34px !important; padding: 0 10px !important; font-size: 8px !important; }
+}
+
+@media (max-height: 720px) and (min-width: 901px) {
+  .catalog-v337-detail-modal { max-height: calc(100dvh - 28px) !important; }
+  .catalog-v337-detail-image { height: min(46vh, 330px) !important; max-height: 330px !important; }
+}
+
+@media (max-width: 900px) {
+  .catalog-v337-detail-backdrop {
+    z-index: 360 !important;
+    place-items: end center !important;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom)) !important;
+  }
+  .catalog-v337-detail-modal {
+    width: min(560px, 100%) !important;
+    max-height: calc(100dvh - 78px) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v337-home-view .clomar-home-hero,
+  .catalog-v337-home-view .clomar-home-showcase-orbit,
+  .catalog-v337-home-view .clomar-home-showcase-main-card,
+  .catalog-v337-home-view .clomar-home-product-card,
+  .catalog-v337-home-view .clomar-home-category-card,
+  .catalog-v337-home-view .clomar-home-category-card > img,
+  .catalog-v337-home-view .clomar-home-product-image img,
+  .catalog-v337-home-view .clomar-home-promo > button {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+/* V03.5.0 — El límite fijo termina en la línea de referencia:
+   encabezado + categorías + título/buscador. El contador y el orden
+   quedan debajo y se desplazan junto con los resultados. */
+@media (min-width: 901px) {
+  .catalog-v337-shop-view .catalog-v335-catalog-stage {
+    padding-top: 120px !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-sticky-controls {
+    top: 72px !important;
+    z-index: 170 !important;
+    height: 120px !important;
+    min-height: 120px !important;
+    max-height: 120px !important;
+    padding: 3px 0 4px !important;
+    grid-template-rows: 40px minmax(0, 1fr) !important;
+    gap: 4px !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-sticky-controls .catalog-v333-category-strip {
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-controls-content {
+    height: 69px !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-heading {
+    height: 69px !important;
+    grid-template-columns: minmax(250px, .78fr) minmax(320px, 1.22fr) !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-title h1 {
+    font-size: clamp(22px, 1.55vw, 28px) !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-search {
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+  .catalog-v337-shop-view .clomar-catalog-scroll-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: min(calc(100% - 40px), 1720px) !important;
+    height: 38px !important;
+    margin: 0 auto 0 !important;
+    padding: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .catalog-v337-shop-view .clomar-catalog-scroll-toolbar .catalog-v331-toolbar-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+  }
+  .catalog-v337-shop-view .catalog-v331-shop {
+    scroll-margin-top: 202px !important;
+  }
+  .catalog-v337-shop-view .catalog-v331-filters {
+    top: 230px !important;
+    max-height: calc(100dvh - 244px) !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1399px) {
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-heading {
+    grid-template-columns: minmax(220px, .72fr) minmax(280px, 1.28fr) !important;
+    gap: 10px !important;
+  }
+  .catalog-v337-shop-view .clomar-catalog-scroll-toolbar {
+    width: calc(100% - 30px) !important;
+  }
+  .catalog-v337-shop-view .catalog-v331-filters {
+    top: 230px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .catalog-v337-shop-view .catalog-v335-catalog-stage { padding-top: 0 !important; }
+  .catalog-v337-shop-view .catalog-v339-sticky-controls {
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    grid-template-rows: auto auto !important;
+  }
+  .catalog-v337-shop-view .catalog-v339-controls-content,
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-heading {
+    height: auto !important;
+  }
+  .catalog-v337-shop-view .clomar-catalog-scroll-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 7px !important;
+    width: calc(100% - 20px) !important;
+    height: auto !important;
+    margin: 0 auto 7px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .catalog-v337-shop-view .clomar-catalog-scroll-toolbar .catalog-v331-toolbar-actions {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+  }
+}

@@ -4673,6 +4673,27 @@ function PublicCatalogApp() {
   const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General'))).sort((a,b) => a.localeCompare(b, 'es'))], [products]);
   const categoryCounts = useMemo(() => products.reduce((acc,p) => { const key = p.category || 'General'; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [products]);
   const brands = useMemo(() => Array.from(new Set(products.map(p => String(p.brand || '').trim()).filter(Boolean))).sort((a,b) => a.localeCompare(b, 'es')), [products]);
+  const homeCategories = useMemo(() => {
+    const rank = (value) => {
+      const name = normalizeText(value);
+      if (name.includes('ropa hombre')) return 0;
+      if (name.includes('ropa mujer')) return 1;
+      if (name.includes('calzado')) return 2;
+      if (name.includes('accesorio')) return 3;
+      return 4;
+    };
+    return categories.filter(value => value !== 'Todas')
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'es'))
+      .slice(0, 4);
+  }, [categories]);
+  const homeFeaturedProducts = useMemo(() => {
+    const featured = products.filter(product => Boolean(product.catalog_featured));
+    const featuredIds = new Set(featured.map(product => product.id));
+    const remaining = products
+      .filter(product => !featuredIds.has(product.id))
+      .sort((a, b) => Number(a.catalog_position ?? 999) - Number(b.catalog_position ?? 999));
+    return [...featured, ...remaining].slice(0, 4);
+  }, [products]);
   const categoryIcon = (value) => {
     const name = String(value || '').toLowerCase();
     if (name.includes('calzado')) return <Footprints size={20}/>;
@@ -4785,36 +4806,95 @@ function PublicCatalogApp() {
       </header>
 
       {activeSection === 'home' && <>
-        <section className="catalog-v329-banner-wrap catalog-v331-banner-wrap catalog-v333-home-banner" aria-label="Presentación de Clomar Store">
-          <button type="button" className="catalog-v329-banner-trigger catalog-v331-banner-trigger" onClick={goToAllProducts} aria-label="Explorar todos los productos del catálogo">
-            <picture>
-              <source media="(max-width: 760px)" srcSet="/clomar-store-banner-mobile.webp" />
-              <img src="/clomar-store-banner.webp" alt="Clomar Store: todo lo que buscas en un solo lugar. Ropa, calzado y accesorios con calidad, variedad y precio." fetchPriority="high" decoding="async" />
-            </picture>
-            <span className="catalog-v329-banner-hitarea" aria-hidden="true"></span>
-          </button>
+        <section className="clomar-home-hero" aria-label="Bienvenida a Clomar Store">
+          <div className="clomar-home-hero-copy">
+            <span className="clomar-home-eyebrow"><Sparkles size={15}/> CLOMAR STORE · NUEVA TEMPORADA</span>
+            <h1>Tu estilo,<br/>tu personalidad,<br/><em>tu tienda.</em></h1>
+            <p>Ropa, calzado y accesorios para cada día. Encuentra variedad, calidad y opciones para todos los estilos en un solo lugar.</p>
+            <div className="clomar-home-hero-actions">
+              <button type="button" className="clomar-home-primary" onClick={goToAllProducts}><ShoppingBag size={18}/> Explorar catálogo <ChevronRight size={18}/></button>
+              <button type="button" className="clomar-home-secondary" onClick={goToFeatured}><Sparkles size={17}/> Ver destacados</button>
+            </div>
+            <div className="clomar-home-hero-points">
+              <span><ShieldCheck size={15}/> Compra con confianza</span>
+              <span><MessageCircle size={15}/> Atención por WhatsApp</span>
+            </div>
+          </div>
+          <div className="clomar-home-hero-showcase" aria-label="Selección de productos Clomar Store">
+            <div className="clomar-home-showcase-orbit clomar-home-showcase-orbit-one" />
+            <div className="clomar-home-showcase-orbit clomar-home-showcase-orbit-two" />
+            <div className="clomar-home-showcase-main-card">
+              <span className="clomar-home-showcase-label">SELECCIÓN CLOMAR</span>
+              <div className="clomar-home-showcase-main-image">
+                <img src={homeFeaturedProducts[0]?.image_url || APP_ICON} alt={homeFeaturedProducts[0]?.name || 'Producto destacado Clomar Store'} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = APP_ICON; }}/>
+              </div>
+              <div className="clomar-home-showcase-main-copy">
+                <span>{homeFeaturedProducts[0]?.category || 'Ropa · Calzado · Accesorios'}</span>
+                <strong>{homeFeaturedProducts[0]?.name || 'Encuentra tu próximo favorito'}</strong>
+                {homeFeaturedProducts[0] && <b>{money(homeFeaturedProducts[0].price)}</b>}
+              </div>
+            </div>
+            {homeFeaturedProducts.slice(1, 3).map((product, index) => <button type="button" key={product.id} className={`clomar-home-float-card clomar-home-float-card-${index + 1}`} onClick={() => selectProduct(product)} aria-label={`Ver ${product.name}`}>
+              <img src={product.image_url || APP_ICON} alt="" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = APP_ICON; }}/>
+              <span>{product.category || 'Clomar Store'}</span>
+            </button>)}
+            <div className="clomar-home-showcase-stamp"><span>CL</span><small>ESTILO<br/>PARA TODOS</small></div>
+          </div>
         </section>
-        <section className="catalog-v329-benefits catalog-v331-benefits" aria-label="Beneficios de compra">
+
+        <section className="catalog-v329-benefits catalog-v331-benefits clomar-home-benefits" aria-label="Beneficios de compra">
           <article><Truck size={29}/><span><b>Envío y coordinación</b><small>Por WhatsApp</small></span></article>
           <article><ShieldCheck size={29}/><span><b>Compra segura</b><small>Atención directa y confirmación</small></span></article>
           <article><Headphones size={29}/><span><b>Atención personalizada</b><small>Te asesoramos siempre</small></span></article>
           <article><Award size={29}/><span><b>Calidad y variedad</b><small>Productos para tu día a día</small></span></article>
         </section>
-        <section className="catalog-v337-home-discovery catalog-v340-home-explore" aria-label="Explora las categorías de Clomar Store">
-          <div className="catalog-v337-home-discovery-head catalog-v340-home-explore-head">
-            <div>
-              <span>CLOMAR STORE · ESTILO PARA CADA DÍA</span>
-              <h2>Explora por categoría</h2>
-              <p>Ropa, calzado y accesorios que combinan con tu estilo, en un solo lugar.</p>
-            </div>
-            <button type="button" onClick={goToAllProducts}>Explorar catálogo <ChevronRight size={17}/></button>
+
+        <section className="clomar-home-categories" aria-label="Categorías de productos">
+          <div className="clomar-home-section-head">
+            <div><span>EXPLORA NUESTRAS COLECCIONES</span><h2>Categorías</h2><p>Encuentra rápidamente lo que buscas.</p></div>
+            <button type="button" onClick={goToCategories}>Ver todas las categorías <ChevronRight size={17}/></button>
           </div>
-          <div className="catalog-v337-home-category-list catalog-v340-home-category-list">
-            {categories.filter(c => c !== 'Todas').slice(0, 4).map(c => <button type="button" key={c} onClick={() => chooseCatalogCategory(c)}>
-              {categoryIcon(c)}<span>{c}</span><b>{categoryCounts[c] || 0}</b>
-            </button>)}
+          <div className="clomar-home-category-grid">
+            {homeCategories.map((value, index) => {
+              const categoryProduct = products.find(product => (product.category || 'General') === value);
+              return <button type="button" key={value} className={`clomar-home-category-card clomar-home-category-card-${index + 1}`} onClick={() => chooseCatalogCategory(value)}>
+                <img src={categoryProduct?.image_url || APP_ICON} alt="" loading="lazy" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = APP_ICON; }}/>
+                <span className="clomar-home-category-shade" />
+                <span className="clomar-home-category-copy"><small>DESCUBRE</small><strong>{value}</strong><i><ChevronRight size={17}/></i></span>
+              </button>;
+            })}
           </div>
-          <small className="catalog-v337-home-disclaimer">Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</small>
+        </section>
+
+        <section className="clomar-home-featured" aria-label="Productos destacados">
+          <div className="clomar-home-section-head">
+            <div><span>UNA SELECCIÓN PARA TI</span><h2>Nuestros productos destacados</h2><p>Explora algunos de los artículos disponibles en Clomar Store.</p></div>
+            <button type="button" onClick={goToFeatured}>Ver catálogo completo <ChevronRight size={17}/></button>
+          </div>
+          {homeFeaturedProducts.length ? <div className="clomar-home-featured-grid">
+            {homeFeaturedProducts.map((product, index) => <article className="clomar-home-product-card" key={product.id} style={{'--home-card-index': index}}>
+              <button type="button" className="clomar-home-product-image" onClick={() => selectProduct(product)} aria-label={`Ver detalles de ${product.name}`}>
+                <img src={product.image_url || APP_ICON} alt={product.name} loading="lazy" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = APP_ICON; }}/>
+                <span className={product.catalog_featured ? 'is-featured' : ''}>{product.catalog_featured ? 'Destacado' : catalogAvailabilityLabel(product.availability)}</span>
+              </button>
+              <div className="clomar-home-product-info">
+                <small>{product.category || 'General'}</small>
+                <h3>{product.name}</h3>
+                <div className="clomar-home-product-price"><strong>{money(product.price)}</strong><span className={product.availability === 'Agotado' ? 'is-soldout' : ''}>{catalogAvailabilityLabel(product.availability)}</span></div>
+                <div className="clomar-home-product-actions">
+                  <button type="button" onClick={() => selectProduct(product)}>Ver detalles</button>
+                  <button type="button" onClick={() => addToCart(product)} disabled={!canOrder(product)}><ShoppingCart size={14}/> Añadir</button>
+                </div>
+              </div>
+            </article>)}
+          </div> : <p className="clomar-home-empty">Pronto encontrarás productos destacados en esta sección.</p>}
+        </section>
+
+        <section className="clomar-home-promo" aria-label="Descubre Clomar Store">
+          <div className="clomar-home-promo-icon"><ShoppingBag size={34}/></div>
+          <div><span>CLOMAR STORE · TODO EN UN SOLO LUGAR</span><h2>Encuentra algo que vaya contigo.</h2><p>Explora ropa, calzado y accesorios con atención personalizada.</p></div>
+          <button type="button" onClick={goToAllProducts}>Descubrir catálogo <ChevronRight size={18}/></button>
+          <div className="clomar-home-promo-orb" />
         </section>
       </>}
       {activeSection === 'catalog' && <div className="catalog-v335-catalog-stage">
@@ -4838,18 +4918,18 @@ function PublicCatalogApp() {
             </form>
           </div>
 
-          <div className="catalog-v331-toolbar">
-            <div className="catalog-v331-count"><ShoppingCart size={16}/><strong>{filteredProducts.length}</strong> productos disponibles</div>
-            <div className="catalog-v331-toolbar-actions">
-              <button type="button" className="catalog-v333-mobile-filter-button" onClick={() => setMobileFiltersOpen(true)}><SlidersHorizontal size={16}/>Filtros <b>{filteredProducts.length}</b></button>
-              <label className="catalog-v331-sort"><span>Ordenar por:</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="featured">Recomendado</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A–Z</option></select><ChevronDown size={16}/></label>
-              <div className="catalog-v331-view-toggle" role="group" aria-label="Tipo de visualización">
-                <button type="button" className={viewMode==='grid'?'active':''} onClick={()=>setViewMode('grid')} aria-label="Vista de cuadrícula"><Grid2X2 size={18}/></button>
-                <button type="button" className={viewMode==='list'?'active':''} onClick={()=>setViewMode('list')} aria-label="Vista de lista"><List size={18}/></button>
-              </div>
-            </div>
-          </div>
+        </div>
+      </div>
 
+      <div className="catalog-v331-toolbar clomar-catalog-scroll-toolbar">
+        <div className="catalog-v331-count"><ShoppingCart size={16}/><strong>{filteredProducts.length}</strong> productos disponibles</div>
+        <div className="catalog-v331-toolbar-actions">
+          <button type="button" className="catalog-v333-mobile-filter-button" onClick={() => setMobileFiltersOpen(true)}><SlidersHorizontal size={16}/>Filtros <b>{filteredProducts.length}</b></button>
+          <label className="catalog-v331-sort"><span>Ordenar por:</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="featured">Recomendado</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A–Z</option></select><ChevronDown size={16}/></label>
+          <div className="catalog-v331-view-toggle" role="group" aria-label="Tipo de visualización">
+            <button type="button" className={viewMode==='grid'?'active':''} onClick={()=>setViewMode('grid')} aria-label="Vista de cuadrícula"><Grid2X2 size={18}/></button>
+            <button type="button" className={viewMode==='list'?'active':''} onClick={()=>setViewMode('list')} aria-label="Vista de lista"><List size={18}/></button>
+          </div>
         </div>
       </div>
 
