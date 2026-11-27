@@ -4537,6 +4537,7 @@ function PublicCatalogApp() {
   const [form, setForm] = useState({ name: '', phone: '', note: '' });
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState('');
+  const noticeTimerRef = useRef(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [activeSection, setActiveSection] = useState(() => catalogProductIdFromLocation() ? 'catalog' : 'home');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -4545,6 +4546,14 @@ function PublicCatalogApp() {
     const target = document.getElementById(id);
     if (target) target.scrollIntoView({ behavior, block: 'start' });
   }
+  function showCatalogNotice(message) {
+    setNotice(message);
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(''), 2200);
+  }
+  useEffect(() => () => {
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+  }, []);
   function resetCatalogFilters() {
     setCategory('Todas');
     setQuery('');
@@ -4699,7 +4708,7 @@ function PublicCatalogApp() {
   function addToCart(p) {
     if (!canOrder(p)) return alert('Este producto está agotado. Puede consultar opciones similares por WhatsApp.');
     setCart(prev => { const exists = prev.find(line => line.id === p.id); if (exists) return prev.map(line => line.id === p.id ? { ...line, qty: Math.min(10, asNum(line.qty) + 1) } : line); return [...prev, { id:p.id, name:p.name, code:p.code, color:p.color, size:p.size, price:asNum(p.price), image_url:p.image_url, qty:1 }]; });
-    setNotice(`${p.name} se agregó al pedido.`); setTimeout(() => setNotice(''), 1800);
+    showCatalogNotice(`${p.name} se agregó al pedido.`);
   }
   function changeCartQty(id, delta) { setCart(prev => prev.map(line => line.id === id ? { ...line, qty: Math.max(1, Math.min(10, asNum(line.qty)+delta)) } : line)); }
   function removeCartLine(id) { setCart(prev => prev.filter(line => line.id !== id)); }
@@ -4720,7 +4729,7 @@ function PublicCatalogApp() {
     const message = ['Hola, deseo confirmar este pedido de catálogo:', `Pedido: ${order?.order_code || 'Solicitud web'}`, '', ...lines, '', `Total referencial: ${money(order?.total_amount || cartTotal)}`, 'Nombre: ' + form.name.trim(), 'Teléfono: ' + form.phone.trim(), form.note.trim() ? `Nota: ${form.note.trim()}` : ''].filter(Boolean).join('\n');
     const url = publicWhatsAppLink(store?.whatsapp_number || store?.phone, message);
     if (popup) popup.location.href = url; else window.location.href = url;
-    setCart([]); setCartOpen(false); setForm({ name:'', phone:'', note:'' }); setNotice(`Pedido ${order?.order_code || ''} registrado. Continúe en WhatsApp para confirmarlo.`);
+    setCart([]); setCartOpen(false); setForm({ name:'', phone:'', note:'' }); showCatalogNotice(`Pedido ${order?.order_code || ''} registrado. Continúe en WhatsApp para confirmarlo.`);
   }
 
   if (loading) return <main className="catalog-public-shell"><div className="catalog-public-loader">Cargando catálogo...</div></main>;
@@ -4770,7 +4779,13 @@ function PublicCatalogApp() {
         </button>)}
       </section>
 
-      {notice && <div className="catalog-toast catalog-v331-toast">{notice}</div>}
+      {notice && !cartOpen && <div className="catalog-toast catalog-v336-toast" role="status" aria-live="polite"><span>{notice}</span></div>}
+
+      <form className="catalog-v336-mobile-search" role="search" aria-label="Buscar productos" onSubmit={e=>{e.preventDefault();setPage(1);}}>
+        <Search size={19}/>
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="¿Qué estás buscando? (bóxer, calcetines, botas...)" aria-label="Buscar productos"/>
+        <button type="submit">Buscar</button>
+      </form>
 
       <section className="catalog-v331-shop" id="catalog-products">
         <button type="button" className="catalog-v333-filter-backdrop" onClick={() => setMobileFiltersOpen(false)} aria-label="Cerrar filtros" />

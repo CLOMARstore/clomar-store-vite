@@ -4980,3 +4980,189 @@ body.clomar-public-catalog #root {
 .catalog-v335-shop-view .catalog-v331-product:hover .catalog-v331-product-image > img {
   transform: none !important;
 }
+
+
+/* ============================================================
+   CLOMAR STORE V03.3.6 — Notificación compacta, footer reducido
+   y buscador móvil persistente durante el desplazamiento.
+   ============================================================ */
+
+/* La notificación anterior heredaba bottom:28px y añadía top:18px.
+   En un elemento fixed eso estiraba su altura y formaba el panel ovalado. */
+.catalog-v336-toast {
+  position: fixed !important;
+  z-index: 120 !important;
+  top: 84px !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  box-sizing: border-box !important;
+  width: max-content !important;
+  max-width: min(440px, calc(100vw - 28px)) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: calc(100vh - 110px) !important;
+  margin: 0 !important;
+  padding: 12px 17px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  border-radius: 14px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #10294c 0%, #1b416c 100%) !important;
+  box-shadow: 0 14px 34px rgba(7,24,48,.24) !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1.35 !important;
+  text-align: left !important;
+  white-space: normal !important;
+  transform: translateX(-50%) !important;
+  pointer-events: none !important;
+  animation: c336-toast-in .22s ease-out both !important;
+}
+.catalog-v336-toast::before {
+  content: "✓";
+  display: inline-grid;
+  flex: 0 0 23px;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  color: #173b27;
+  background: #a8efc0;
+  font-size: 14px;
+  font-weight: 1000;
+}
+.catalog-v336-toast > span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@keyframes c336-toast-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Pie compacto: mantiene la información, pero deja de crear una
+   franja azul de 100 px al terminar los productos. */
+.catalog-v335-shop-view .catalog-public-footer {
+  box-sizing: border-box !important;
+  width: min(calc(100% - 34px), 1660px) !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 11px auto 0 !important;
+  padding: 10px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  border-radius: 13px !important;
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+}
+.catalog-v335-shop-view .catalog-public-footer strong {
+  flex: 0 0 auto !important;
+  font-size: 11px !important;
+}
+.catalog-v335-shop-view .catalog-public-footer span {
+  max-width: 650px !important;
+  font-size: 10px !important;
+  text-align: right !important;
+}
+
+/* El formulario móvil está oculto en escritorio; se muestra como
+   una barra sticky independiente para que no dependa de la altura
+   del encabezado del catálogo. */
+.catalog-v336-mobile-search {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .catalog-v336-toast {
+    top: 68px !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 10px 13px !important;
+    border-radius: 12px !important;
+    font-size: 11px !important;
+  }
+
+  .catalog-v335-shop-view .catalog-v331-heading .catalog-v331-search {
+    display: none !important;
+  }
+
+  .catalog-v336-mobile-search {
+    position: sticky !important;
+    top: 60px !important;
+    z-index: 58 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: calc(100% - 20px) !important;
+    min-height: 49px !important;
+    margin: 0 auto 9px !important;
+    padding: 5px 6px 5px 11px !important;
+    border: 1px solid #e1e8f1 !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,.97) !important;
+    box-shadow: 0 7px 20px rgba(12,37,69,.12) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+  .catalog-v336-mobile-search > svg {
+    flex: 0 0 auto !important;
+    color: #173a62 !important;
+  }
+  .catalog-v336-mobile-search input {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    padding: 0 3px !important;
+    border: 0 !important;
+    outline: 0 !important;
+    color: #142f55 !important;
+    background: transparent !important;
+    font-size: 11px !important;
+  }
+  .catalog-v336-mobile-search input::placeholder {
+    color: #8794a8 !important;
+    opacity: 1 !important;
+  }
+  .catalog-v336-mobile-search button {
+    flex: 0 0 auto !important;
+    min-width: 67px !important;
+    min-height: 36px !important;
+    padding: 0 10px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    color: #fff !important;
+    background: linear-gradient(120deg,#0b315e,#174b7c) !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+
+  .catalog-v335-shop-view .catalog-public-footer {
+    width: calc(100% - 20px) !important;
+    min-height: 0 !important;
+    margin: 10px auto 0 !important;
+    padding: 10px 12px !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    justify-items: center !important;
+    gap: 4px !important;
+    text-align: center !important;
+  }
+  .catalog-v335-shop-view .catalog-public-footer span {
+    text-align: center !important;
+    font-size: 9px !important;
+  }
+  .catalog-v335-shop-view {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v336-toast { animation: none !important; }
+}
