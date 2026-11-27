@@ -4800,16 +4800,16 @@ function PublicCatalogApp() {
           <article><Headphones size={29}/><span><b>Atención personalizada</b><small>Te asesoramos siempre</small></span></article>
           <article><Award size={29}/><span><b>Calidad y variedad</b><small>Productos para tu día a día</small></span></article>
         </section>
-        <section className="catalog-v337-home-discovery" aria-label="Explora el catálogo">
-          <div className="catalog-v337-home-discovery-head">
+        <section className="catalog-v337-home-discovery catalog-v340-home-explore" aria-label="Explora las categorías de Clomar Store">
+          <div className="catalog-v337-home-discovery-head catalog-v340-home-explore-head">
             <div>
-              <span>DESCUBRE CLOMAR STORE</span>
-              <h2>Encuentra lo que buscas</h2>
-              <p>{products.length} productos publicados para explorar.</p>
+              <span>CLOMAR STORE · ESTILO PARA CADA DÍA</span>
+              <h2>Explora por categoría</h2>
+              <p>Ropa, calzado y accesorios que combinan con tu estilo, en un solo lugar.</p>
             </div>
-            <button type="button" onClick={goToAllProducts}>Ver catálogo <ChevronRight size={17}/></button>
+            <button type="button" onClick={goToAllProducts}>Explorar catálogo <ChevronRight size={17}/></button>
           </div>
-          <div className="catalog-v337-home-category-list">
+          <div className="catalog-v337-home-category-list catalog-v340-home-category-list">
             {categories.filter(c => c !== 'Todas').slice(0, 4).map(c => <button type="button" key={c} onClick={() => chooseCatalogCategory(c)}>
               {categoryIcon(c)}<span>{c}</span><b>{categoryCounts[c] || 0}</b>
             </button>)}

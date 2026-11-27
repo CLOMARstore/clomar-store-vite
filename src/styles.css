@@ -6522,3 +6522,508 @@ body.clomar-public-catalog #root {
     animation-duration: .01ms !important;
   }
 }
+
+
+/* ============================================================
+   CLOMAR STORE V03.4.0 — Fijación efectiva del catálogo y
+   portada de Inicio con acabado comercial más cálido.
+   ============================================================ */
+
+/* DESKTOP: el encabezado general ya es fixed (72px). Esta banda
+   también queda fixed y el escenario reserva su altura real. */
+@media (min-width: 901px) {
+  .catalog-v337-shop-view .catalog-v335-catalog-stage {
+    position: relative !important;
+    overflow: visible !important;
+    transform: none !important;
+    animation: none !important;
+    padding-top: 160px !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-sticky-controls {
+    position: fixed !important;
+    top: 72px !important;
+    right: 0 !important;
+    left: 0 !important;
+    z-index: 160 !important;
+    box-sizing: border-box !important;
+    width: auto !important;
+    height: 160px !important;
+    min-height: 160px !important;
+    max-height: 160px !important;
+    margin: 0 !important;
+    padding: 4px 0 6px !important;
+    display: grid !important;
+    grid-template-rows: 42px minmax(0, 1fr) !important;
+    align-content: start !important;
+    gap: 4px !important;
+    overflow: visible !important;
+    border-bottom: 1px solid rgba(218, 228, 240, .98) !important;
+    background: rgba(246, 248, 252, .985) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
+    backdrop-filter: blur(18px) saturate(1.15) !important;
+    box-shadow: 0 9px 24px rgba(8, 30, 57, .12) !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-sticky-controls .catalog-v333-category-strip {
+    position: static !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: min(calc(100% - 40px), 1720px) !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-sticky-controls .catalog-v333-category-strip::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content {
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) 38px !important;
+    gap: 4px !important;
+    width: min(calc(100% - 40px), 1720px) !important;
+    min-width: 0 !important;
+    height: 104px !important;
+    margin: 0 auto !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-heading {
+    display: grid !important;
+    grid-template-columns: minmax(260px, .78fr) minmax(320px, 1.22fr) !important;
+    align-items: center !important;
+    gap: 16px !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-title {
+    min-width: 0 !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-title h1 {
+    font-size: clamp(22px, 1.55vw, 29px) !important;
+    line-height: 1.06 !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-title p {
+    margin-top: 3px !important;
+    font-size: 9px !important;
+    line-height: 1.3 !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-search {
+    display: flex !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    margin: 0 !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-search input {
+    min-width: 0 !important;
+    height: 34px !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-toolbar {
+    position: static !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-count {
+    min-height: 32px !important;
+    white-space: nowrap !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content .catalog-v331-toolbar-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex: 0 0 auto !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+  }
+
+  /* El panel de filtros queda anclado al viewport. El grid conserva
+     la primera columna vacía para que los resultados no se desplacen. */
+  .catalog-v337-shop-view .catalog-v331-shop {
+    display: grid !important;
+    width: min(calc(100% - 40px), 1720px) !important;
+    grid-template-columns: 206px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 14px !important;
+    margin: 0 auto 24px !important;
+    overflow: visible !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-filters {
+    position: fixed !important;
+    top: 232px !important;
+    left: max(20px, calc((100vw - 1720px) / 2)) !important;
+    z-index: 130 !important;
+    display: block !important;
+    width: 206px !important;
+    min-width: 206px !important;
+    max-width: 206px !important;
+    max-height: calc(100dvh - 246px) !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    scrollbar-width: thin !important;
+    align-self: start !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 30px rgba(8, 30, 57, .12) !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-filters .catalog-v331-filter-head {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 3 !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-results {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-result-meta {
+    position: static !important;
+    margin-top: 0 !important;
+  }
+}
+
+/* Portátiles con anchura intermedia: se ajusta el panel sin
+   reducir la legibilidad ni perder la columna de resultados. */
+@media (min-width: 901px) and (max-width: 1399px) {
+  .catalog-v337-shop-view .catalog-v331-shop {
+    width: calc(100% - 30px) !important;
+    grid-template-columns: 190px minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-filters {
+    left: 15px !important;
+    width: 190px !important;
+    min-width: 190px !important;
+    max-width: 190px !important;
+  }
+}
+
+/* En móvil se conserva el encabezado compacto y el buscador sticky.
+   Los filtros vuelven a funcionar como panel lateral desplegable. */
+@media (max-width: 900px) {
+  .catalog-v337-shop-view .catalog-v335-catalog-stage {
+    padding-top: 0 !important;
+    overflow: visible !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-sticky-controls {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 0 5px !important;
+    padding: 0 !important;
+    display: grid !important;
+    grid-template-rows: auto auto !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v339-controls-content {
+    width: calc(100% - 20px) !important;
+    height: auto !important;
+    grid-template-rows: auto auto !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-shop {
+    display: block !important;
+    width: calc(100% - 20px) !important;
+    margin: 0 auto 18px !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-results {
+    display: block !important;
+    grid-column: auto !important;
+    width: 100% !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-filters {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: auto !important;
+    z-index: 240 !important;
+    width: min(88vw, 360px) !important;
+    min-width: 0 !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v336-mobile-search {
+    position: sticky !important;
+    top: 60px !important;
+    z-index: 150 !important;
+    display: flex !important;
+    margin-top: 0 !important;
+    background: rgba(255, 255, 255, .985) !important;
+    box-shadow: 0 8px 22px rgba(10, 35, 65, .14) !important;
+  }
+}
+
+/* INICIO: una portada más cálida, con profundidad y movimiento sutil.
+   Se conservan las imágenes originales y no se muestran productos. */
+.catalog-v337-home-view .catalog-v340-home-explore {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+  width: min(calc(100% - 64px), 1440px) !important;
+  margin: 0 auto 26px !important;
+  padding: 20px 22px 15px !important;
+  border: 1px solid rgba(224, 183, 83, .34) !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 4% 0%, rgba(255, 216, 132, .30), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(238, 64, 84, .055), transparent 30%),
+    linear-gradient(118deg, #fffaf0 0%, #ffffff 48%, #f7f9ff 100%) !important;
+  box-shadow: 0 16px 38px rgba(16, 41, 76, .085), inset 0 1px 0 rgba(255,255,255,.95) !important;
+  animation: c340-home-rise .58s cubic-bezier(.2,.7,.2,1) both !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: 0 !important;
+  top: -112px !important;
+  right: -72px !important;
+  width: 270px !important;
+  height: 270px !important;
+  border: 1px solid rgba(218, 170, 58, .18) !important;
+  border-radius: 50% !important;
+  background: radial-gradient(circle, rgba(255, 215, 126, .22), rgba(255, 255, 255, 0) 68%) !important;
+  pointer-events: none !important;
+  animation: c340-orbit-glow 9s ease-in-out infinite alternate !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore .catalog-v340-home-explore-head {
+  align-items: center !important;
+  margin-bottom: 15px !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore-head > div > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  margin-bottom: 5px !important;
+  color: #b77e12 !important;
+  font-size: 9px !important;
+  font-weight: 950 !important;
+  letter-spacing: .15em !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore-head h2 {
+  color: #10294c !important;
+  font-size: clamp(21px, 2vw, 27px) !important;
+  letter-spacing: -.035em !important;
+  line-height: 1.12 !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore-head p {
+  max-width: 620px !important;
+  margin-top: 6px !important;
+  color: #65758d !important;
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore-head > button {
+  min-height: 42px !important;
+  padding: 0 18px !important;
+  color: #fff !important;
+  background: linear-gradient(115deg, #102d54 0%, #1e4b79 100%) !important;
+  box-shadow: 0 9px 20px rgba(16, 45, 84, .18), inset 0 1px 0 rgba(255,255,255,.16) !important;
+  transition: transform .22s ease, box-shadow .22s ease, background .22s ease !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore-head > button:hover {
+  transform: translateY(-2px) !important;
+  background: linear-gradient(115deg, #d83d50 0%, #ef5263 100%) !important;
+  box-shadow: 0 12px 23px rgba(216, 61, 80, .20) !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-category-list {
+  gap: 10px !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-category-list button {
+  min-height: 54px !important;
+  padding: 0 14px !important;
+  border: 1px solid rgba(219, 177, 83, .32) !important;
+  border-radius: 14px !important;
+  color: #17365e !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,249,235,.94)) !important;
+  box-shadow: 0 5px 14px rgba(18, 42, 72, .035) !important;
+  font-size: 11px !important;
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease, background .22s ease !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-category-list button:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(215, 164, 47, .78) !important;
+  background: #fff !important;
+  box-shadow: 0 12px 22px rgba(18, 42, 72, .10) !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-category-list button > svg {
+  width: 20px !important;
+  height: 20px !important;
+  color: #c58d1b !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-category-list button b {
+  min-width: 24px !important;
+  height: 24px !important;
+  margin-left: auto !important;
+  border-radius: 8px !important;
+  color: #17365e !important;
+  background: linear-gradient(145deg, #ffe9a8, #f4c94f) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72) !important;
+}
+
+.catalog-v337-home-view .catalog-v340-home-explore .catalog-v337-home-disclaimer {
+  margin-top: 12px !important;
+  color: #78869a !important;
+  font-size: 9px !important;
+}
+
+.catalog-v337-home-view .catalog-v333-home-banner .catalog-v331-banner-trigger {
+  transition: transform .28s ease, box-shadow .28s ease !important;
+}
+
+.catalog-v337-home-view .catalog-v333-home-banner .catalog-v331-banner-trigger:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 22px 48px rgba(8, 34, 66, .18) !important;
+}
+
+.catalog-v337-home-view .catalog-v331-benefits article {
+  transition: transform .22s ease, box-shadow .22s ease, background .22s ease !important;
+}
+
+.catalog-v337-home-view .catalog-v331-benefits article:hover {
+  transform: translateY(-3px) !important;
+  background: linear-gradient(145deg, #fffdf8, #fff8e9) !important;
+  box-shadow: 0 9px 18px rgba(192, 143, 34, .10) !important;
+}
+
+@keyframes c340-home-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes c340-orbit-glow {
+  from { transform: translate3d(0, 0, 0) scale(.96); opacity: .55; }
+  to { transform: translate3d(-16px, 12px, 0) scale(1.06); opacity: .95; }
+}
+
+@media (max-width: 900px) {
+  .catalog-v337-home-view .catalog-v340-home-explore {
+    width: calc(100% - 20px) !important;
+    margin: 0 auto 18px !important;
+    padding: 14px 13px 12px !important;
+    border-radius: 17px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-explore .catalog-v340-home-explore-head {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    margin-bottom: 11px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-explore-head h2 {
+    font-size: 19px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-explore-head p {
+    font-size: 10px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-explore-head > button {
+    min-height: 38px !important;
+    align-self: flex-start !important;
+    padding: 0 14px !important;
+    font-size: 9px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-category-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-category-list button {
+    min-height: 48px !important;
+    padding: 0 9px !important;
+    font-size: 9px !important;
+  }
+
+  .catalog-v337-home-view .catalog-v340-home-category-list button > svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v337-home-view .catalog-v340-home-explore,
+  .catalog-v337-home-view .catalog-v340-home-explore::before,
+  .catalog-v337-home-view .catalog-v333-home-banner .catalog-v331-banner-trigger,
+  .catalog-v337-home-view .catalog-v331-benefits article,
+  .catalog-v337-home-view .catalog-v340-home-category-list button,
+  .catalog-v337-home-view .catalog-v340-home-explore-head > button {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
