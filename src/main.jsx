@@ -113,7 +113,7 @@ const demoProducts = [
 const DEFAULT_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const APP_ICON = '/logo-clomar-icon.png';
 const APP_LOGO_FULL = '/logo-clomar-full.png';
-const APP_VERSION = 'V03.4.5-R1 · Catálogo público optimizado y navegación completa';
+const APP_VERSION = 'V03.4.4-R4 · Editor visual de etiquetas + vertical personalizable';
 const DOCUMENT_TYPES = ['Interno', 'Boleta', 'Factura'];
 const documentMeta = (type = 'Interno') => {
   if (type === 'Boleta') return { label: 'Boleta electrónica', series: 'B001', status: 'Pre-emisión', action: 'Registrar boleta pendiente', note: 'Se registrará como pre-emisión. El envío real requerirá un backend seguro y un PSE/OSE.' };
@@ -190,24 +190,40 @@ const productScanCode = (product) => String(product?.barcode || product?.code ||
 const CATALOG_WHATSAPP_FALLBACK = '51931709871';
 /*
   El QR debe apuntar a un dominio público estable, no a un preview temporal de Vercel.
-  Prioridad: URL guardada por el dueño > VITE_PUBLIC_CATALOG_URL > dominio actual.
-  Si no se configura una URL estable, el módulo muestra una advertencia antes de imprimir QR.
+  Prioridad: URL guardada por el dueño > VITE_PUBLIC_CATALOG_URL > dominio de producción seguro.
+  Las URLs temporales de despliegue de Vercel se descartan para evitar enlaces protegidos.
 */
 const CATALOG_URL_STORAGE_KEY = 'clomar_public_catalog_url';
 const normalizeCatalogBaseUrl = (value = '') => {
   const raw = String(value || '').trim().replace(/\/+$/, '');
   if (!raw) return '';
   const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  return withProtocol.includes('#/catalogo') ? withProtocol : `${withProtocol}/#/catalogo`;
+  const clean = withProtocol.replace(/\/#\/catalogo.*$/i, '').replace(/\/catalogo\/?$/i, '').replace(/\/$/, '');
+  return `${clean}/catalogo`;
+};
+// Vercel genera URLs distintas para cada despliegue. No deben compartirse como
+// catálogo público porque Deployment Protection puede exigir inicio de sesión.
+const isDeploymentSpecificVercelUrl = (value = '') => {
+  try {
+    const host = new URL(/^https?:\/\//i.test(String(value)) ? String(value) : `https://${value}`).hostname.toLowerCase();
+    return host.endsWith('.vercel.app') && (/-[a-z0-9]{9}-[^.]+\.vercel\.app$/i.test(host) || /-git-[a-z0-9-]+-[^.]+\.vercel\.app$/i.test(host));
+  } catch (_) { return false; }
+};
+const safeCatalogBaseUrl = (value = '') => {
+  const normalized = normalizeCatalogBaseUrl(value);
+  return normalized && !isDeploymentSpecificVercelUrl(normalized) ? normalized : '';
 };
 const getSavedCatalogBaseUrl = () => {
-  try { return normalizeCatalogBaseUrl(localStorage.getItem(CATALOG_URL_STORAGE_KEY) || ''); } catch (_) { return ''; }
+  try { return safeCatalogBaseUrl(localStorage.getItem(CATALOG_URL_STORAGE_KEY) || ''); } catch (_) { return ''; }
 };
-const RUNTIME_CATALOG_FALLBACK = typeof window !== 'undefined' ? `${window.location.origin}/#/catalogo` : '';
-const CONFIGURED_CATALOG_URL = normalizeCatalogBaseUrl(String(import.meta.env.VITE_PUBLIC_CATALOG_URL || '').trim());
-const catalogBaseUrl = (override = '') => normalizeCatalogBaseUrl(override) || getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || normalizeCatalogBaseUrl(RUNTIME_CATALOG_FALLBACK);
-const hasStableCatalogUrl = (value = '') => Boolean(normalizeCatalogBaseUrl(value) || getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL);
-const catalogProductUrl = (product, override = '') => `${catalogBaseUrl(override)}?product=${encodeURIComponent(String(product?.id || ''))}`;
+const RUNTIME_CATALOG_FALLBACK = typeof window !== 'undefined' && !isDeploymentSpecificVercelUrl(window.location.origin) ? `${window.location.origin}/catalogo` : '';
+const CONFIGURED_CATALOG_URL = safeCatalogBaseUrl(String(import.meta.env.VITE_PUBLIC_CATALOG_URL || '').trim());
+const catalogBaseUrl = (override = '') => safeCatalogBaseUrl(override) || getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || safeCatalogBaseUrl(RUNTIME_CATALOG_FALLBACK);
+const hasStableCatalogUrl = (value = '') => Boolean(catalogBaseUrl(value));
+const catalogProductUrl = (product, override = '') => {
+  const base = catalogBaseUrl(override);
+  return base ? `${base}?product=${encodeURIComponent(String(product?.id || ''))}` : '';
+};
 const catalogAvailabilityLabel = (value) => ({ 'Disponible': 'Disponible', 'Últimas unidades': 'Últimas unidades', 'Agotado': 'Agotado' }[value] || 'Disponible');
 const normalizeWhatsappNumber = (value) => {
   let digits = String(value || '').replace(/\D/g, '');
@@ -3857,7 +3873,7 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   const [defaultQty, setDefaultQty] = useState(1);
   const [selected, setSelected] = useState(new Set());
   const [quantities, setQuantities] = useState({});
-  const [catalogUrlInput, setCatalogUrlInput] = useState(() => getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || '');
+  const [catalogUrlInput, setCatalogUrlInput] = useState(() => getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || RUNTIME_CATALOG_FALLBACK || '');
   const [catalogNotice, setCatalogNotice] = useState('');
 
   const activeProducts = useMemo(() => products.filter(p => p.active !== false && p.status !== 'Inactivo'), [products]);
@@ -3884,7 +3900,7 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   const effectiveSheetLayout = resolveAdaptiveLayout(sheetLayout, activeOrientation, layoutProfile);
   const effectiveLayout = LABEL_LAYOUTS[effectiveSheetLayout] || LABEL_LAYOUTS.a4_3x7;
   const sheetInfo = effectiveLayout.label || 'A4 · 3 columnas × 7 filas';
-  const stableCatalogUrl = normalizeCatalogBaseUrl(catalogUrlInput);
+  const stableCatalogUrl = safeCatalogBaseUrl(catalogUrlInput);
   const requiresQr = basePrintable.some(product => { const profile = resolveLabelProfile(product, labelUse); const resolvedComposition = resolveLabelComposition(composition, profile, activeOrientation, effectiveLayout); const baseMode = resolveLabelCodeMode(mode, profile, effectiveLayout); const effectiveMode = resolveCompositionCodeMode(baseMode, resolvedComposition, profile, effectiveLayout); return effectiveMode === 'qr' || effectiveMode === 'both'; });
 
   function applyVisualPreset(key) {
@@ -3911,9 +3927,11 @@ function LabelsAdmin({ products = [], categories = [], subcategories = [], store
   function applyQtyToFiltered() { const qty = Math.max(1, Math.min(500, Number(defaultQty || 1))); const next = { ...quantities }; filtered.forEach(p => { next[p.id] = qty; }); setQuantities(next); }
   function applyStockQtyToFiltered() { const next = { ...quantities }; filtered.forEach(p => { next[p.id] = Math.max(1, Math.min(500, Number(p.stock || 1))); }); setQuantities(next); }
   function saveCatalogUrl() {
-    if (!stableCatalogUrl) return setCatalogNotice('Ingrese la URL pública real del catálogo antes de imprimir QR.');
-    try { localStorage.setItem(CATALOG_URL_STORAGE_KEY, stableCatalogUrl); } catch (_) {}
-    setCatalogUrlInput(stableCatalogUrl);
+    const normalized = normalizeCatalogBaseUrl(catalogUrlInput);
+    if (!normalized) return setCatalogNotice('Ingrese la URL pública real del catálogo antes de imprimir QR.');
+    if (isDeploymentSpecificVercelUrl(normalized)) return setCatalogNotice('No use una URL temporal de despliegue. Configure el dominio de producción de Vercel.');
+    try { localStorage.setItem(CATALOG_URL_STORAGE_KEY, normalized); } catch (_) {}
+    setCatalogUrlInput(normalized);
     setCatalogNotice('Enlace público guardado. Los próximos QR usarán este dominio.');
   }
   function testCatalogUrl() {
@@ -4133,6 +4151,8 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchWorking, setBatchWorking] = useState('');
   const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogUrlInput, setCatalogUrlInput] = useState(() => getSavedCatalogBaseUrl() || CONFIGURED_CATALOG_URL || RUNTIME_CATALOG_FALLBACK || '');
+  const [catalogUrlNotice, setCatalogUrlNotice] = useState('');
 
   const rows = useMemo(() => products.filter((p) => {
     const search = normalizeText(query);
@@ -4160,8 +4180,18 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   };
   const updateDraft = (p, patch) => setDrafts(prev => ({ ...prev, [p.id]: { ...draftFor(p), ...patch } }));
   const publishedCount = products.filter(p => p.public_visible && p.catalog_status === 'Publicado').length;
-  const shareUrl = catalogBaseUrl();
+  const shareUrl = catalogBaseUrl(catalogUrlInput);
   const readyForPublic = (p) => p.active !== false && p.status === 'Activo' && productPriceStatus(p) === 'Validado' && asNum(p.price) > 0;
+
+  function savePublicCatalogDomain() {
+    const normalized = normalizeCatalogBaseUrl(catalogUrlInput);
+    if (!normalized) return setCatalogUrlNotice('Ingrese el dominio público de producción de su tienda.');
+    if (isDeploymentSpecificVercelUrl(normalized)) return setCatalogUrlNotice('Ese enlace pertenece a un despliegue temporal de Vercel. Use el dominio de producción de Settings → Domains.');
+    try { localStorage.setItem(CATALOG_URL_STORAGE_KEY, normalized); }
+    catch (_) { return setCatalogUrlNotice('El navegador no permitió guardar el enlace.'); }
+    setCatalogUrlInput(normalized);
+    setCatalogUrlNotice('Dominio público guardado. Ya puede copiar y compartir el catálogo.');
+  }
 
   async function saveProductCatalog(p) {
     const draft = draftFor(p);
@@ -4185,8 +4215,9 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
   }
 
   async function copyCatalogLink() {
-    try { await navigator.clipboard.writeText(catalogBaseUrl()); setCopied(true); setTimeout(() => setCopied(false), 1600); }
-    catch (_) { window.prompt('Copia este enlace del catálogo:', catalogBaseUrl()); }
+    if (!shareUrl) return setCatalogUrlNotice('Primero configure y guarde el dominio público de producción.');
+    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1600); }
+    catch (_) { window.prompt('Copia este enlace del catálogo:', shareUrl); }
   }
 
   function toggleProductSelection(productId) {
@@ -4216,9 +4247,15 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
 
   return (
     <div className="page catalog-admin-page catalog-v321-page">
-      <div className="hero compact-hero catalog-admin-hero catalog-v321-hero">
-        <div><span className="eyebrow">Canal comercial</span><h1>Catálogo público</h1><p>Controle qué productos ve el cliente. Publicar no descuenta stock ni modifica precios.</p></div>
-        <div className="catalog-link-actions"><div className="catalog-share-address"><span>Enlace para compartir con clientes</span><code>{shareUrl}</code></div><button type="button" className="secondary-btn" onClick={copyCatalogLink}>{copied ? '✓ Enlace copiado' : 'Copiar enlace'}</button><button type="button" className="primary-btn" onClick={() => window.open(shareUrl, '_blank', 'noopener,noreferrer')}>Abrir catálogo</button></div>
+      <div className="hero compact-hero catalog-admin-hero catalog-v321-hero catalog-v322-hero">
+        <div className="catalog-admin-hero-copy"><span className="eyebrow">Canal comercial · acceso para clientes</span><h1>Catálogo público</h1><p>Comparta una vitrina comercial independiente del panel administrativo. Los clientes pueden explorar productos y enviar pedidos por WhatsApp sin iniciar sesión en Clomar Store.</p><div className="catalog-admin-hero-points"><span>✓ Acceso sin usuario</span><span>✓ Precios publicados</span><span>✓ Pedidos por WhatsApp</span></div></div>
+        <div className="catalog-link-panel">
+          <div className="catalog-link-panel-head"><div><span className="catalog-link-eyebrow">ENLACE DE PRODUCCIÓN</span><strong>{shareUrl ? 'Catálogo listo para compartir' : 'Configure el dominio público'}</strong></div><span className={`catalog-link-status ${shareUrl ? 'ready' : 'pending'}`}>{shareUrl ? 'Dominio configurado' : 'Pendiente'}</span></div>
+          <label className="catalog-domain-field"><span>Dominio público de producción en Vercel</span><input value={catalogUrlInput} onChange={e=>{setCatalogUrlInput(e.target.value);setCatalogUrlNotice('');}} placeholder="https://tu-dominio-de-produccion.vercel.app" /></label>
+          <div className="catalog-link-actions"><button type="button" className="secondary-btn" onClick={savePublicCatalogDomain}>Guardar dominio</button><button type="button" className="secondary-btn" disabled={!shareUrl} onClick={copyCatalogLink}>{copied ? '✓ Enlace copiado' : 'Copiar enlace'}</button><button type="button" className="primary-btn" disabled={!shareUrl} onClick={() => window.open(shareUrl, '_blank', 'noopener,noreferrer')}>Abrir catálogo</button></div>
+          {catalogUrlNotice && <small className={`catalog-domain-notice ${shareUrl ? 'success' : ''}`}>{catalogUrlNotice}</small>}
+          <small className="catalog-domain-help">Use el dominio asignado a Production en Vercel → Settings → Domains. No comparta enlaces de Preview ni direcciones con identificadores de despliegue.</small>
+        </div>
       </div>
       <section className="catalog-workflow-strip"><span>1. Valide precio</span><span>2. Active publicación</span><span>3. Revise vista pública</span><span>4. Atienda pedidos por WhatsApp</span></section>
       <section className="card compact-card catalog-summary-card">
@@ -4240,7 +4277,7 @@ function CatalogAdmin({ products = [], profile, store, reload }) {
           return <article className={`card catalog-admin-product catalog-v321-product ${isEditing ? 'is-editing' : ''} ${isSelected ? 'is-selected' : ''}`} key={p.id}>
             <label className="catalog-select-product"><input type="checkbox" checked={isSelected} onChange={() => toggleProductSelection(p.id)} /><span>Seleccionar</span></label>
             <div className="catalog-admin-product-main"><img src={productImageSrc(p)} alt={p.name}/><div className="catalog-product-content"><div className="catalog-product-title"><h3>{p.name}</h3><span className={publicNow ? 'catalog-public-pill published' : 'catalog-public-pill draft'}>{publicNow ? 'Publicado' : 'Borrador'}</span></div><p>{p.code || 'Sin código'} · {p.category || 'General'}{p.brand ? ` · ${p.brand}` : ''}</p><div className="catalog-meta-row"><strong>{money(p.price)}</strong><span className={availability === 'Agotado' ? 'availability-pill soldout' : availability === 'Últimas unidades' ? 'availability-pill low' : 'availability-pill available'}>{availability}</span><small>{productPriceStatus(p) === 'Validado' ? 'Precio validado' : 'Precio pendiente'}</small></div>{!readyForPublic(p) && <div className="catalog-warning">No se puede publicar hasta validar el precio.</div>}</div></div>
-            <div className="catalog-card-actions"><button type="button" className={isEditing ? 'secondary-btn' : 'primary-btn'} onClick={()=>setEditingId(isEditing ? '' : p.id)}>{isEditing ? 'Cerrar edición' : 'Editar publicación'}</button>{publicNow && <button type="button" className="secondary-btn" onClick={()=>window.open(catalogProductUrl(p), '_blank', 'noopener,noreferrer')}>Ver ficha pública</button>}</div>
+            <div className="catalog-card-actions"><button type="button" className={isEditing ? 'secondary-btn' : 'primary-btn'} onClick={()=>setEditingId(isEditing ? '' : p.id)}>{isEditing ? 'Cerrar edición' : 'Editar publicación'}</button>{publicNow && <button type="button" className="secondary-btn" disabled={!shareUrl} onClick={()=>window.open(catalogProductUrl(p, shareUrl), '_blank', 'noopener,noreferrer')}>Ver ficha pública</button>}</div>
             {isEditing && <div className="catalog-admin-form catalog-v321-form">
               <div className="catalog-edit-heading"><div><span className="eyebrow">Configuración de publicación</span><strong>{p.name}</strong></div><span className="result-pill">{publicNow ? 'Visible' : 'No visible'}</span></div>
               <label className="check-row"><input type="checkbox" checked={Boolean(draft.public_visible)} onChange={e=>updateDraft(p,{public_visible:e.target.checked, catalog_status:e.target.checked && draft.catalog_status==='Borrador' ? 'Publicado' : draft.catalog_status})} /> Mostrar en el catálogo público</label>
@@ -4459,11 +4496,14 @@ function WhatsAppCRM({ profile, store, products = [], onNavigate }) {
 }
 
 function isPublicCatalogLocation() {
-  return String(window.location.hash || '').toLowerCase().startsWith('#/catalogo');
+  const path = String(window.location.pathname || '').toLowerCase().replace(/\/$/, '');
+  const hash = String(window.location.hash || '').toLowerCase();
+  return path === '/catalogo' || path.startsWith('/catalogo/') || hash.startsWith('#/catalogo');
 }
 function catalogProductIdFromLocation() {
-  const query = String(window.location.hash || '').split('?')[1] || '';
-  return new URLSearchParams(query).get('product') || '';
+  const pathQuery = String(window.location.search || '').replace(/^\?/, '');
+  const hashQuery = String(window.location.hash || '').split('?')[1] || '';
+  return new URLSearchParams(pathQuery || hashQuery).get('product') || '';
 }
 function catalogProductMessage(product, store) {
   const bits = [
@@ -4484,24 +4524,13 @@ function PublicCatalogApp() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todas');
-  const [sortBy, setSortBy] = useState('recommended');
+  const [sortBy, setSortBy] = useState('featured');
   const [selectedId, setSelectedId] = useState(() => catalogProductIdFromLocation());
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', note: '' });
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState('');
-
-  // El panel administrativo usa el body bloqueado y desplaza su propio contenedor.
-  // El catálogo público es una página completa y necesita el scroll del documento.
-  useEffect(() => {
-    document.body.classList.add('catalog-public-mode');
-    document.documentElement.classList.add('catalog-public-document');
-    return () => {
-      document.body.classList.remove('catalog-public-mode');
-      document.documentElement.classList.remove('catalog-public-document');
-    };
-  }, []);
 
   async function loadCatalog() {
     if (!hasSupabaseConfig) { setError('El catálogo requiere las variables de Supabase configuradas.'); setLoading(false); return; }
@@ -4521,26 +4550,24 @@ function PublicCatalogApp() {
   useEffect(() => { loadCatalog(); }, []);
   useEffect(() => { const onHash = () => setSelectedId(catalogProductIdFromLocation()); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash); }, []);
 
-  const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General'))).sort((a, b) => a.localeCompare(b, 'es'))], [products]);
+  const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General'))).sort((a,b) => a.localeCompare(b, 'es'))], [products]);
   const categoryCounts = useMemo(() => products.reduce((acc,p) => { const key = p.category || 'General'; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [products]);
   const visibleProducts = useMemo(() => {
-    const q = normalizeText(query);
     const filtered = products.filter(p => {
+      const q = normalizeText(query);
       const textMatch = !q || [p.name,p.category,p.subcategory,p.brand,p.color,p.size,p.code].some(v => normalizeText(v).includes(q));
       const catMatch = category === 'Todas' || (p.category || 'General') === category;
       return textMatch && catMatch;
     });
-    return filtered.sort((a, b) => {
-      if (sortBy === 'price-asc') return asNum(a.price) - asNum(b.price) || String(a.name || '').localeCompare(String(b.name || ''), 'es');
-      if (sortBy === 'price-desc') return asNum(b.price) - asNum(a.price) || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+    return [...filtered].sort((a,b) => {
+      if (sortBy === 'price-asc') return asNum(a.price) - asNum(b.price);
+      if (sortBy === 'price-desc') return asNum(b.price) - asNum(a.price);
       if (sortBy === 'name') return String(a.name || '').localeCompare(String(b.name || ''), 'es');
-      const featuredOrder = Number(Boolean(b.catalog_featured)) - Number(Boolean(a.catalog_featured));
-      if (featuredOrder) return featuredOrder;
-      const positionOrder = asNum(a.catalog_position ?? 999) - asNum(b.catalog_position ?? 999);
-      return positionOrder || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+      const featuredDiff = Number(Boolean(b.catalog_featured)) - Number(Boolean(a.catalog_featured));
+      if (featuredDiff) return featuredDiff;
+      return Number(a.catalog_position ?? 999) - Number(b.catalog_position ?? 999);
     });
   }, [products, query, category, sortBy]);
-  const hasActiveFilters = Boolean(query.trim()) || category !== 'Todas';
   const selected = products.find(p => p.id === selectedId) || null;
   const cartTotal = cart.reduce((sum,line)=>sum+asNum(line.price)*asNum(line.qty),0);
   const cartQty = cart.reduce((sum,line)=>sum+asNum(line.qty),0);
@@ -4551,19 +4578,8 @@ function PublicCatalogApp() {
     return (featured.length ? featured : products).slice(0, 3);
   }, [products]);
 
-  function goToProducts() {
-    setQuery('');
-    setCategory('Todas');
-    setSortBy('recommended');
-    document.getElementById('catalog-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-  function clearCatalogFilters() {
-    setQuery('');
-    setCategory('Todas');
-    setSortBy('recommended');
-  }
-  function selectProduct(p) { setSelectedId(p.id); window.history.replaceState(null, '', `#/catalogo?product=${encodeURIComponent(p.id)}`); }
-  function closeProduct() { setSelectedId(''); window.history.replaceState(null, '', '#/catalogo'); }
+  function selectProduct(p) { setSelectedId(p.id); window.history.replaceState(null, '', `/catalogo?product=${encodeURIComponent(p.id)}`); }
+  function closeProduct() { setSelectedId(''); window.history.replaceState(null, '', '/catalogo'); }
   function addToCart(p) {
     if (!canOrder(p)) return alert('Este producto está agotado. Puede consultar opciones similares por WhatsApp.');
     setCart(prev => { const exists = prev.find(line => line.id === p.id); if (exists) return prev.map(line => line.id === p.id ? { ...line, qty: Math.min(10, asNum(line.qty) + 1) } : line); return [...prev, { id:p.id, name:p.name, code:p.code, color:p.color, size:p.size, price:asNum(p.price), image_url:p.image_url, qty:1 }]; });
@@ -4596,40 +4612,15 @@ function PublicCatalogApp() {
 
   return (
     <main className="catalog-public-shell catalog-v326-shell">
-      <header className="catalog-public-header"><a className="catalog-public-brand" href="#/catalogo" onClick={closeProduct}><img src={publicAssetUrl(store?.logo_url || APP_ICON)} alt={store?.name || 'Clomar Store'}/><span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span></a><div className="catalog-public-header-actions"><button type="button" className="catalog-whatsapp-btn" onClick={openWhatsAppCatalog}>WhatsApp</button><button type="button" className="catalog-cart-btn" onClick={()=>setCartOpen(true)}>Pedido <span>{cartQty}</span></button></div></header>
+      <header className="catalog-public-header"><a className="catalog-public-brand" href="/catalogo" onClick={closeProduct}><img src={publicAssetUrl(store?.logo_url || APP_ICON)} alt={store?.name || 'Clomar Store'}/><span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span></a><div className="catalog-public-header-actions"><button type="button" className="catalog-whatsapp-btn" onClick={openWhatsAppCatalog}>WhatsApp</button><button type="button" className="catalog-cart-btn" onClick={()=>setCartOpen(true)}>Pedido <span>{cartQty}</span></button></div></header>
       <section className="catalog-public-hero catalog-v326-hero">
-        <div className="catalog-hero-copy"><span className="catalog-kicker">Compra simple · atención rápida</span><h1>Encuentra productos para tu día a día.</h1><p>Revisa precios, elige tus opciones y confirma tu pedido directamente por WhatsApp.</p><div className="catalog-hero-actions"><button type="button" className="primary-btn" onClick={goToProducts}>Ver todos los productos <span className="catalog-cta-count">{products.length}</span></button><button type="button" className="secondary-btn" onClick={openWhatsAppCatalog}>Consultar por WhatsApp</button></div><div className="catalog-hero-points"><span>✓ Precios visibles</span><span>✓ Pedido sin complicaciones</span><span>✓ Atención personalizada</span></div></div>
-        <div className="catalog-hero-showcase"><div className="catalog-hero-showcase-top"><span>CATÁLOGO ACTUALIZADO</span><b>{products.length} producto(s) publicados</b></div><div className="catalog-hero-mini-products">{featuredProducts.map(p=><button type="button" key={p.id} onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/><span><strong>{p.name}</strong><small>{money(p.price)}</small></span></button>)}{!featuredProducts.length && <div className="catalog-hero-empty">Pronto habrá productos disponibles.</div>}</div></div>
+        <div className="catalog-hero-copy"><span className="catalog-kicker">Catálogo oficial · compra simple · atención rápida</span><h1>Encuentra lo que necesitas. Compra con confianza.</h1><p>Explora productos, compara precios y prepara tu pedido en pocos pasos. Nuestro equipo confirma disponibilidad y coordina contigo por WhatsApp.</p><div className="catalog-hero-actions"><button type="button" className="primary-btn" onClick={()=>{setCategory('Todas');setQuery('');setSortBy('featured');document.getElementById('catalog-products')?.scrollIntoView({behavior:'smooth'});}}>Ver todos los productos <span className="catalog-hero-count">{products.length}</span></button><button type="button" className="secondary-btn" onClick={openWhatsAppCatalog}>Consultar por WhatsApp</button></div><div className="catalog-hero-points"><span>✓ Precios visibles</span><span>✓ Pedido sin complicaciones</span><span>✓ Atención personalizada</span></div></div>
+        <div className="catalog-hero-showcase"><div className="catalog-hero-showcase-top"><span>CATÁLOGO ACTUALIZADO</span><b>{products.length} producto(s) disponibles</b></div><div className="catalog-hero-mini-products">{featuredProducts.map(p=><button type="button" key={p.id} onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/><span><strong>{p.name}</strong><small>{money(p.price)}</small></span></button>)}{!featuredProducts.length && <div className="catalog-hero-empty">Pronto habrá productos disponibles.</div>}</div></div>
       </section>
       <section className="catalog-category-rail-wrap"><div className="catalog-category-rail">{categories.map(c=><button key={c} type="button" className={category===c?'active':''} onClick={()=>setCategory(c)}><span>{c}</span><b>{c === 'Todas' ? products.length : categoryCounts[c] || 0}</b></button>)}</div></section>
       <section className="catalog-public-trust catalog-v326-trust"><div><span>01</span><b>Compra con confianza</b><small>Verá precio y disponibilidad antes de consultar.</small></div><div><span>02</span><b>Pedido por WhatsApp</b><small>Envíe su selección y reciba confirmación personal.</small></div><div><span>03</span><b>Atención directa</b><small>Un asesor confirma talla, color y entrega.</small></div></section>
       {notice && <div className="catalog-toast">{notice}</div>}
-      <section className="catalog-products-section" id="catalog-products">
-        <div className="catalog-products-head">
-          <div className="catalog-products-intro">
-            <span className="catalog-kicker">Explorar colección</span>
-            <h2>{category === 'Todas' ? 'Todos los productos' : category}</h2>
-            <p>Encuentra el producto que buscas. Consulta tallas, colores y disponibilidad antes de confirmar tu pedido.</p>
-          </div>
-          <div className="catalog-products-tools">
-            <label className="catalog-public-search"><Search size={20}/><input aria-label="Buscar productos" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar producto, talla, color o marca..." /></label>
-            <label className="catalog-sort-control"><span>Ordenar por</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="recommended">Recomendados</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A-Z</option></select></label>
-          </div>
-        </div>
-        <div className="catalog-results-bar"><div><strong>{visibleProducts.length} de {products.length}</strong><span> productos publicados</span></div>{hasActiveFilters && <button type="button" onClick={clearCatalogFilters}>Limpiar filtros <span>×</span></button>}</div>
-        <section className="catalog-public-grid catalog-v326-grid">
-          {visibleProducts.map(p => <article className="catalog-public-card catalog-v326-card" key={p.id}>
-            <button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)} aria-label={`Ver detalles de ${p.name}`}>
-              <img src={p.image_url || APP_ICON} alt={p.name} loading="lazy" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=APP_ICON;}}/>
-              {p.catalog_featured && <span className="catalog-featured-badge">Recomendado</span>}
-              <span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span>
-            </button>
-            <div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>selectProduct(p)}>Ver detalles</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar al pedido') : 'Agotado'}</button></div></div>
-          </article>)}
-          {visibleProducts.length > 0 && visibleProducts.length < 4 && <article className="catalog-assistance-card catalog-v326-assistance"><span>¿Necesita otra opción?</span><h2>Le ayudamos por WhatsApp</h2><p>Consulte por modelos, tallas, colores o productos similares disponibles.</p><button type="button" onClick={openWhatsAppCatalog}>Hablar con un asesor</button></article>}
-          {!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Pruebe otra búsqueda o quite los filtros para ver todo el catálogo.</p><button type="button" onClick={clearCatalogFilters}>Ver todos los productos</button><button type="button" onClick={openWhatsAppCatalog}>Consultar por WhatsApp</button></section>}
-        </section>
-      </section>
+      <section className="catalog-products-section" id="catalog-products"><div className="catalog-products-head"><div className="catalog-products-heading"><span className="catalog-kicker">Explora la tienda</span><h2>{category === 'Todas' ? 'Productos disponibles' : category}</h2><p>Mostrando {visibleProducts.length} de {products.length} productos publicados. Busca por nombre, marca, color, talla o código.</p></div><div className="catalog-products-toolbar"><label className="catalog-public-search"><Search size={20}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="¿Qué estás buscando?" /></label><label className="catalog-sort-control"><span>Ordenar por</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="featured">Recomendados</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A–Z</option></select></label></div></div><div className="catalog-results-summary"><span><strong>{visibleProducts.length}</strong> {visibleProducts.length === 1 ? 'producto encontrado' : 'productos encontrados'}</span>{(query || category !== 'Todas') && <button type="button" onClick={()=>{setQuery('');setCategory('Todas');}}>Limpiar filtros</button>}</div><section className="catalog-public-grid catalog-v326-grid">{visibleProducts.map(p => <article className="catalog-public-card catalog-v326-card" key={p.id}><button type="button" className="catalog-image-btn" onClick={()=>selectProduct(p)}><img src={p.image_url || APP_ICON} alt={p.name}/>{p.catalog_featured && <span className="catalog-featured-badge">Destacado</span>}<span className={p.availability==='Agotado'?'catalog-availability soldout':p.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(p.availability)}</span></button><div className="catalog-card-body"><p>{p.category || 'General'}</p><h2>{p.name}</h2><small>{[p.brand,p.color,p.size].filter(Boolean).join(' · ') || 'Producto Clomar Store'}</small><strong>{money(p.price)}</strong><div className="catalog-card-actions"><button type="button" className="secondary-btn" onClick={()=>selectProduct(p)}>Ver detalles</button><button type="button" className="primary-btn" disabled={!canOrder(p)} onClick={()=>addToCart(p)}>{canOrder(p) ? (inCart(p.id) ? 'Agregar otra' : 'Agregar al pedido') : 'Agotado'}</button></div></div></article>)}{visibleProducts.length > 0 && visibleProducts.length < 4 && <article className="catalog-assistance-card catalog-v326-assistance"><span>¿Necesitas otra opción?</span><h2>Te ayudamos a elegir</h2><p>Consulta modelos, tallas, colores o productos similares disponibles.</p><button type="button" onClick={openWhatsAppCatalog}>Hablar con un asesor</button></article>}{!visibleProducts.length && <section className="catalog-empty"><h2>No encontramos productos</h2><p>Prueba otra búsqueda o elimina los filtros para ver todo el catálogo.</p><button type="button" onClick={()=>{setQuery('');setCategory('Todas');}}>Ver todos los productos</button><button type="button" onClick={openWhatsAppCatalog}>Consultar por WhatsApp</button></section>}</section></section>
       {selected && <div className="catalog-detail-backdrop" onMouseDown={closeProduct}><article className="catalog-detail-modal" onMouseDown={e=>e.stopPropagation()}><button type="button" className="catalog-detail-close" onClick={closeProduct}>×</button><img src={selected.image_url || APP_ICON} alt={selected.name}/><div><span className={selected.availability==='Agotado'?'catalog-availability soldout':selected.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(selected.availability)}</span><p>{selected.category || 'General'}</p><h2>{selected.name}</h2><strong>{money(selected.price)}</strong><div className="catalog-detail-specs">{selected.brand && <span>Marca: {selected.brand}</span>}{selected.color && <span>Color: {selected.color}</span>}{selected.size && <span>Talla: {selected.size}</span>}{selected.code && <span>Código: {selected.code}</span>}</div><p className="catalog-detail-description">{selected.catalog_description || selected.description || 'Consulta disponibilidad y detalles por WhatsApp.'}</p><div className="catalog-detail-actions"><button className="secondary-btn" type="button" onClick={()=>consultProduct(selected)}>Consultar por WhatsApp</button><button className="primary-btn" type="button" disabled={!canOrder(selected)} onClick={()=>{addToCart(selected); setCartOpen(true);}}>{canOrder(selected)?'Agregar al pedido':'Agotado'}</button></div></div></article></div>}
       {cartOpen && <div className="catalog-cart-backdrop" onMouseDown={()=>setCartOpen(false)}><aside className="catalog-cart-drawer" onMouseDown={e=>e.stopPropagation()}><div className="catalog-cart-head"><div><span>Pedido por WhatsApp</span><h2>Tu selección</h2></div><button type="button" onClick={()=>setCartOpen(false)}>×</button></div>{cart.length ? <><div className="catalog-cart-lines">{cart.map(line=><article key={line.id}><img src={line.image_url || APP_ICON} alt={line.name}/><div><strong>{line.name}</strong><small>{[line.color,line.size,line.code].filter(Boolean).join(' · ')}</small><b>{money(line.price)}</b></div><div className="cart-qty-control"><button type="button" onClick={()=>changeCartQty(line.id,-1)}>−</button><span>{line.qty}</span><button type="button" onClick={()=>changeCartQty(line.id,1)}>+</button><button type="button" className="cart-remove" onClick={()=>removeCartLine(line.id)}>Quitar</button></div></article>)}</div><div className="catalog-cart-total"><span>Total referencial</span><strong>{money(cartTotal)}</strong></div><form className="catalog-order-form" onSubmit={submitOrder}><label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre y apellido" required /></label><label>Tu WhatsApp<input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} inputMode="tel" placeholder="999 999 999" required /></label><label>Nota opcional<textarea value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Color alternativo, entrega, consulta..." rows="3" /></label><p>Al enviar, registramos la solicitud y abrimos WhatsApp para confirmar disponibilidad y pago.</p><button type="submit" className="primary-btn" disabled={submitting}>{submitting ? 'Registrando...' : 'Enviar pedido por WhatsApp'}</button></form></> : <div className="catalog-cart-empty"><h3>Tu pedido está vacío</h3><p>Agregue productos del catálogo para enviarlos por WhatsApp.</p></div>}</aside></div>}
       <footer className="catalog-public-footer"><strong>{store?.name || 'Clomar Store'}</strong><span>Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</span></footer>
