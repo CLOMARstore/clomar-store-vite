@@ -4057,3 +4057,216 @@ body.clomar-public-catalog #root {
 @media (prefers-reduced-motion: reduce) {
   .catalog-v331-shell *, .catalog-v331-shell *::before, .catalog-v331-shell *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
 }
+
+
+/* ============================================================
+   CLOMAR STORE V03.3.2 — Ajuste fino de escritorio y banner
+   Objetivo: evitar recortes y mostrar dos filas de productos
+   en pantallas de PC sin sacrificar la lectura.
+   ============================================================ */
+.catalog-v331-shell {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: clip !important;
+  box-sizing: border-box !important;
+}
+.catalog-v331-shell *,
+.catalog-v331-shell *::before,
+.catalog-v331-shell *::after { box-sizing: border-box !important; }
+
+/* El banner real es panorámico 1754 × 599. La proporción anterior
+   lo forzaba a un marco más alto y recortaba el contenido lateral. */
+.catalog-v331-banner-wrap {
+  width: min(calc(100% - 36px), 1640px) !important;
+  margin: 13px auto 0 !important;
+}
+.catalog-v331-banner-trigger {
+  display: block !important;
+  width: 100% !important;
+  padding: 0 !important;
+  line-height: 0 !important;
+  border-radius: 23px !important;
+}
+.catalog-v331-banner-trigger picture {
+  display: block !important;
+  width: 100% !important;
+}
+.catalog-v331-banner-trigger img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  aspect-ratio: 1754 / 599 !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  animation: clomar-banner-arrive .72s cubic-bezier(.2,.7,.2,1) both !important;
+}
+.catalog-v331-banner-trigger:hover img {
+  transform: scale(1.006) !important;
+}
+@keyframes clomar-banner-arrive {
+  from { opacity: 0; transform: translateY(9px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Contenedor de tienda: ancho útil, sin desbordamiento horizontal. */
+.catalog-v331-shop {
+  width: min(calc(100% - 40px), 1720px) !important;
+  grid-template-columns: minmax(198px, 218px) minmax(0, 1fr) !important;
+  gap: 16px !important;
+}
+.catalog-v331-results { min-width: 0 !important; }
+.catalog-v331-filters { min-width: 0 !important; }
+.catalog-v331-heading {
+  grid-template-columns: minmax(235px, .88fr) minmax(330px, 1.12fr) !important;
+  gap: 15px !important;
+  margin-bottom: 12px !important;
+}
+.catalog-v331-title h1 { font-size: clamp(25px, 1.9vw, 32px) !important; }
+.catalog-v331-search { min-height: 48px !important; border-radius: 14px !important; }
+.catalog-v331-search button { min-height: 36px !important; }
+.catalog-v331-toolbar { margin-bottom: 7px !important; }
+.catalog-v331-count { min-height: 35px !important; }
+.catalog-v331-result-meta { min-height: 27px !important; margin-bottom: 8px !important; }
+
+/* Cuatro columnas compactas: proporción de imagen más horizontal,
+   textos controlados y botones más bajos. */
+@media (min-width: 1400px) {
+  .catalog-v331-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  .catalog-v331-product { border-radius: 16px !important; }
+  .catalog-v331-product-media { padding: 7px 7px 0 !important; }
+  .catalog-v331-product-image {
+    aspect-ratio: 1.58 / 1 !important;
+    padding: 4px !important;
+    border-radius: 9px !important;
+  }
+  .catalog-v331-stock, .catalog-v331-featured {
+    top: 12px !important;
+    left: 12px !important;
+    min-height: 22px !important;
+    padding: 0 8px !important;
+    font-size: 8px !important;
+  }
+  .catalog-v331-featured { top: 38px !important; }
+  .catalog-v331-favorite {
+    top: 10px !important;
+    right: 10px !important;
+    width: 30px !important;
+    height: 30px !important;
+  }
+  .catalog-v331-product-body {
+    gap: 5px !important;
+    padding: 9px 10px 10px !important;
+  }
+  .catalog-v331-category { font-size: 8px !important; }
+  .catalog-v331-product-body h2 {
+    min-height: 31px !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+  .catalog-v331-product-body p {
+    min-height: 18px !important;
+    font-size: 8px !important;
+    line-height: 1.3 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 1 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+  .catalog-v331-price { font-size: 18px !important; }
+  .catalog-v331-product-actions { gap: 6px !important; margin-top: 2px !important; }
+  .catalog-v331-product-actions button {
+    min-height: 32px !important;
+    padding: 0 6px !important;
+    font-size: 8px !important;
+  }
+  .catalog-v331-pagination { margin-top: 13px !important; }
+  .catalog-v331-pagination button { min-width: 34px !important; height: 34px !important; }
+}
+
+/* En monitores con poca altura útil (como laptops), compactar un poco
+   más para que entren las dos filas de 8 productos en la primera vista. */
+@media (min-width: 1400px) and (max-height: 900px) {
+  .catalog-v331-header {
+    min-height: 68px !important;
+    margin-top: 8px !important;
+    padding: 7px 18px !important;
+    border-radius: 17px !important;
+  }
+  .catalog-v331-header .catalog-public-brand img { width: 46px !important; height: 46px !important; }
+  .catalog-v331-nav button { min-height: 38px !important; padding: 0 12px !important; font-size: 11px !important; }
+  .catalog-v331-header .catalog-whatsapp-btn,
+  .catalog-v331-header .catalog-cart-btn { min-height: 38px !important; padding: 0 14px !important; }
+  .catalog-v331-banner-wrap { margin-top: 10px !important; }
+  .catalog-v331-benefits {
+    min-height: 72px !important;
+    margin: 12px auto 18px !important;
+    padding: 7px 14px !important;
+    border-radius: 17px !important;
+  }
+  .catalog-v331-benefits article { min-height: 54px !important; gap: 9px !important; }
+  .catalog-v331-benefits article > svg { width: 25px !important; height: 25px !important; }
+  .catalog-v331-benefits article b { font-size: 12px !important; }
+  .catalog-v331-benefits article small { font-size: 9px !important; }
+  .catalog-v331-shop {
+    width: min(calc(100% - 32px), 1720px) !important;
+    grid-template-columns: 205px minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+  .catalog-v331-filter-head { min-height: 49px !important; padding: 0 13px !important; }
+  .catalog-v331-filter-head strong { font-size: 14px !important; }
+  .catalog-v331-filter-group { padding: 12px 11px 10px !important; }
+  .catalog-v331-filter-group h3 { margin-bottom: 9px !important; font-size: 11px !important; }
+  .catalog-v331-check-list { gap: 8px !important; }
+  .catalog-v331-check { font-size: 10px !important; }
+  .catalog-v331-brand-list { max-height: 170px !important; }
+  .catalog-v331-clear { min-height: 36px !important; margin: 9px !important; width: calc(100% - 18px) !important; }
+  .catalog-v331-heading { margin-bottom: 8px !important; gap: 12px !important; }
+  .catalog-v331-title h1 { font-size: 27px !important; }
+  .catalog-v331-title p { margin-top: 4px !important; font-size: 9px !important; }
+  .catalog-v331-eyebrow { font-size: 8px !important; }
+  .catalog-v331-search { min-height: 42px !important; padding: 4px 5px 4px 12px !important; }
+  .catalog-v331-search input { height: 32px !important; font-size: 10px !important; }
+  .catalog-v331-search button { min-width: 84px !important; min-height: 32px !important; font-size: 9px !important; }
+  .catalog-v331-toolbar { margin-bottom: 4px !important; }
+  .catalog-v331-count { min-height: 31px !important; padding: 0 11px !important; font-size: 9px !important; }
+  .catalog-v331-count strong { font-size: 12px !important; }
+  .catalog-v331-sort select { min-width: 145px !important; height: 35px !important; font-size: 10px !important; }
+  .catalog-v331-view-toggle button { width: 30px !important; height: 29px !important; }
+  .catalog-v331-result-meta { min-height: 22px !important; margin-bottom: 6px !important; font-size: 9px !important; }
+  .catalog-v331-grid { gap: 10px !important; }
+  .catalog-v331-product-media { padding: 5px 5px 0 !important; }
+  .catalog-v331-product-image { aspect-ratio: 1.92 / 1 !important; padding: 3px !important; }
+  .catalog-v331-product-body { gap: 3px !important; padding: 7px 8px 8px !important; }
+  .catalog-v331-category { font-size: 7px !important; }
+  .catalog-v331-product-body h2 { min-height: 27px !important; font-size: 10px !important; }
+  .catalog-v331-product-body p { min-height: 15px !important; font-size: 7px !important; }
+  .catalog-v331-price { font-size: 16px !important; }
+  .catalog-v331-product-actions { gap: 5px !important; margin-top: 1px !important; }
+  .catalog-v331-product-actions button { min-height: 29px !important; font-size: 7px !important; }
+  .catalog-v331-pagination { margin-top: 8px !important; }
+  .catalog-v331-pagination button { min-width: 30px !important; height: 30px !important; }
+}
+
+/* En portátiles medianas se mantienen cuatro columnas si hay espacio
+   suficiente; en tablet se conserva el diseño de tres columnas. */
+@media (min-width: 901px) and (max-width: 1399px) {
+  .catalog-v331-shop { width: calc(100% - 30px) !important; gap: 13px !important; }
+  .catalog-v331-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 11px !important; }
+  .catalog-v331-product-image { aspect-ratio: 1.42 / 1 !important; }
+  .catalog-v331-product-body { gap: 5px !important; padding: 9px !important; }
+  .catalog-v331-product-body h2 { min-height: 32px !important; font-size: 11px !important; }
+  .catalog-v331-price { font-size: 18px !important; }
+  .catalog-v331-product-actions button { min-height: 33px !important; font-size: 8px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v331-banner-trigger img { animation: none !important; }
+}
