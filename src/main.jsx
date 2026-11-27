@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
 import * as XLSX from 'xlsx';
-import { ArrowUp, Award, ChevronDown, ChevronLeft, ChevronRight, Grid2X2, Headphones, Heart, Home, Layers, List, LogOut, Menu, Search, ShieldCheck, ShoppingCart, SlidersHorizontal, Sparkles, Truck, X } from 'lucide-react';
+import { ArrowUp, Award, ChevronDown, ChevronLeft, ChevronRight, Footprints, Grid2X2, Headphones, Heart, Home, Layers, List, LogOut, Menu, MessageCircle, Search, ShieldCheck, Shirt, ShoppingBag, ShoppingCart, SlidersHorizontal, Sparkles, Truck, X } from 'lucide-react';
 import './styles.css';
 
 const money = (value) => `S/ ${Number(value || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -4538,6 +4538,9 @@ function PublicCatalogApp() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState('');
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [activeSection, setActiveSection] = useState(() => catalogProductIdFromLocation() ? 'catalog' : 'home');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   function scrollCatalogTo(id, behavior = 'smooth') {
     const target = document.getElementById(id);
     if (target) target.scrollIntoView({ behavior, block: 'start' });
@@ -4552,17 +4555,29 @@ function PublicCatalogApp() {
     setPage(1);
   }
   function goHome() {
+    setActiveSection('home');
+    setMobileMenuOpen(false);
+    setMobileFiltersOpen(false);
     closeProduct();
     resetCatalogFilters();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function goToAllProducts() {
+    setActiveSection('catalog');
+    setMobileMenuOpen(false);
+    setMobileFiltersOpen(false);
     closeProduct();
     resetCatalogFilters();
-    window.setTimeout(() => scrollCatalogTo('catalog-products'), 50);
+    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
   }
-  function goToCategories() { scrollCatalogTo('catalog-filters'); }
+  function goToCategories() {
+    setActiveSection('catalog');
+    setMobileMenuOpen(false);
+    window.setTimeout(() => scrollCatalogTo('catalog-category-strip'), 100);
+  }
   function goToFeatured() {
+    setActiveSection('catalog');
+    setMobileMenuOpen(false);
     setCategory('Todas');
     setQuery('');
     setBrandFilters([]);
@@ -4571,8 +4586,10 @@ function PublicCatalogApp() {
     window.setTimeout(() => scrollCatalogTo('catalog-products'), 50);
   }
   function chooseCatalogCategory(nextCategory) {
+    setActiveSection('catalog');
     setCategory(nextCategory);
     setPage(1);
+    setMobileFiltersOpen(false);
     const results = document.getElementById('catalog-products');
     if (results) window.setTimeout(() => results.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   }
@@ -4616,10 +4633,23 @@ function PublicCatalogApp() {
       window.removeEventListener('scroll', updateScrollState);
     };
   }, []);
+  useEffect(() => {
+    if (!mobileFiltersOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [mobileFiltersOpen]);
   useEffect(() => { const onHash = () => setSelectedId(catalogProductIdFromLocation()); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash); }, []);
   const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General'))).sort((a,b) => a.localeCompare(b, 'es'))], [products]);
   const categoryCounts = useMemo(() => products.reduce((acc,p) => { const key = p.category || 'General'; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [products]);
   const brands = useMemo(() => Array.from(new Set(products.map(p => String(p.brand || '').trim()).filter(Boolean))).sort((a,b) => a.localeCompare(b, 'es')), [products]);
+  const categoryIcon = (value) => {
+    const name = String(value || '').toLowerCase();
+    if (name.includes('calzado')) return <Footprints size={20}/>;
+    if (name.includes('ropa')) return <Shirt size={20}/>;
+    if (name.includes('accesorio')) return <ShoppingBag size={20}/>;
+    return <Grid2X2 size={20}/>;
+  };
   const priceBounds = useMemo(() => {
     const values = products.map(p => asNum(p.price)).filter(value => Number.isFinite(value) && value >= 0);
     return { min: values.length ? Math.floor(Math.min(...values)) : 0, max: values.length ? Math.ceil(Math.max(...values)) : 100000 };
@@ -4697,46 +4727,55 @@ function PublicCatalogApp() {
   if (error) return <main className="catalog-public-shell"><section className="catalog-public-error"><h1>Catálogo temporalmente no disponible</h1><p>{error}</p><button className="primary-btn" onClick={loadCatalog}>Reintentar</button></section></main>;
 
   return (
-    <main className="catalog-public-shell catalog-v326-shell catalog-v328-shell catalog-v329-shell catalog-v331-shell">
-      <header className="catalog-public-header catalog-v328-header catalog-v329-header catalog-v331-header">
+    <main className={`catalog-public-shell catalog-v326-shell catalog-v328-shell catalog-v329-shell catalog-v331-shell catalog-v333-shell ${activeSection === 'home' ? 'catalog-v335-home-view' : 'catalog-v335-shop-view'} ${mobileFiltersOpen ? 'filters-open' : ''}`}>
+      <header className="catalog-public-header catalog-v328-header catalog-v329-header catalog-v331-header catalog-v333-header">
+        <button type="button" className="catalog-v333-menu-toggle" onClick={() => setMobileMenuOpen(value => !value)} aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={mobileMenuOpen}>{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
         <a className="catalog-public-brand" href="/catalogo" onClick={(e) => { e.preventDefault(); goHome(); }} aria-label="Clomar Store, inicio">
           <img src={publicAssetUrl('/clomar-store-mark.webp')} alt="" />
-          <span><strong>{store?.name || 'Clomar Store'}</strong><small>Catálogo oficial</small></span>
+          <span><strong>{store?.name || 'Clomar Store'}</strong><small>Todo lo que buscas, en un solo lugar</small></span>
         </a>
-        <nav className="catalog-v329-nav catalog-v331-nav" aria-label="Navegación principal">
-          <button type="button" className="active" onClick={goHome}><Home size={17}/>Inicio</button>
-          <button type="button" onClick={goToAllProducts}><Grid2X2 size={17}/>Catálogo</button>
+        <nav className={`catalog-v329-nav catalog-v331-nav catalog-v333-nav ${mobileMenuOpen ? 'is-open' : ''}`} aria-label="Navegación principal">
+          <button type="button" className={activeSection === 'home' ? 'active' : ''} onClick={goHome}><Home size={17}/>Inicio</button>
+          <button type="button" className={activeSection === 'catalog' ? 'active' : ''} onClick={goToAllProducts}><Grid2X2 size={17}/>Catálogo</button>
           <button type="button" onClick={goToCategories}><Layers size={17}/>Categorías</button>
           <button type="button" onClick={goToFeatured}><Sparkles size={17}/>Destacados</button>
         </nav>
         <div className="catalog-public-header-actions">
-          <button type="button" className="catalog-whatsapp-btn" onClick={openWhatsAppCatalog}>WhatsApp</button>
-          <button type="button" className="catalog-cart-btn" onClick={() => setCartOpen(true)}>Pedido <span>{cartQty}</span></button>
+          <button type="button" className="catalog-whatsapp-btn" onClick={openWhatsAppCatalog}><MessageCircle size={17}/><span>WhatsApp</span></button>
+          <button type="button" className="catalog-cart-btn" onClick={() => { setCartOpen(true); setMobileMenuOpen(false); }}><ShoppingCart size={17}/><span>Pedido</span><b>{cartQty}</b></button>
         </div>
       </header>
 
-      <section className="catalog-v329-banner-wrap catalog-v331-banner-wrap" aria-label="Presentación de Clomar Store">
-        <button type="button" className="catalog-v329-banner-trigger catalog-v331-banner-trigger" onClick={goToAllProducts} aria-label="Explorar todos los productos del catálogo">
-          <picture>
-            <source media="(max-width: 760px)" srcSet="/clomar-store-banner-mobile.webp" />
-            <img src="/clomar-store-banner.webp" alt="Clomar Store: todo lo que buscas en un solo lugar. Ropa, calzado y accesorios con calidad, variedad y precio." fetchPriority="high" decoding="async" />
-          </picture>
-          <span className="catalog-v329-banner-hitarea" aria-hidden="true"></span>
-        </button>
-      </section>
-
-      <section className="catalog-v329-benefits catalog-v331-benefits" aria-label="Beneficios de compra">
-        <article><Truck size={29}/><span><b>Envío y coordinación</b><small>Por WhatsApp</small></span></article>
-        <article><ShieldCheck size={29}/><span><b>Compra segura</b><small>Atención directa y confirmación</small></span></article>
-        <article><Headphones size={29}/><span><b>Atención personalizada</b><small>Te asesoramos siempre</small></span></article>
-        <article><Award size={29}/><span><b>Calidad y variedad</b><small>Productos para tu día a día</small></span></article>
+      {activeSection === 'home' && <>
+        <section className="catalog-v329-banner-wrap catalog-v331-banner-wrap catalog-v333-home-banner" aria-label="Presentación de Clomar Store">
+          <button type="button" className="catalog-v329-banner-trigger catalog-v331-banner-trigger" onClick={goToAllProducts} aria-label="Explorar todos los productos del catálogo">
+            <picture>
+              <source media="(max-width: 760px)" srcSet="/clomar-store-banner-mobile.webp" />
+              <img src="/clomar-store-banner.webp" alt="Clomar Store: todo lo que buscas en un solo lugar. Ropa, calzado y accesorios con calidad, variedad y precio." fetchPriority="high" decoding="async" />
+            </picture>
+            <span className="catalog-v329-banner-hitarea" aria-hidden="true"></span>
+          </button>
+        </section>
+        <section className="catalog-v329-benefits catalog-v331-benefits" aria-label="Beneficios de compra">
+          <article><Truck size={29}/><span><b>Envío y coordinación</b><small>Por WhatsApp</small></span></article>
+          <article><ShieldCheck size={29}/><span><b>Compra segura</b><small>Atención directa y confirmación</small></span></article>
+          <article><Headphones size={29}/><span><b>Atención personalizada</b><small>Te asesoramos siempre</small></span></article>
+          <article><Award size={29}/><span><b>Calidad y variedad</b><small>Productos para tu día a día</small></span></article>
+        </section>
+      </>}
+      {activeSection === 'catalog' && <div className="catalog-v335-catalog-stage">
+      <section className="catalog-v333-category-strip" id="catalog-category-strip" aria-label="Explorar categorías">
+        {categories.map((c) => <button key={c} type="button" className={category === c ? 'active' : ''} onClick={() => chooseCatalogCategory(c)}>
+          {categoryIcon(c)}<span>{c === 'Todas' ? 'Todas' : c}</span><b>{c === 'Todas' ? products.length : categoryCounts[c] || 0}</b>
+        </button>)}
       </section>
 
       {notice && <div className="catalog-toast catalog-v331-toast">{notice}</div>}
 
       <section className="catalog-v331-shop" id="catalog-products">
+        <button type="button" className="catalog-v333-filter-backdrop" onClick={() => setMobileFiltersOpen(false)} aria-label="Cerrar filtros" />
         <aside className="catalog-v331-filters" id="catalog-filters" aria-label="Filtros de productos">
-          <div className="catalog-v331-filter-head"><SlidersHorizontal size={19}/><strong>Filtros</strong><span>{filteredProducts.length}</span></div>
+          <div className="catalog-v331-filter-head"><SlidersHorizontal size={19}/><strong>Filtros</strong><span>{filteredProducts.length}</span><button type="button" className="catalog-v333-filter-close" onClick={() => setMobileFiltersOpen(false)} aria-label="Cerrar filtros"><X size={20}/></button></div>
           <section className="catalog-v331-filter-group">
             <h3>Categoría</h3>
             <div className="catalog-v331-check-list">
@@ -4790,6 +4829,7 @@ function PublicCatalogApp() {
           <div className="catalog-v331-toolbar">
             <div className="catalog-v331-count"><ShoppingCart size={16}/><strong>{filteredProducts.length}</strong> productos disponibles</div>
             <div className="catalog-v331-toolbar-actions">
+              <button type="button" className="catalog-v333-mobile-filter-button" onClick={() => setMobileFiltersOpen(true)}><SlidersHorizontal size={16}/>Filtros <b>{filteredProducts.length}</b></button>
               <label className="catalog-v331-sort"><span>Ordenar por:</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="featured">Recomendado</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A–Z</option></select><ChevronDown size={16}/></label>
               <div className="catalog-v331-view-toggle" role="group" aria-label="Tipo de visualización">
                 <button type="button" className={viewMode==='grid'?'active':''} onClick={()=>setViewMode('grid')} aria-label="Vista de cuadrícula"><Grid2X2 size={18}/></button>
@@ -4804,7 +4844,7 @@ function PublicCatalogApp() {
             {visibleProducts.map((p,index) => <article className="catalog-v331-product" key={p.id} style={{'--card-index': index}}>
               <div className="catalog-v331-product-media">
                 <button type="button" className="catalog-v331-product-image" onClick={()=>selectProduct(p)} aria-label={`Ver ${p.name}`}>
-                  <img src={p.image_url || APP_ICON} alt={p.name} loading="lazy" decoding="async"/>
+                  <img src={p.image_url || APP_ICON} alt={p.name} loading={index < 4 ? "eager" : "lazy"} decoding="async" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = APP_ICON; }}/>
                 </button>
                 <span className={`catalog-v331-stock ${p.availability==='Agotado'?'soldout':p.availability==='Últimas unidades'?'low':''}`}>{catalogAvailabilityLabel(p.availability)}</span>
                 {p.catalog_featured && <span className="catalog-v331-featured">Destacado</span>}
@@ -4833,9 +4873,16 @@ function PublicCatalogApp() {
           </nav>}
         </div>
       </section>
+      </div>}
       {selected && <div className="catalog-detail-backdrop" onMouseDown={closeProduct}><article className="catalog-detail-modal" onMouseDown={e=>e.stopPropagation()}><button type="button" className="catalog-detail-close" onClick={closeProduct}>×</button><img src={selected.image_url || APP_ICON} alt={selected.name}/><div><span className={selected.availability==='Agotado'?'catalog-availability soldout':selected.availability==='Últimas unidades'?'catalog-availability low':'catalog-availability'}>{catalogAvailabilityLabel(selected.availability)}</span><p>{selected.category || 'General'}</p><h2>{selected.name}</h2><strong>{money(selected.price)}</strong><div className="catalog-detail-specs">{selected.brand && <span>Marca: {selected.brand}</span>}{selected.color && <span>Color: {selected.color}</span>}{selected.size && <span>Talla: {selected.size}</span>}{selected.code && <span>Código: {selected.code}</span>}</div><p className="catalog-detail-description">{selected.catalog_description || selected.description || 'Consulta disponibilidad y detalles por WhatsApp.'}</p><div className="catalog-detail-actions"><button className="secondary-btn" type="button" onClick={()=>consultProduct(selected)}>Consultar por WhatsApp</button><button className="primary-btn" type="button" disabled={!canOrder(selected)} onClick={()=>{addToCart(selected); setCartOpen(true);}}>{canOrder(selected)?'Agregar al pedido':'Agotado'}</button></div></div></article></div>}
       {cartOpen && <div className="catalog-cart-backdrop" onMouseDown={()=>setCartOpen(false)}><aside className="catalog-cart-drawer" onMouseDown={e=>e.stopPropagation()}><div className="catalog-cart-head"><div><span>Pedido por WhatsApp</span><h2>Tu selección</h2></div><button type="button" onClick={()=>setCartOpen(false)}>×</button></div>{cart.length ? <><div className="catalog-cart-lines">{cart.map(line=><article key={line.id}><img src={line.image_url || APP_ICON} alt={line.name}/><div><strong>{line.name}</strong><small>{[line.color,line.size,line.code].filter(Boolean).join(' · ')}</small><b>{money(line.price)}</b></div><div className="cart-qty-control"><button type="button" onClick={()=>changeCartQty(line.id,-1)}>−</button><span>{line.qty}</span><button type="button" onClick={()=>changeCartQty(line.id,1)}>+</button><button type="button" className="cart-remove" onClick={()=>removeCartLine(line.id)}>Quitar</button></div></article>)}</div><div className="catalog-cart-total"><span>Total referencial</span><strong>{money(cartTotal)}</strong></div><form className="catalog-order-form" onSubmit={submitOrder}><label>Nombre<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre y apellido" required /></label><label>Tu WhatsApp<input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} inputMode="tel" placeholder="999 999 999" required /></label><label>Nota opcional<textarea value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Color alternativo, entrega, consulta..." rows="3" /></label><p>Al enviar, registramos la solicitud y abrimos WhatsApp para confirmar disponibilidad y pago.</p><button type="submit" className="primary-btn" disabled={submitting}>{submitting ? 'Registrando...' : 'Enviar pedido por WhatsApp'}</button></form></> : <div className="catalog-cart-empty"><h3>Tu pedido está vacío</h3><p>Agregue productos del catálogo para enviarlos por WhatsApp.</p></div>}</aside></div>}
       {showBackToTop && <button type="button" className="catalog-v329-back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Volver al inicio"><ArrowUp size={17}/>Volver arriba</button>}
+      <nav className="catalog-v333-mobile-bottom" aria-label="Navegación móvil">
+        <button type="button" className={activeSection === 'home' ? 'active' : ''} onClick={goHome}><Home size={19}/><span>Inicio</span></button>
+        <button type="button" className={activeSection === 'catalog' ? 'active' : ''} onClick={goToAllProducts}><Grid2X2 size={19}/><span>Catálogo</span></button>
+        <button type="button" onClick={() => setCartOpen(true)}><ShoppingCart size={19}/><span>Pedido{cartQty ? ` (${cartQty})` : ''}</span></button>
+        <button type="button" onClick={openWhatsAppCatalog}><MessageCircle size={19}/><span>WhatsApp</span></button>
+      </nav>
       <footer className="catalog-public-footer"><strong>{store?.name || 'Clomar Store'}</strong><span>Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</span></footer>
     </main>
   );

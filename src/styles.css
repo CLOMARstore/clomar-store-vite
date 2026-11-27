@@ -4768,3 +4768,215 @@ body.clomar-public-catalog #root {
   }
   .catalog-v333-shell .catalog-v331-product-body h2 { font-size: 9px !important; }
 }
+
+/* ============================================================
+   CLOMAR STORE V03.3.5 — Inicio independiente + catálogo afinado
+   El inicio muestra solo la portada. El catálogo se monta cuando
+   el cliente elige Catálogo / Explorar catálogo.
+   ============================================================ */
+.catalog-v335-home-view .catalog-v335-catalog-stage { display: none !important; }
+.catalog-v335-home-view .catalog-v333-home-banner {
+  width: min(calc(100% - 48px), 1500px) !important;
+  margin: 16px auto 0 !important;
+  animation: c335-rise-in .55s ease both !important;
+}
+.catalog-v335-home-view .catalog-v333-home-banner .catalog-v331-banner-trigger {
+  border-radius: 22px !important;
+  box-shadow: 0 16px 40px rgba(9,35,66,.13) !important;
+}
+.catalog-v335-home-view .catalog-v333-home-banner img {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1754 / 599 !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+.catalog-v335-home-view .catalog-v331-benefits {
+  width: min(calc(100% - 64px), 1440px) !important;
+  min-height: 68px !important;
+  margin: 12px auto 22px !important;
+  padding: 5px 12px !important;
+}
+.catalog-v335-home-view .catalog-v331-benefits article {
+  min-height: 54px !important;
+  transition: transform .22s ease, background .22s ease !important;
+  border-radius: 12px !important;
+}
+.catalog-v335-home-view .catalog-v331-benefits article:hover {
+  transform: translateY(-3px) !important;
+  background: #fffaf0 !important;
+}
+.catalog-v335-home-view .catalog-public-footer { margin-top: 18px !important; }
+
+.catalog-v335-catalog-stage {
+  width: 100% !important;
+  animation: c335-rise-in .34s ease both !important;
+}
+.catalog-v335-shop-view .catalog-v331-shop {
+  width: min(calc(100% - 34px), 1660px) !important;
+  grid-template-columns: 206px minmax(0,1fr) !important;
+  gap: 13px !important;
+  margin: 0 auto 24px !important;
+}
+.catalog-v335-shop-view .catalog-v333-category-strip {
+  width: min(calc(100% - 34px),1660px) !important;
+  margin: 12px auto 10px !important;
+  padding: 2px 0 5px !important;
+}
+.catalog-v335-shop-view .catalog-v333-category-strip button {
+  min-height: 37px !important;
+  min-width: 122px !important;
+  padding: 0 12px !important;
+  font-size: 10px !important;
+}
+
+/* Imágenes: el botón es el marco y la foto ocupa el marco completo
+   con contain. No usar width:auto, porque limita fotos apaisadas. */
+.catalog-v335-shop-view .catalog-v331-grid {
+  grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+}
+.catalog-v335-shop-view .catalog-v331-product {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border-radius: 13px !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-media {
+  display: flex !important;
+  align-items: stretch !important;
+  height: auto !important;
+  padding: 6px 6px 0 !important;
+  background: #f7f8fa !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-image {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: clamp(122px, 14vh, 148px) !important;
+  min-height: 122px !important;
+  aspect-ratio: auto !important;
+  padding: 7px !important;
+  overflow: hidden !important;
+  border: 1px solid #eef1f5 !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-image > img {
+  display: block !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  transform: none !important;
+}
+.catalog-v335-shop-view .catalog-v331-product:hover .catalog-v331-product-image > img {
+  transform: scale(1.015) !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-body {
+  min-height: 104px !important;
+  gap: 4px !important;
+  padding: 7px 9px 9px !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-body h2 {
+  min-height: 27px !important;
+  max-height: 27px !important;
+  font-size: 10px !important;
+  line-height: 1.28 !important;
+  -webkit-line-clamp: 2 !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-body p {
+  min-height: 14px !important;
+  max-height: 14px !important;
+  font-size: 7.5px !important;
+  line-height: 1.25 !important;
+  -webkit-line-clamp: 1 !important;
+}
+.catalog-v335-shop-view .catalog-v331-price {
+  padding-top: 1px !important;
+  font-size: 16px !important;
+  line-height: 1.15 !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0,.88fr) minmax(0,1.12fr) !important;
+  gap: 5px !important;
+  margin-top: 2px !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-actions button {
+  min-width: 0 !important;
+  min-height: 29px !important;
+  padding: 0 5px !important;
+  font-size: 7.5px !important;
+  white-space: nowrap !important;
+}
+.catalog-v335-shop-view .catalog-v331-product-actions button svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+.catalog-v335-shop-view .catalog-v331-stock,
+.catalog-v335-shop-view .catalog-v331-featured {
+  top: 10px !important;
+  left: 10px !important;
+  min-height: 19px !important;
+  padding: 0 7px !important;
+  font-size: 7px !important;
+}
+.catalog-v335-shop-view .catalog-v331-favorite {
+  top: 8px !important;
+  right: 8px !important;
+  width: 27px !important;
+  height: 27px !important;
+}
+
+@media (min-width: 1500px) {
+  .catalog-v335-shop-view .catalog-v331-shop { grid-template-columns: 210px minmax(0,1fr) !important; }
+  .catalog-v335-shop-view .catalog-v331-product-image { height: clamp(132px,14vh,154px) !important; }
+}
+@media (min-width: 901px) and (max-width: 1399px) {
+  .catalog-v335-shop-view .catalog-v331-shop { grid-template-columns: 190px minmax(0,1fr) !important; gap: 10px !important; }
+  .catalog-v335-shop-view .catalog-v331-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; gap: 9px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-image { height: clamp(120px,15vh,145px) !important; }
+}
+@media (max-height: 820px) and (min-width: 901px) {
+  .catalog-v335-shop-view .catalog-v331-product-image { height: 122px !important; min-height: 122px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-body { min-height: 98px !important; padding: 6px 8px 8px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-actions button { min-height: 27px !important; }
+  .catalog-v335-shop-view .catalog-v331-heading { margin-bottom: 6px !important; }
+  .catalog-v335-shop-view .catalog-v331-toolbar { margin-bottom: 3px !important; }
+  .catalog-v335-shop-view .catalog-v331-result-meta { margin-bottom: 4px !important; }
+}
+@media (max-width: 900px) {
+  .catalog-v335-home-view .catalog-v333-home-banner { width: calc(100% - 20px) !important; margin-top: 9px !important; }
+  .catalog-v335-home-view .catalog-v333-home-banner img { aspect-ratio: 1100 / 599 !important; object-fit: contain !important; }
+  .catalog-v335-home-view .catalog-v331-benefits { width: calc(100% - 20px) !important; margin: 8px auto 15px !important; }
+  .catalog-v335-shop-view .catalog-v331-shop { width: calc(100% - 20px) !important; }
+  .catalog-v335-shop-view .catalog-v331-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-image { height: clamp(112px,29vw,148px) !important; min-height: 112px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-body { min-height: 100px !important; padding: 7px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-body h2 { min-height: 28px !important; max-height: 28px !important; font-size: 9px !important; }
+  .catalog-v335-shop-view .catalog-v331-product-actions button { min-height: 29px !important; font-size: 7px !important; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes c335-rise-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v335-catalog-stage,
+  .catalog-v335-home-view .catalog-v333-home-banner { animation: none !important; }
+}
+
+/* Último ajuste: evitar que el zoom de hover vuelva a cortar el producto. */
+.catalog-v335-shop-view .catalog-v331-product:hover .catalog-v331-product-image > img {
+  transform: none !important;
+}
