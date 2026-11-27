@@ -4270,3 +4270,501 @@ body.clomar-public-catalog #root {
 @media (prefers-reduced-motion: reduce) {
   .catalog-v331-banner-trigger img { animation: none !important; }
 }
+
+/* ============================================================
+   CLOMAR STORE V03.3.3 — Responsive commerce UI
+   Diseño específico para escritorio, tablet y móvil.
+   Mantiene los componentes y acciones del catálogo existente.
+   ============================================================ */
+.catalog-v333-shell {
+  --c-navy: #061f43;
+  --c-navy-2: #0c376b;
+  --c-gold: #efb52e;
+  --c-coral: #ed4054;
+  --c-ink: #10294c;
+  --c-muted: #708098;
+  --c-line: #e5ebf3;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 100vh !important;
+  padding: 0 0 38px !important;
+  overflow-x: clip !important;
+  color: var(--c-ink) !important;
+  background: #f4f7fc !important;
+  box-sizing: border-box !important;
+}
+.catalog-v333-shell *,
+.catalog-v333-shell *::before,
+.catalog-v333-shell *::after { box-sizing: border-box !important; }
+.catalog-v333-shell button,
+.catalog-v333-shell input,
+.catalog-v333-shell select { font: inherit; }
+.catalog-v333-shell button { -webkit-tap-highlight-color: transparent; }
+.catalog-v333-shell :focus-visible { outline: 3px solid rgba(239,181,46,.72) !important; outline-offset: 2px !important; }
+
+/* Header principal: barra azul como la referencia. */
+.catalog-v333-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 60 !important;
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 72px !important;
+  margin: 0 !important;
+  padding: 8px clamp(16px,3vw,48px) !important;
+  gap: clamp(12px,2vw,30px) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(110deg,#041a37 0%,#082b56 62%,#0b376b 100%) !important;
+  box-shadow: 0 7px 24px rgba(5,27,55,.18) !important;
+  backdrop-filter: blur(16px) !important;
+}
+.catalog-v333-header .catalog-public-brand { flex: 0 1 270px !important; min-width: 170px !important; gap: 10px !important; }
+.catalog-v333-header .catalog-public-brand img { width: 48px !important; height: 48px !important; padding: 2px !important; border-radius: 12px !important; background: #fff !important; object-fit: contain !important; }
+.catalog-v333-header .catalog-public-brand strong { color: #fff !important; font-size: 17px !important; line-height: 1.1 !important; letter-spacing: -.025em !important; }
+.catalog-v333-header .catalog-public-brand small { display: block !important; margin-top: 3px !important; color: #d5e1f0 !important; font-size: 10px !important; }
+.catalog-v333-nav { display: flex !important; flex: 1 1 auto !important; align-items: center !important; justify-content: center !important; gap: 5px !important; min-width: 0 !important; }
+.catalog-v333-nav button { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 7px !important; min-height: 40px !important; padding: 0 13px !important; border: 1px solid transparent !important; border-radius: 999px !important; color: #f5f8fd !important; background: transparent !important; white-space: nowrap !important; font-size: 12px !important; font-weight: 850 !important; transition: background .2s ease, transform .2s ease, color .2s ease !important; }
+.catalog-v333-nav button:hover { color: #fff !important; background: rgba(255,255,255,.12) !important; transform: translateY(-1px) !important; }
+.catalog-v333-nav button.active { color: #10294c !important; background: linear-gradient(135deg,#ffd45b,#efb52e) !important; box-shadow: 0 5px 15px rgba(239,181,46,.22) !important; }
+.catalog-v333-header .catalog-public-header-actions { display: flex !important; flex: 0 0 auto !important; align-items: center !important; gap: 9px !important; }
+.catalog-v333-header .catalog-whatsapp-btn,
+.catalog-v333-header .catalog-cart-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; min-height: 40px !important; padding: 0 15px !important; border: 0 !important; border-radius: 999px !important; color: #fff !important; font-size: 11px !important; font-weight: 900 !important; white-space: nowrap !important; }
+.catalog-v333-header .catalog-whatsapp-btn { background: linear-gradient(135deg,#18c968,#07984b) !important; box-shadow: 0 7px 17px rgba(10,177,82,.2) !important; }
+.catalog-v333-header .catalog-cart-btn { background: #fff !important; color: var(--c-navy) !important; }
+.catalog-v333-header .catalog-cart-btn b { display: inline-grid !important; place-items: center !important; min-width: 21px !important; height: 21px !important; padding: 0 5px !important; border-radius: 50px !important; color: #10294c !important; background: var(--c-gold) !important; font-size: 10px !important; }
+.catalog-v333-menu-toggle { display: none !important; }
+
+/* Home: banner sin deformación y beneficios compactos. */
+.catalog-v333-home-banner { width: min(calc(100% - 36px),1640px) !important; margin: 18px auto 0 !important; }
+.catalog-v333-home-banner .catalog-v331-banner-trigger { display: block !important; width: 100% !important; padding: 0 !important; border: 0 !important; border-radius: 22px !important; overflow: hidden !important; background: #fff !important; line-height: 0 !important; box-shadow: 0 16px 38px rgba(12,39,72,.12) !important; }
+.catalog-v333-home-banner picture { display: block !important; width: 100% !important; }
+.catalog-v333-home-banner img { display: block !important; width: 100% !important; height: auto !important; max-height: none !important; aspect-ratio: 1754 / 599 !important; object-fit: contain !important; object-position: center !important; animation: c333-banner-in .65s ease both !important; }
+.catalog-v333-home-banner .catalog-v329-banner-hitarea { display: none !important; }
+.catalog-v333-shell .catalog-v331-benefits { width: min(calc(100% - 56px),1540px) !important; min-height: 78px !important; margin: 14px auto 18px !important; padding: 7px 15px !important; border: 1px solid #fff !important; border-radius: 18px !important; background: rgba(255,255,255,.96) !important; box-shadow: 0 10px 26px rgba(14,40,70,.07) !important; }
+.catalog-v333-shell .catalog-v331-benefits article { min-height: 60px !important; gap: 10px !important; }
+.catalog-v333-shell .catalog-v331-benefits article > svg { width: 27px !important; height: 27px !important; color: #d99b13 !important; }
+.catalog-v333-shell .catalog-v331-benefits article b { color: var(--c-navy) !important; font-size: 12px !important; }
+.catalog-v333-shell .catalog-v331-benefits article small { color: #718098 !important; font-size: 9px !important; }
+
+/* Categorías: carril horizontal, usable con ratón o tacto. */
+.catalog-v333-category-strip {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: min(calc(100% - 40px),1720px) !important;
+  margin: 16px auto 13px !important;
+  padding: 3px 1px 8px !important;
+  overflow-x: auto !important;
+  overscroll-behavior-x: contain !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #c3cfdf transparent !important;
+  scroll-snap-type: x proximity !important;
+}
+.catalog-v333-category-strip button { display: inline-flex !important; flex: 0 0 auto !important; align-items: center !important; justify-content: center !important; gap: 9px !important; min-width: 145px !important; min-height: 43px !important; padding: 0 15px !important; border: 1px solid #e4eaf2 !important; border-radius: 13px !important; color: #142f55 !important; background: #fff !important; box-shadow: 0 4px 13px rgba(13,42,76,.045) !important; font-size: 11px !important; font-weight: 900 !important; white-space: nowrap !important; scroll-snap-align: start !important; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease !important; }
+.catalog-v333-category-strip button:hover { transform: translateY(-2px) !important; border-color: #e8bd50 !important; box-shadow: 0 8px 18px rgba(13,42,76,.08) !important; }
+.catalog-v333-category-strip button.active { color: #fff !important; border-color: #eeb72f !important; background: linear-gradient(120deg,#061f43,#0d3b70) !important; box-shadow: 0 7px 17px rgba(6,31,67,.17) !important; }
+.catalog-v333-category-strip button b { display: inline-grid !important; place-items: center !important; min-width: 21px !important; height: 21px !important; padding: 0 5px !important; border-radius: 7px !important; color: #173456 !important; background: #edf2f8 !important; font-size: 9px !important; }
+.catalog-v333-category-strip button.active b { color: #10294c !important; background: #f4c54d !important; }
+
+/* Tienda: filtros compactos y zona de resultados flexible. */
+.catalog-v333-shell .catalog-v331-shop { width: min(calc(100% - 40px),1720px) !important; grid-template-columns: 214px minmax(0,1fr) !important; gap: 15px !important; margin: 0 auto !important; align-items: start !important; }
+.catalog-v333-shell .catalog-v331-filters { position: sticky !important; top: 84px !important; max-height: calc(100vh - 98px) !important; overflow-y: auto !important; overscroll-behavior: contain !important; border-radius: 16px !important; }
+.catalog-v333-shell .catalog-v331-filter-head { min-height: 48px !important; padding: 0 13px !important; }
+.catalog-v333-shell .catalog-v331-filter-head strong { font-size: 14px !important; }
+.catalog-v333-shell .catalog-v331-filter-group { padding: 12px 12px 11px !important; }
+.catalog-v333-shell .catalog-v331-filter-group h3 { margin-bottom: 9px !important; font-size: 11px !important; }
+.catalog-v333-shell .catalog-v331-check-list { gap: 8px !important; }
+.catalog-v333-shell .catalog-v331-check { font-size: 10px !important; }
+.catalog-v333-shell .catalog-v331-brand-list { max-height: 160px !important; }
+.catalog-v333-shell .catalog-v331-price-labels { margin-bottom: 6px !important; font-size: 9px !important; }
+.catalog-v333-shell .catalog-v331-price-inputs input { height: 31px !important; font-size: 10px !important; }
+.catalog-v333-shell .catalog-v331-clear { min-height: 36px !important; margin: 9px !important; width: calc(100% - 18px) !important; font-size: 10px !important; }
+.catalog-v333-shell .catalog-v331-heading { grid-template-columns: minmax(230px,.82fr) minmax(300px,1.18fr) !important; gap: 14px !important; margin: 0 0 9px !important; }
+.catalog-v333-shell .catalog-v331-title h1 { font-size: clamp(24px,1.8vw,31px) !important; line-height: 1.08 !important; }
+.catalog-v333-shell .catalog-v331-title p { margin-top: 5px !important; font-size: 10px !important; line-height: 1.4 !important; }
+.catalog-v333-shell .catalog-v331-eyebrow { margin-bottom: 4px !important; font-size: 8px !important; }
+.catalog-v333-shell .catalog-v331-search { min-height: 43px !important; padding: 4px 5px 4px 12px !important; border-radius: 13px !important; }
+.catalog-v333-shell .catalog-v331-search input { height: 33px !important; min-width: 0 !important; font-size: 11px !important; }
+.catalog-v333-shell .catalog-v331-search button { min-height: 33px !important; min-width: 76px !important; font-size: 9px !important; }
+.catalog-v333-shell .catalog-v331-toolbar { margin-bottom: 4px !important; }
+.catalog-v333-shell .catalog-v331-count { min-height: 32px !important; padding: 0 11px !important; font-size: 10px !important; }
+.catalog-v333-shell .catalog-v331-count strong { font-size: 13px !important; }
+.catalog-v333-shell .catalog-v331-sort select { min-width: 135px !important; height: 34px !important; font-size: 10px !important; }
+.catalog-v333-shell .catalog-v331-view-toggle button { width: 32px !important; height: 32px !important; }
+.catalog-v333-shell .catalog-v331-result-meta { min-height: 22px !important; margin: 0 0 6px !important; font-size: 9px !important; }
+.catalog-v333-mobile-filter-button,
+.catalog-v333-filter-close,
+.catalog-v333-filter-backdrop { display: none !important; }
+
+/* Tarjetas: imágenes completas y altura consistente. */
+.catalog-v333-shell .catalog-v331-grid { display: grid !important; grid-template-columns: repeat(4,minmax(0,1fr)) !important; align-items: stretch !important; gap: 11px !important; }
+.catalog-v333-shell .catalog-v331-product { min-width: 0 !important; display: flex !important; flex-direction: column !important; border: 1px solid #e5ebf3 !important; border-radius: 15px !important; overflow: hidden !important; background: #fff !important; box-shadow: 0 6px 18px rgba(11,38,72,.065) !important; animation: c333-card-in .42s both !important; animation-delay: calc(var(--card-index,0) * 35ms) !important; transition: transform .22s ease, box-shadow .22s ease !important; }
+.catalog-v333-shell .catalog-v331-product:hover { transform: translateY(-3px) !important; box-shadow: 0 13px 28px rgba(11,38,72,.12) !important; }
+.catalog-v333-shell .catalog-v331-product-media { position: relative !important; padding: 7px 7px 0 !important; background: #f7f9fc !important; }
+.catalog-v333-shell .catalog-v331-product-image { display: grid !important; place-items: center !important; width: 100% !important; aspect-ratio: 1.34 / 1 !important; min-height: 0 !important; padding: 5px !important; overflow: hidden !important; border: 0 !important; border-radius: 9px !important; background: #fff !important; }
+.catalog-v333-shell .catalog-v331-product-image img { display: block !important; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; object-position: center !important; transition: transform .35s ease !important; }
+.catalog-v333-shell .catalog-v331-product:hover .catalog-v331-product-image img { transform: scale(1.045) !important; }
+.catalog-v333-shell .catalog-v331-stock,
+.catalog-v333-shell .catalog-v331-featured { top: 10px !important; left: 10px !important; min-height: 21px !important; padding: 0 8px !important; border-radius: 99px !important; font-size: 8px !important; }
+.catalog-v333-shell .catalog-v331-favorite { top: 9px !important; right: 9px !important; width: 29px !important; height: 29px !important; box-shadow: 0 3px 10px rgba(8,35,68,.11) !important; }
+.catalog-v333-shell .catalog-v331-product-body { display: flex !important; flex: 1 1 auto !important; flex-direction: column !important; gap: 4px !important; padding: 9px 10px 10px !important; }
+.catalog-v333-shell .catalog-v331-category { color: #6c7e98 !important; font-size: 8px !important; font-weight: 900 !important; letter-spacing: .04em !important; }
+.catalog-v333-shell .catalog-v331-product-body h2 { display: -webkit-box !important; min-height: 30px !important; margin: 0 !important; overflow: hidden !important; color: #142c4f !important; font-size: 11px !important; line-height: 1.28 !important; font-weight: 900 !important; -webkit-line-clamp: 2 !important; -webkit-box-orient: vertical !important; }
+.catalog-v333-shell .catalog-v331-product-body p { display: -webkit-box !important; min-height: 16px !important; margin: 0 !important; overflow: hidden !important; color: #7b8aa0 !important; font-size: 8px !important; line-height: 1.3 !important; -webkit-line-clamp: 1 !important; -webkit-box-orient: vertical !important; }
+.catalog-v333-shell .catalog-v331-price { margin-top: auto !important; padding-top: 3px !important; color: #092b55 !important; font-size: 17px !important; font-weight: 950 !important; }
+.catalog-v333-shell .catalog-v331-product-actions { display: grid !important; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr) !important; gap: 5px !important; margin-top: 3px !important; }
+.catalog-v333-shell .catalog-v331-product-actions button { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 4px !important; min-width: 0 !important; min-height: 31px !important; padding: 0 6px !important; border-radius: 999px !important; font-size: 8px !important; font-weight: 900 !important; white-space: nowrap !important; }
+.catalog-v333-shell .catalog-v331-details { border: 1px solid #e1e8f1 !important; color: #12365e !important; background: #fff !important; }
+.catalog-v333-shell .catalog-v331-add { border: 0 !important; color: #fff !important; background: linear-gradient(110deg,#f04a5b,#d92f48) !important; box-shadow: 0 4px 10px rgba(217,47,72,.14) !important; }
+.catalog-v333-shell .catalog-v331-add:disabled { opacity: .55 !important; }
+.catalog-v333-shell .catalog-v331-grid.is-list { grid-template-columns: 1fr !important; }
+.catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product { display: grid !important; grid-template-columns: 190px minmax(0,1fr) !important; }
+.catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product-image { aspect-ratio: 1.25 / 1 !important; }
+.catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product-body { padding: 13px 16px !important; }
+.catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product-body h2 { min-height: 0 !important; font-size: 14px !important; }
+.catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product-actions { max-width: 340px !important; }
+.catalog-v333-shell .catalog-v331-pagination { margin-top: 11px !important; }
+.catalog-v333-shell .catalog-v331-pagination button { min-width: 32px !important; height: 32px !important; }
+.catalog-v333-shell .catalog-public-footer { width: min(calc(100% - 40px),1720px) !important; margin: 24px auto 0 !important; }
+.catalog-v333-mobile-bottom { display: none !important; }
+
+@keyframes c333-banner-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes c333-card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Pantallas anchas: 5 tarjetas sin hacerlas demasiado estrechas. */
+@media (min-width: 1720px) {
+  .catalog-v333-shell .catalog-v331-grid { grid-template-columns: repeat(5,minmax(0,1fr)) !important; gap: 13px !important; }
+  .catalog-v333-shell .catalog-v331-product-image { aspect-ratio: 1.28 / 1 !important; }
+}
+@media (min-width: 901px) and (max-width: 1199px) {
+  .catalog-v333-shell .catalog-v331-shop { grid-template-columns: 190px minmax(0,1fr) !important; gap: 12px !important; }
+  .catalog-v333-shell .catalog-v331-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; gap: 9px !important; }
+  .catalog-v333-shell .catalog-v331-heading { grid-template-columns: 1fr !important; }
+}
+
+/* Tablet y móvil: menú compacto, filtros en drawer y dos columnas. */
+@media (max-width: 900px) {
+  .catalog-v333-header { position: sticky !important; min-height: 60px !important; padding: 6px 12px !important; gap: 8px !important; }
+  .catalog-v333-menu-toggle { display: inline-grid !important; flex: 0 0 36px !important; place-items: center !important; width: 36px !important; height: 36px !important; padding: 0 !important; border: 1px solid rgba(255,255,255,.18) !important; border-radius: 10px !important; color: #fff !important; background: rgba(255,255,255,.1) !important; }
+  .catalog-v333-header .catalog-public-brand { flex: 1 1 auto !important; min-width: 0 !important; gap: 7px !important; }
+  .catalog-v333-header .catalog-public-brand img { width: 39px !important; height: 39px !important; border-radius: 10px !important; }
+  .catalog-v333-header .catalog-public-brand strong { font-size: 13px !important; }
+  .catalog-v333-header .catalog-public-brand small { font-size: 8px !important; }
+  .catalog-v333-nav { display: none !important; }
+  .catalog-v333-nav.is-open { position: absolute !important; top: calc(100% + 7px) !important; left: 10px !important; right: 10px !important; z-index: 70 !important; display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 6px !important; padding: 9px !important; border: 1px solid #e4eaf2 !important; border-radius: 15px !important; background: #fff !important; box-shadow: 0 15px 35px rgba(5,28,57,.2) !important; }
+  .catalog-v333-nav.is-open button { justify-content: flex-start !important; color: #10294c !important; background: #f5f7fb !important; }
+  .catalog-v333-nav.is-open button.active { color: #fff !important; background: #0a315f !important; }
+  .catalog-v333-header .catalog-public-header-actions { gap: 6px !important; }
+  .catalog-v333-header .catalog-whatsapp-btn { width: 37px !important; min-width: 37px !important; height: 37px !important; min-height: 37px !important; padding: 0 !important; font-size: 0 !important; }
+  .catalog-v333-header .catalog-whatsapp-btn svg { width: 19px !important; height: 19px !important; }
+  .catalog-v333-header .catalog-cart-btn { min-width: 43px !important; min-height: 37px !important; height: 37px !important; padding: 0 9px !important; font-size: 0 !important; }
+  .catalog-v333-header .catalog-cart-btn svg { width: 18px !important; height: 18px !important; }
+  .catalog-v333-header .catalog-cart-btn b { min-width: 18px !important; height: 18px !important; font-size: 9px !important; }
+  .catalog-v333-home-banner { width: calc(100% - 20px) !important; margin-top: 10px !important; }
+  .catalog-v333-home-banner .catalog-v331-banner-trigger { border-radius: 14px !important; }
+  .catalog-v333-home-banner img { aspect-ratio: 1100 / 599 !important; object-fit: contain !important; }
+  .catalog-v333-shell .catalog-v331-benefits { width: calc(100% - 20px) !important; min-height: 0 !important; margin: 9px auto 12px !important; padding: 6px !important; border-radius: 13px !important; }
+  .catalog-v333-shell .catalog-v331-benefits article { min-height: 43px !important; gap: 6px !important; padding: 4px 6px !important; }
+  .catalog-v333-shell .catalog-v331-benefits article > svg { width: 19px !important; height: 19px !important; }
+  .catalog-v333-shell .catalog-v331-benefits article b { font-size: 8px !important; }
+  .catalog-v333-shell .catalog-v331-benefits article small { font-size: 7px !important; }
+  .catalog-v333-category-strip { width: calc(100% - 20px) !important; gap: 7px !important; margin: 10px auto 9px !important; padding-bottom: 6px !important; }
+  .catalog-v333-category-strip button { min-width: 108px !important; min-height: 39px !important; gap: 6px !important; padding: 0 10px !important; border-radius: 11px !important; font-size: 9px !important; }
+  .catalog-v333-category-strip button svg { width: 16px !important; height: 16px !important; }
+  .catalog-v333-category-strip button b { min-width: 18px !important; height: 18px !important; font-size: 8px !important; }
+  .catalog-v333-shell .catalog-v331-shop { display: block !important; width: calc(100% - 20px) !important; margin: 0 auto !important; }
+  .catalog-v333-shell .catalog-v331-filters { position: fixed !important; z-index: 91 !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: auto !important; display: block !important; width: min(88vw,360px) !important; max-width: 100vw !important; max-height: 100dvh !important; padding-bottom: max(14px,env(safe-area-inset-bottom)) !important; overflow-y: auto !important; border: 0 !important; border-radius: 18px 0 0 18px !important; box-shadow: -15px 0 40px rgba(5,28,57,.22) !important; transform: translateX(105%) !important; transition: transform .28s cubic-bezier(.2,.7,.2,1) !important; }
+  .catalog-v333-shell.filters-open .catalog-v331-filters { transform: translateX(0) !important; }
+  .catalog-v333-filter-backdrop { position: fixed !important; z-index: 90 !important; inset: 0 !important; display: none !important; width: 100vw !important; height: 100dvh !important; border: 0 !important; background: rgba(3,17,36,.48) !important; }
+  .catalog-v333-shell.filters-open .catalog-v333-filter-backdrop { display: block !important; }
+  .catalog-v333-filter-close { display: inline-grid !important; place-items: center !important; width: 31px !important; height: 31px !important; margin-left: 0 !important; padding: 0 !important; border: 1px solid rgba(255,255,255,.24) !important; border-radius: 9px !important; color: #fff !important; background: rgba(255,255,255,.12) !important; }
+  .catalog-v333-shell .catalog-v331-filter-head { position: sticky !important; top: 0 !important; z-index: 2 !important; min-height: 54px !important; }
+  .catalog-v333-shell .catalog-v331-filter-group { padding: 15px 14px !important; }
+  .catalog-v333-shell .catalog-v331-check { min-height: 29px !important; font-size: 11px !important; }
+  .catalog-v333-shell .catalog-v331-check input { width: 17px !important; height: 17px !important; }
+  .catalog-v333-shell .catalog-v331-brand-list { max-height: 220px !important; }
+  .catalog-v333-shell .catalog-v331-clear { min-height: 43px !important; margin: 12px !important; width: calc(100% - 24px) !important; }
+  .catalog-v333-shell .catalog-v331-results { min-width: 0 !important; }
+  .catalog-v333-shell .catalog-v331-heading { display: grid !important; grid-template-columns: 1fr !important; gap: 9px !important; margin-bottom: 9px !important; }
+  .catalog-v333-shell .catalog-v331-title h1 { font-size: clamp(22px,5vw,28px) !important; }
+  .catalog-v333-shell .catalog-v331-title p { font-size: 10px !important; }
+  .catalog-v333-shell .catalog-v331-search { min-height: 43px !important; }
+  .catalog-v333-shell .catalog-v331-toolbar { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; flex-wrap: wrap !important; gap: 7px !important; }
+  .catalog-v333-shell .catalog-v331-toolbar-actions { display: flex !important; flex: 1 1 auto !important; align-items: center !important; justify-content: flex-end !important; gap: 6px !important; }
+  .catalog-v333-mobile-filter-button { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; min-height: 34px !important; padding: 0 9px !important; border: 1px solid #dce5ef !important; border-radius: 10px !important; color: #12365f !important; background: #fff !important; font-size: 9px !important; font-weight: 900 !important; }
+  .catalog-v333-mobile-filter-button b { display: inline-grid !important; place-items: center !important; min-width: 17px !important; height: 17px !important; border-radius: 6px !important; background: #edf2f8 !important; font-size: 8px !important; }
+  .catalog-v333-shell .catalog-v331-sort { gap: 4px !important; font-size: 8px !important; }
+  .catalog-v333-shell .catalog-v331-sort select { min-width: 112px !important; max-width: 135px !important; height: 34px !important; padding: 0 7px !important; font-size: 9px !important; }
+  .catalog-v333-shell .catalog-v331-view-toggle { gap: 3px !important; }
+  .catalog-v333-shell .catalog-v331-view-toggle button { width: 32px !important; height: 32px !important; }
+  .catalog-v333-shell .catalog-v331-result-meta { font-size: 8px !important; }
+  .catalog-v333-shell .catalog-v331-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 9px !important; }
+  .catalog-v333-shell .catalog-v331-product { border-radius: 12px !important; }
+  .catalog-v333-shell .catalog-v331-product-media { padding: 5px 5px 0 !important; }
+  .catalog-v333-shell .catalog-v331-product-image { aspect-ratio: 1 / 1 !important; padding: 4px !important; border-radius: 8px !important; }
+  .catalog-v333-shell .catalog-v331-stock,
+  .catalog-v333-shell .catalog-v331-featured { top: 8px !important; left: 8px !important; min-height: 19px !important; padding: 0 6px !important; font-size: 7px !important; }
+  .catalog-v333-shell .catalog-v331-favorite { top: 7px !important; right: 7px !important; width: 26px !important; height: 26px !important; }
+  .catalog-v333-shell .catalog-v331-favorite svg { width: 15px !important; height: 15px !important; }
+  .catalog-v333-shell .catalog-v331-product-body { gap: 4px !important; padding: 7px !important; }
+  .catalog-v333-shell .catalog-v331-category { font-size: 7px !important; }
+  .catalog-v333-shell .catalog-v331-product-body h2 { min-height: 29px !important; font-size: 9px !important; line-height: 1.25 !important; }
+  .catalog-v333-shell .catalog-v331-product-body p { min-height: 22px !important; font-size: 7px !important; line-height: 1.25 !important; -webkit-line-clamp: 2 !important; }
+  .catalog-v333-shell .catalog-v331-price { font-size: 15px !important; }
+  .catalog-v333-shell .catalog-v331-product-actions { grid-template-columns: minmax(0,1fr) minmax(0,1fr) !important; gap: 4px !important; }
+  .catalog-v333-shell .catalog-v331-product-actions button { min-height: 30px !important; padding: 0 4px !important; font-size: 7px !important; }
+  .catalog-v333-shell .catalog-v331-product-actions button svg { width: 12px !important; height: 12px !important; }
+  .catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product { grid-template-columns: 105px minmax(0,1fr) !important; }
+  .catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product-body { padding: 8px !important; }
+  .catalog-v333-shell .catalog-v331-grid.is-list .catalog-v331-product-body h2 { font-size: 10px !important; }
+  .catalog-v333-shell .catalog-v331-pagination { align-items: center !important; flex-direction: column !important; gap: 8px !important; }
+  .catalog-v333-shell .catalog-v331-pagination > div { display: flex !important; flex-wrap: wrap !important; justify-content: center !important; }
+  .catalog-v333-mobile-bottom { position: fixed !important; z-index: 75 !important; right: 0 !important; bottom: 0 !important; left: 0 !important; display: grid !important; grid-template-columns: repeat(4,minmax(0,1fr)) !important; min-height: calc(58px + env(safe-area-inset-bottom)) !important; padding: 5px 8px calc(5px + env(safe-area-inset-bottom)) !important; border-top: 1px solid rgba(255,255,255,.14) !important; background: linear-gradient(110deg,#041a37,#0b376b) !important; box-shadow: 0 -7px 24px rgba(5,27,55,.16) !important; }
+  .catalog-v333-mobile-bottom button { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 3px !important; min-width: 0 !important; padding: 2px !important; border: 0 !important; color: #e8f0fa !important; background: transparent !important; font-size: 8px !important; font-weight: 800 !important; }
+  .catalog-v333-mobile-bottom button.active { color: #ffd04c !important; }
+  .catalog-v333-mobile-bottom button:last-child svg { color: #19d36b !important; }
+  .catalog-v333-shell { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+  .catalog-v333-shell .catalog-public-footer { width: calc(100% - 20px) !important; margin-bottom: 10px !important; }
+  .catalog-v333-shell .catalog-v329-back-top { bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+}
+
+@media (max-width: 390px) {
+  .catalog-v333-header { padding-right: 8px !important; padding-left: 8px !important; }
+  .catalog-v333-header .catalog-public-brand img { width: 34px !important; height: 34px !important; }
+  .catalog-v333-header .catalog-public-brand strong { font-size: 11px !important; }
+  .catalog-v333-header .catalog-public-brand small { font-size: 7px !important; }
+  .catalog-v333-header .catalog-public-header-actions { gap: 4px !important; }
+  .catalog-v333-header .catalog-whatsapp-btn { width: 33px !important; min-width: 33px !important; height: 34px !important; min-height: 34px !important; }
+  .catalog-v333-header .catalog-cart-btn { min-width: 38px !important; height: 34px !important; min-height: 34px !important; padding: 0 6px !important; }
+  .catalog-v333-shell .catalog-v331-sort span { display: none !important; }
+  .catalog-v333-shell .catalog-v331-sort select { min-width: 105px !important; }
+  .catalog-v333-shell .catalog-v331-view-toggle button { width: 29px !important; height: 30px !important; }
+  .catalog-v333-shell .catalog-v331-grid { gap: 7px !important; }
+  .catalog-v333-shell .catalog-v331-product-actions button { font-size: 6.7px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v333-shell *, .catalog-v333-shell *::before, .catalog-v333-shell *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ============================================================
+   CLOMAR STORE V03.3.4 — Ajuste de fotografías y primera vista
+   Corrige el recorte aparente de fotos, compacta tarjetas para
+   mantener ocho productos (dos filas) en la vista de catálogo
+   y reduce el peso vertical de Inicio sin deformar el banner.
+   ============================================================ */
+
+/* Fotografías de producto: usar el tamaño intrínseco y limitarlo
+   por ambos ejes. Así se conserva toda la foto, sin zoom ni recorte. */
+.catalog-v333-shell .catalog-v331-product-media {
+  display: flex !important;
+  align-items: stretch !important;
+  padding: 6px 6px 0 !important;
+  background: #fff !important;
+}
+.catalog-v333-shell .catalog-v331-product-image {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: clamp(138px, 18vh, 172px) !important;
+  min-height: 138px !important;
+  aspect-ratio: auto !important;
+  padding: 5px !important;
+  overflow: hidden !important;
+  border: 1px solid #f0f3f7 !important;
+  border-radius: 10px !important;
+  background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%) !important;
+}
+.catalog-v333-shell .catalog-v331-product-image img {
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  transform: none !important;
+  filter: none !important;
+}
+.catalog-v333-shell .catalog-v331-product:hover .catalog-v331-product-image img {
+  transform: none !important;
+  filter: none !important;
+}
+.catalog-v333-shell .catalog-v331-product-image:hover {
+  border-color: #e9c45f !important;
+  background: #fff !important;
+}
+
+/* Tarjetas más equilibradas: ocho artículos por página = dos filas. */
+.catalog-v333-shell .catalog-v331-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+}
+.catalog-v333-shell .catalog-v331-product {
+  min-height: 0 !important;
+  border-radius: 14px !important;
+}
+.catalog-v333-shell .catalog-v331-product-body {
+  min-height: 108px !important;
+  gap: 4px !important;
+  padding: 8px 9px 9px !important;
+}
+.catalog-v333-shell .catalog-v331-product-body h2 {
+  min-height: 28px !important;
+  font-size: 10.5px !important;
+  line-height: 1.25 !important;
+}
+.catalog-v333-shell .catalog-v331-product-body p {
+  min-height: 15px !important;
+  font-size: 7.5px !important;
+  line-height: 1.25 !important;
+}
+.catalog-v333-shell .catalog-v331-price {
+  padding-top: 2px !important;
+  font-size: 17px !important;
+}
+.catalog-v333-shell .catalog-v331-product-actions {
+  gap: 5px !important;
+  margin-top: 2px !important;
+}
+.catalog-v333-shell .catalog-v331-product-actions button {
+  min-height: 30px !important;
+  font-size: 8px !important;
+}
+.catalog-v333-shell .catalog-v331-pagination {
+  margin-top: 9px !important;
+}
+
+/* Inicio: banner completo, más compacto y centrado; no se recorta. */
+.catalog-v333-home-banner {
+  width: min(calc(100% - 36px), 1320px) !important;
+  margin: 12px auto 0 !important;
+}
+.catalog-v333-home-banner .catalog-v331-banner-trigger {
+  border-radius: 20px !important;
+}
+.catalog-v333-home-banner img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1754 / 599 !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+.catalog-v333-shell .catalog-v331-benefits {
+  width: min(calc(100% - 48px), 1320px) !important;
+  min-height: 58px !important;
+  margin: 9px auto 12px !important;
+  padding: 5px 10px !important;
+  border-radius: 15px !important;
+}
+.catalog-v333-shell .catalog-v331-benefits article {
+  min-height: 46px !important;
+  gap: 8px !important;
+}
+.catalog-v333-shell .catalog-v331-benefits article > svg {
+  width: 23px !important;
+  height: 23px !important;
+}
+.catalog-v333-shell .catalog-v331-benefits article b { font-size: 11px !important; }
+.catalog-v333-shell .catalog-v331-benefits article small { font-size: 8px !important; }
+.catalog-v333-category-strip {
+  width: min(calc(100% - 36px), 1320px) !important;
+  margin: 8px auto 9px !important;
+  padding: 0 0 5px !important;
+}
+.catalog-v333-category-strip button {
+  min-height: 38px !important;
+  min-width: 130px !important;
+}
+.catalog-v333-shell .catalog-v331-shop {
+  margin-top: 0 !important;
+}
+
+/* Portátiles con poca altura: conservar el encuadre de las dos filas. */
+@media (min-width: 1200px) and (max-height: 820px) {
+  .catalog-v333-shell .catalog-v331-product-image {
+    height: clamp(126px, 17vh, 148px) !important;
+    min-height: 126px !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-body {
+    min-height: 102px !important;
+    padding: 7px 8px 8px !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-body h2 { min-height: 26px !important; }
+  .catalog-v333-shell .catalog-v331-product-actions button { min-height: 28px !important; }
+  .catalog-v333-shell .catalog-v331-heading { margin-bottom: 7px !important; }
+  .catalog-v333-shell .catalog-v331-toolbar { margin-bottom: 2px !important; }
+  .catalog-v333-shell .catalog-v331-result-meta { min-height: 19px !important; margin-bottom: 4px !important; }
+}
+
+@media (min-width: 901px) and (max-width: 1399px) {
+  .catalog-v333-shell .catalog-v331-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-image {
+    height: clamp(145px, 20vh, 185px) !important;
+    min-height: 145px !important;
+  }
+}
+
+@media (min-width: 1720px) {
+  .catalog-v333-shell .catalog-v331-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-image {
+    height: clamp(150px, 18vh, 180px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .catalog-v333-home-banner {
+    width: calc(100% - 20px) !important;
+    margin-top: 9px !important;
+  }
+  .catalog-v333-home-banner img {
+    aspect-ratio: 1100 / 599 !important;
+    object-fit: contain !important;
+  }
+  .catalog-v333-shell .catalog-v331-benefits {
+    width: calc(100% - 20px) !important;
+    min-height: 0 !important;
+    margin: 8px auto 10px !important;
+    padding: 5px !important;
+  }
+  .catalog-v333-shell .catalog-v331-benefits article {
+    min-height: 40px !important;
+  }
+  .catalog-v333-category-strip {
+    width: calc(100% - 20px) !important;
+    margin: 8px auto !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-image {
+    height: clamp(116px, 25vw, 158px) !important;
+    min-height: 116px !important;
+    aspect-ratio: auto !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-image img {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-body {
+    min-height: 102px !important;
+    padding: 7px !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-body h2 { min-height: 29px !important; }
+}
+
+@media (max-width: 390px) {
+  .catalog-v333-shell .catalog-v331-product-image {
+    height: 112px !important;
+    min-height: 112px !important;
+  }
+  .catalog-v333-shell .catalog-v331-product-body h2 { font-size: 9px !important; }
+}
