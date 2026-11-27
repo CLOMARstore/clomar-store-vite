@@ -3536,4 +3536,281 @@ body{background:var(--ux-bg)}
 @media(max-width:1100px){.catalog-v328-hero{margin:16px 18px 0!important;padding:34px!important;grid-template-columns:1fr!important;gap:24px!important}.catalog-v328-showcase{max-width:760px!important;width:100%!important}.catalog-v328-category-shell{margin-left:18px!important;margin-right:18px!important}.catalog-v328-trust{padding:0 18px!important}.catalog-v328-products{padding-left:18px!important;padding-right:18px!important}.catalog-v328-products .catalog-products-head{grid-template-columns:1fr!important}.catalog-v328-products .catalog-products-toolbar{grid-template-columns:minmax(0,1fr) 180px!important}}
 @media(max-width:760px){.catalog-v328-header{min-height:64px!important;padding:8px 13px!important}.catalog-v328-header .catalog-public-brand img{width:39px!important;height:39px!important}.catalog-v328-header .catalog-public-brand strong{font-size:13px!important}.catalog-v328-header .catalog-public-brand small{font-size:9px!important}.catalog-v328-header .catalog-whatsapp-btn,.catalog-v328-header .catalog-cart-btn{min-height:36px!important;padding:0 9px!important;font-size:9px!important}.catalog-v328-hero{margin:11px 11px 0!important;padding:25px 18px!important;min-height:0!important;border-radius:22px!important;gap:20px!important}.catalog-v328-hero h1{font-size:clamp(36px,10vw,48px)!important;line-height:1.01!important}.catalog-v328-hero p{font-size:13px!important;line-height:1.6!important}.catalog-v328-hero .catalog-hero-actions{display:grid!important;grid-template-columns:1fr!important;margin-top:4px!important}.catalog-v328-hero .catalog-hero-actions button{width:100%!important;min-height:46px!important}.catalog-v328-hero .catalog-hero-points{font-size:9px!important;gap:7px 11px!important}.catalog-v328-showcase{min-height:0!important;padding:12px!important;border-radius:17px!important}.catalog-v328-showcase .catalog-hero-showcase-top{font-size:8px!important}.catalog-v328-showcase .catalog-hero-showcase-top b{font-size:9px!important}.catalog-v328-showcase .catalog-hero-mini-products{gap:6px!important}.catalog-v328-showcase .catalog-hero-mini-products>button{padding:6px!important;border-radius:11px!important}.catalog-v328-showcase .catalog-hero-mini-products img{height:68px!important}.catalog-v328-showcase .catalog-hero-mini-products strong,.catalog-v328-showcase .catalog-hero-mini-products small{font-size:8px!important}.catalog-category-shell{top:63px!important;margin:11px 10px 15px!important;padding:10px 10px 8px!important;border-radius:14px!important}.catalog-category-heading{margin-bottom:7px!important}.catalog-category-heading>div:first-child span{font-size:10px!important}.catalog-category-heading small{font-size:8px!important}.catalog-category-arrows button{width:27px!important;height:27px!important;font-size:19px!important}.catalog-v328-category-rail{gap:6px!important;padding-bottom:6px!important}.catalog-v328-category-rail button{min-width:122px!important;min-height:39px!important;padding:0 10px!important;font-size:9px!important;border-radius:10px!important}.catalog-v328-category-rail button b{min-width:20px!important;height:20px!important;font-size:9px!important}.catalog-v328-trust{grid-template-columns:1fr!important;margin:0 11px 20px!important;padding:0!important;gap:7px!important}.catalog-v328-trust>div{min-height:59px!important;padding:11px 11px 10px 48px!important;border-radius:12px!important}.catalog-v328-trust>div>span{left:11px!important;top:12px!important;width:26px!important;height:26px!important}.catalog-v328-trust b{font-size:10px!important}.catalog-v328-trust small{font-size:9px!important}.catalog-v328-products{padding:7px 11px 35px!important;scroll-margin-top:132px!important}.catalog-v328-products .catalog-products-head{gap:11px!important;margin-bottom:12px!important}.catalog-v328-products .catalog-products-heading h2{font-size:26px!important}.catalog-v328-products .catalog-products-heading p{font-size:10px!important}.catalog-v328-products .catalog-products-toolbar{grid-template-columns:1fr!important;gap:7px!important}.catalog-v328-products .catalog-public-search{min-height:46px!important}.catalog-v328-products .catalog-sort-control{grid-template-columns:76px minmax(0,1fr)!important;align-items:center!important;gap:7px!important}.catalog-v328-products .catalog-sort-control select{min-height:42px!important}.catalog-v328-results-summary{padding:9px 10px!important;font-size:9px!important}.catalog-v328-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}.catalog-v328-grid .catalog-v326-card{border-radius:13px!important}.catalog-v328-grid .catalog-v326-card .catalog-image-btn{aspect-ratio:1/1!important}.catalog-v328-grid .catalog-v326-card .catalog-image-btn img{padding:7px!important}.catalog-v328-grid .catalog-v326-card .catalog-card-body{gap:6px!important;padding:9px!important}.catalog-v328-grid .catalog-v326-card .catalog-card-body h2{min-height:38px!important;font-size:10px!important}.catalog-v328-grid .catalog-v326-card .catalog-card-body small{min-height:25px!important;font-size:8px!important}.catalog-v328-grid .catalog-v326-card .catalog-card-body>strong{font-size:17px!important}.catalog-v328-grid .catalog-v326-card .catalog-card-actions{grid-template-columns:1fr!important;gap:5px!important}.catalog-v328-grid .catalog-v326-card .catalog-card-actions button{min-height:34px!important;font-size:9px!important}.catalog-v328-shell .catalog-public-footer{padding:17px 13px!important;display:grid!important;gap:6px!important;font-size:10px!important}}
 @media(prefers-reduced-motion:reduce){.catalog-v328-shell *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
-@media(min-width:761px){.catalog-category-viewport{max-width:940px!important}.catalog-v328-category-rail button{min-width:190px!important}}
+
+/* =========================================================
+   CLOMAR STORE V03.3.0 — VITRINA COMERCIAL + SCROLL COMPLETO
+   Hero oficial entregado por el propietario y navegación usable.
+   ========================================================= */
+html.clomar-public-catalog,
+body.clomar-public-catalog {
+  min-height: 100% !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: auto !important;
+}
+body.clomar-public-catalog #root {
+  min-height: 100vh !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+.catalog-v329-shell {
+  width: 100% !important;
+  min-height: 100vh !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-bottom: 1px !important;
+}
+.catalog-v329-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 45 !important;
+  width: 100% !important;
+  max-width: 1600px !important;
+  min-height: 82px !important;
+  padding: 10px clamp(16px, 4vw, 54px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  background: rgba(255,255,255,.96) !important;
+  border-bottom: 1px solid #e8edf4 !important;
+  box-shadow: 0 8px 26px rgba(15,35,64,.07) !important;
+  backdrop-filter: blur(18px) !important;
+}
+.catalog-v329-header .catalog-public-brand { flex: 0 0 auto !important; gap: 12px !important; }
+.catalog-v329-header .catalog-public-brand img {
+  width: 52px !important;
+  height: 52px !important;
+  padding: 5px !important;
+  object-fit: contain !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  background: #fff !important;
+  border: 1px solid #e8edf4 !important;
+}
+.catalog-v329-header .catalog-public-brand strong { font-size: 17px !important; color: #102d50 !important; }
+.catalog-v329-header .catalog-public-brand small { font-size: 11px !important; color: #64748b !important; }
+.catalog-v329-nav { display: flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; min-width: 0 !important; }
+.catalog-v329-nav button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-height: 44px !important;
+  padding: 0 14px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: #18385e !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+  transition: background .18s ease, color .18s ease, transform .18s ease !important;
+}
+.catalog-v329-nav button:hover { background: #edf4fc !important; transform: translateY(-1px) !important; }
+.catalog-v329-nav button.active { color: #fff !important; background: linear-gradient(135deg,#0e477c,#17649a) !important; box-shadow: 0 8px 18px rgba(17,75,126,.18) !important; }
+.catalog-v329-header .catalog-public-header-actions { flex: 0 0 auto !important; gap: 9px !important; }
+.catalog-v329-header .catalog-whatsapp-btn,
+.catalog-v329-header .catalog-cart-btn { min-height: 44px !important; padding: 0 17px !important; border-radius: 999px !important; font-size: 12px !important; font-weight: 900 !important; }
+.catalog-v329-header .catalog-whatsapp-btn { background: #08b84f !important; color: #fff !important; border: 1px solid #08b84f !important; }
+.catalog-v329-header .catalog-cart-btn { background: #103b68 !important; color: #fff !important; border: 1px solid #103b68 !important; }
+.catalog-v329-header .catalog-cart-btn span { background: #f8c94a !important; color: #163452 !important; }
+.catalog-v329-banner-wrap { width: min(100% - 36px, 1560px) !important; margin: 16px auto 0 !important; }
+.catalog-v329-banner-trigger {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 24px !important;
+  overflow: hidden !important;
+  background: #082b4c !important;
+  box-shadow: 0 22px 55px rgba(9,37,69,.17) !important;
+  line-height: 0 !important;
+  cursor: pointer !important;
+}
+.catalog-v329-banner-trigger picture { display: block !important; width: 100% !important; }
+.catalog-v329-banner-trigger img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1754 / 599 !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  transition: filter .22s ease, transform .35s ease !important;
+}
+.catalog-v329-banner-trigger:hover img { filter: saturate(1.04) brightness(1.02) !important; }
+.catalog-v329-banner-hitarea { position: absolute !important; left: 12.2% !important; top: 75.5% !important; width: 30% !important; height: 16% !important; border-radius: 999px !important; }
+.catalog-v329-mobile-cta { display: none !important; }
+.catalog-v329-benefits {
+  width: min(100% - 36px, 1500px) !important;
+  min-height: 112px !important;
+  margin: -1px auto 25px !important;
+  padding: 13px 16px !important;
+  display: grid !important;
+  grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+  align-items: center !important;
+  border: 1px solid #e8edf4 !important;
+  border-radius: 0 0 22px 22px !important;
+  background: #fff !important;
+  box-shadow: 0 12px 30px rgba(16,43,76,.07) !important;
+}
+.catalog-v329-benefits article { min-width: 0 !important; min-height: 68px !important; display: flex !important; align-items: center !important; justify-content: center !important; gap: 13px !important; padding: 8px 14px !important; color: #123a67 !important; }
+.catalog-v329-benefits article + article { border-left: 1px solid #e5eaf1 !important; }
+.catalog-v329-benefits article > svg { flex: 0 0 auto !important; color: #d39b18 !important; stroke-width: 2.1 !important; }
+.catalog-v329-benefits article span { display: grid !important; gap: 4px !important; min-width: 0 !important; }
+.catalog-v329-benefits article b { color: #102d50 !important; font-size: 14px !important; line-height: 1.2 !important; }
+.catalog-v329-benefits article small { color: #65758a !important; font-size: 11px !important; line-height: 1.35 !important; }
+/* La barra de categorías deja de fijarse sobre los títulos y permite recorrer toda la página. */
+.catalog-v329-category-shell {
+  position: relative !important;
+  top: auto !important;
+  z-index: 2 !important;
+  width: min(100% - 36px, 1500px) !important;
+  max-width: 1500px !important;
+  margin: 20px auto 22px !important;
+  scroll-margin-top: 96px !important;
+}
+.catalog-v329-category-shell .catalog-category-viewport { cursor: grab !important; touch-action: pan-x pan-y !important; }
+.catalog-v329-category-shell .catalog-category-viewport:active { cursor: grabbing !important; }
+.catalog-v329-category-shell .catalog-category-arrows button { width: 36px !important; height: 36px !important; }
+.catalog-v329-category-shell .catalog-v328-category-rail button { min-width: 155px !important; min-height: 48px !important; padding: 0 15px !important; font-size: 12px !important; }
+.catalog-v329-products {
+  width: min(100%, 1500px) !important;
+  max-width: 1500px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 auto !important;
+  padding: 18px 28px 86px !important;
+  scroll-margin-top: 96px !important;
+}
+.catalog-v329-products .catalog-products-head { align-items: end !important; gap: 22px !important; margin-bottom: 18px !important; }
+.catalog-v329-products .catalog-products-heading h2 { color: #112f53 !important; font-size: clamp(30px,3vw,42px) !important; letter-spacing: -.055em !important; }
+.catalog-v329-products .catalog-products-heading p { color: #74849a !important; font-size: 12px !important; line-height: 1.55 !important; }
+.catalog-v329-results-summary { min-height: 46px !important; margin-bottom: 16px !important; border-radius: 14px !important; }
+.catalog-v329-grid {
+  display: grid !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+  align-items: stretch !important;
+  gap: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.catalog-v329-grid .catalog-v326-card { min-width: 0 !important; overflow: hidden !important; border-radius: 19px !important; box-shadow: 0 12px 30px rgba(18,47,83,.075) !important; }
+.catalog-v329-grid .catalog-image-btn { aspect-ratio: 1 / 1 !important; }
+.catalog-v329-grid .catalog-card-body { min-height: 230px !important; }
+
+.catalog-v329-end-note {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin: 18px 0 0 !important;
+  padding: 15px 18px !important;
+  border: 1px dashed #cbd8e7 !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.82) !important;
+  color: #718198 !important;
+  font-size: 11px !important;
+}
+.catalog-v329-end-note strong { color: #173b63 !important; font-size: 11px !important; }
+.catalog-v329-shell .catalog-public-grid,
+.catalog-v329-shell .catalog-products-section,
+.catalog-v329-shell .catalog-v329-products {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.catalog-v329-back-top {
+  position: fixed !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  z-index: 42 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 44px !important;
+  padding: 0 15px !important;
+  border: 1px solid rgba(255,255,255,.25) !important;
+  border-radius: 999px !important;
+  background: #123d68 !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(9,35,65,.24) !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+.catalog-v329-shell .catalog-public-footer { min-height: 100px !important; padding-top: 25px !important; padding-bottom: 25px !important; }
+@media (max-width: 1120px) {
+  .catalog-v329-nav { gap: 1px !important; }
+  .catalog-v329-nav button { padding: 0 9px !important; font-size: 11px !important; }
+  .catalog-v329-benefits article { gap: 9px !important; padding: 7px 9px !important; }
+  .catalog-v329-benefits article b { font-size: 12px !important; }
+  .catalog-v329-benefits article small { font-size: 10px !important; }
+  .catalog-v329-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
+}
+@media (max-width: 760px) {
+  .catalog-v329-header { min-height: 66px !important; padding: 7px 12px !important; gap: 8px !important; }
+  .catalog-v329-header .catalog-public-brand { gap: 8px !important; }
+  .catalog-v329-header .catalog-public-brand img { width: 42px !important; height: 42px !important; padding: 4px !important; }
+  .catalog-v329-header .catalog-public-brand strong { font-size: 13px !important; }
+  .catalog-v329-header .catalog-public-brand small { font-size: 9px !important; }
+  .catalog-v329-nav { display: none !important; }
+  .catalog-v329-header .catalog-public-header-actions { gap: 6px !important; }
+  .catalog-v329-header .catalog-whatsapp-btn,
+  .catalog-v329-header .catalog-cart-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; min-height: 37px !important; padding: 0 10px !important; font-size: 10px !important; }
+  .catalog-v329-banner-wrap { width: calc(100% - 20px) !important; margin: 10px auto 0 !important; }
+  .catalog-v329-banner-trigger { border-radius: 17px !important; }
+  .catalog-v329-banner-trigger img { width: 100% !important; height: auto !important; aspect-ratio: 1100 / 599 !important; object-fit: cover !important; object-position: left center !important; }
+  .catalog-v329-banner-hitarea { left: 25% !important; top: 75% !important; width: 60% !important; height: 17% !important; }
+  .catalog-v329-mobile-cta { display: flex !important; justify-content: center !important; margin: 9px 0 0 !important; }
+  .catalog-v329-mobile-cta button { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 9px !important; width: 100% !important; min-height: 45px !important; border: 0 !important; border-radius: 13px !important; background: linear-gradient(135deg,#f52e58,#e6003d) !important; color: #fff !important; box-shadow: 0 9px 20px rgba(220,0,56,.2) !important; font-size: 13px !important; font-weight: 900 !important; }
+  .catalog-v329-benefits { width: calc(100% - 20px) !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; min-height: 0 !important; margin: 12px auto 18px !important; padding: 8px !important; border-radius: 15px !important; gap: 5px !important; }
+  .catalog-v329-benefits article { min-height: 64px !important; justify-content: flex-start !important; gap: 8px !important; padding: 7px !important; }
+  .catalog-v329-benefits article + article { border-left: 0 !important; }
+  .catalog-v329-benefits article:nth-child(even) { border-left: 1px solid #e5eaf1 !important; }
+  .catalog-v329-benefits article > svg { width: 23px !important; height: 23px !important; }
+  .catalog-v329-benefits article b { font-size: 10px !important; }
+  .catalog-v329-benefits article small { font-size: 9px !important; }
+  .catalog-v329-category-shell { width: calc(100% - 20px) !important; margin: 12px auto 16px !important; padding: 10px !important; border-radius: 14px !important; scroll-margin-top: 76px !important; }
+  .catalog-v329-category-shell .catalog-category-heading { margin-bottom: 7px !important; }
+  .catalog-v329-category-shell .catalog-category-heading>div:first-child span { font-size: 11px !important; }
+  .catalog-v329-category-shell .catalog-category-heading small { font-size: 9px !important; }
+  .catalog-v329-category-shell .catalog-category-arrows button { width: 29px !important; height: 29px !important; }
+  .catalog-v329-category-shell .catalog-v328-category-rail { gap: 7px !important; }
+  .catalog-v329-category-shell .catalog-v328-category-rail button { min-width: 132px !important; min-height: 41px !important; padding: 0 10px !important; font-size: 10px !important; }
+  .catalog-v329-products { width: 100% !important; padding: 10px 11px 88px !important; scroll-margin-top: 76px !important; }
+  .catalog-v329-products .catalog-products-head { display: grid !important; grid-template-columns: 1fr !important; gap: 10px !important; margin-bottom: 12px !important; }
+  .catalog-v329-products .catalog-products-heading h2 { font-size: 27px !important; }
+  .catalog-v329-products .catalog-products-heading p { font-size: 10px !important; }
+  .catalog-v329-products .catalog-products-toolbar { grid-template-columns: 1fr !important; gap: 7px !important; }
+  .catalog-v329-products .catalog-public-search { min-height: 46px !important; }
+  .catalog-v329-products .catalog-sort-control { grid-template-columns: 76px minmax(0,1fr) !important; align-items: center !important; }
+  .catalog-v329-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 9px !important; }
+  .catalog-v329-grid .catalog-v326-card { border-radius: 13px !important; }
+  .catalog-v329-grid .catalog-image-btn { aspect-ratio: 1 / 1 !important; }
+  .catalog-v329-grid .catalog-card-body { min-height: 205px !important; gap: 6px !important; padding: 9px !important; }
+  .catalog-v329-grid .catalog-card-body h2 { min-height: 38px !important; font-size: 10px !important; }
+  .catalog-v329-grid .catalog-card-body small { min-height: 25px !important; font-size: 8px !important; }
+  .catalog-v329-grid .catalog-card-body>strong { font-size: 17px !important; }
+  .catalog-v329-grid .catalog-card-actions { grid-template-columns: 1fr !important; gap: 5px !important; }
+  .catalog-v329-grid .catalog-card-actions button { min-height: 34px !important; font-size: 9px !important; }
+  .catalog-v329-back-top { right: 12px !important; bottom: calc(18px + env(safe-area-inset-bottom)) !important; min-height: 40px !important; padding: 0 12px !important; font-size: 10px !important; }
+  .catalog-v329-end-note { align-items: flex-start !important; flex-direction: column !important; gap: 4px !important; margin-top: 12px !important; padding: 11px 12px !important; font-size: 9px !important; }
+  .catalog-v329-end-note strong { font-size: 9px !important; }
+  .catalog-v329-shell .catalog-public-footer { padding: 18px 13px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.clomar-public-catalog { scroll-behavior: auto !important; }
+  .catalog-v329-shell * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
