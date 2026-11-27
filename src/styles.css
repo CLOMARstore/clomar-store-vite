@@ -6220,3 +6220,305 @@ body.clomar-public-catalog #root {
   .catalog-v338-home-product,
   .catalog-v338-home-product-add { animation: none !important; transition: none !important; }
 }
+
+
+/* ============================================================
+   CLOMAR STORE V03.3.9 — Corrección real del inicio y controles
+   persistentes del catálogo.
+   - Inicio: se elimina la vitrina de productos del inicio.
+   - Catálogo: una sola banda sticky agrupa categorías, título,
+     búsqueda, contador y ordenamiento.
+   - Filtros: permanecen visibles debajo de la banda sticky.
+   ============================================================ */
+
+.catalog-v339-sticky-controls {
+  --catalog-v339-controls-height: 154px;
+  position: sticky !important;
+  top: 72px !important;
+  z-index: 118 !important;
+  display: grid !important;
+  gap: 0 !important;
+  width: 100% !important;
+  margin: 0 0 8px !important;
+  padding: 5px 0 7px !important;
+  border-bottom: 1px solid rgba(218, 228, 240, .95) !important;
+  background: rgba(244, 247, 252, .985) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  backdrop-filter: blur(16px) !important;
+  box-shadow: 0 8px 20px rgba(10, 35, 65, .075) !important;
+}
+
+.catalog-v339-sticky-controls .catalog-v333-category-strip {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  width: min(calc(100% - 34px), 1660px) !important;
+  margin: 0 auto 5px !important;
+  padding: 0 0 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.catalog-v339-controls-content {
+  display: grid !important;
+  gap: 4px !important;
+  width: min(calc(100% - 34px), 1660px) !important;
+  min-width: 0 !important;
+  margin: 0 auto !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-heading {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(260px, .78fr) minmax(320px, 1.22fr) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-title h1 {
+  font-size: clamp(22px, 1.7vw, 29px) !important;
+  line-height: 1.08 !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-title p {
+  margin-top: 3px !important;
+  font-size: 9px !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-search {
+  min-height: 42px !important;
+  margin: 0 !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-search input {
+  min-width: 0 !important;
+  height: 34px !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-toolbar {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 2px 0 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-count {
+  min-height: 32px !important;
+}
+
+.catalog-v339-controls-content .catalog-v331-sort select {
+  height: 34px !important;
+}
+
+.catalog-v337-shop-view .catalog-v335-catalog-stage {
+  position: relative !important;
+  overflow: visible !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+.catalog-v337-shop-view .catalog-v333-category-strip,
+.catalog-v337-shop-view .catalog-v331-heading,
+.catalog-v337-shop-view .catalog-v331-toolbar,
+.catalog-v337-shop-view .catalog-v331-result-meta {
+  position: static !important;
+}
+
+.catalog-v337-shop-view .catalog-v331-shop {
+  overflow: visible !important;
+  align-items: start !important;
+  scroll-margin-top: 236px !important;
+}
+
+.catalog-v337-shop-view .catalog-v331-results {
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.catalog-v337-shop-view .catalog-v331-filters {
+  position: sticky !important;
+  top: 232px !important;
+  z-index: 80 !important;
+  max-height: calc(100dvh - 246px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  align-self: start !important;
+}
+
+.catalog-v337-shop-view #catalog-category-strip {
+  scroll-margin-top: 232px !important;
+}
+
+@media (min-width: 901px) and (max-width: 1259px) {
+  .catalog-v339-sticky-controls {
+    --catalog-v339-controls-height: 166px;
+  }
+  .catalog-v339-controls-content .catalog-v331-heading {
+    grid-template-columns: minmax(220px, .72fr) minmax(280px, 1.28fr) !important;
+    gap: 10px !important;
+  }
+  .catalog-v337-shop-view .catalog-v331-filters {
+    top: 242px !important;
+    max-height: calc(100dvh - 256px) !important;
+  }
+  .catalog-v337-shop-view .catalog-v331-shop {
+    grid-template-columns: 190px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-height: 820px) and (min-width: 901px) {
+  .catalog-v339-sticky-controls {
+    padding-top: 3px !important;
+    padding-bottom: 5px !important;
+  }
+  .catalog-v339-controls-content .catalog-v331-title h1 {
+    font-size: 23px !important;
+  }
+  .catalog-v337-shop-view .catalog-v331-filters {
+    max-height: calc(100dvh - 222px) !important;
+  }
+}
+
+/* En móvil, el encabezado principal permanece fijo y el buscador se
+   pega justo debajo. El resto de controles no ocupa una franja enorme. */
+@media (max-width: 900px) {
+  .catalog-v339-sticky-controls {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    gap: 0 !important;
+    margin: 0 0 5px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .catalog-v339-sticky-controls .catalog-v333-category-strip {
+    position: static !important;
+    width: calc(100% - 20px) !important;
+    margin: 8px auto 7px !important;
+    padding: 0 0 4px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .catalog-v339-controls-content {
+    width: calc(100% - 20px) !important;
+    gap: 6px !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-heading {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-search {
+    display: none !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-title h1 {
+    font-size: clamp(21px, 6vw, 26px) !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-title p {
+    font-size: 9px !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-toolbar {
+    position: static !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-count {
+    min-height: 31px !important;
+    padding: 0 9px !important;
+    font-size: 9px !important;
+  }
+
+  .catalog-v339-controls-content .catalog-v331-toolbar-actions {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-filters {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: auto !important;
+    max-height: 100dvh !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-shop {
+    overflow: visible !important;
+    scroll-margin-top: 118px !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v331-results {
+    overflow: visible !important;
+  }
+
+  .catalog-v337-shop-view .catalog-v336-mobile-search {
+    position: sticky !important;
+    top: 60px !important;
+    z-index: 108 !important;
+    display: flex !important;
+    margin-top: 0 !important;
+    box-shadow: 0 8px 22px rgba(10, 35, 65, .16) !important;
+  }
+
+  .catalog-v337-shop-view #catalog-products,
+  .catalog-v337-shop-view #catalog-category-strip {
+    scroll-margin-top: 116px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-v339-sticky-controls,
+  .catalog-v339-sticky-controls * {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
+}

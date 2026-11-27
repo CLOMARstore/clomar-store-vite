@@ -4673,10 +4673,6 @@ function PublicCatalogApp() {
   const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category || 'General'))).sort((a,b) => a.localeCompare(b, 'es'))], [products]);
   const categoryCounts = useMemo(() => products.reduce((acc,p) => { const key = p.category || 'General'; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [products]);
   const brands = useMemo(() => Array.from(new Set(products.map(p => String(p.brand || '').trim()).filter(Boolean))).sort((a,b) => a.localeCompare(b, 'es')), [products]);
-  const homePreviewProducts = useMemo(() => {
-    const featured = products.filter(p => p.catalog_featured);
-    return (featured.length ? featured : products).slice(0, 4);
-  }, [products]);
   const categoryIcon = (value) => {
     const name = String(value || '').toLowerCase();
     if (name.includes('calzado')) return <Footprints size={20}/>;
@@ -4818,25 +4814,44 @@ function PublicCatalogApp() {
               {categoryIcon(c)}<span>{c}</span><b>{categoryCounts[c] || 0}</b>
             </button>)}
           </div>
-          {homePreviewProducts.length > 0 && <section className="catalog-v338-home-showcase" aria-label="Productos destacados">
-            <div className="catalog-v338-home-showcase-head"><div><span>SELECCIÓN CLOMAR</span><h3>Productos para descubrir</h3></div><button type="button" onClick={goToAllProducts}>Ver todos <ChevronRight size={15}/></button></div>
-            <div className="catalog-v338-home-showcase-grid">
-              {homePreviewProducts.map(p => <article className="catalog-v338-home-product" key={p.id}>
-                <button type="button" className="catalog-v338-home-product-image" onClick={() => selectProduct(p)} aria-label={`Ver ${p.name}`}><img src={p.image_url || APP_ICON} alt={p.name} loading="lazy" decoding="async" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = APP_ICON; }}/></button>
-                <div className="catalog-v338-home-product-info"><small>{p.category || 'General'}</small><strong>{p.name}</strong><b>{money(p.price)}</b></div>
-                <button type="button" className="catalog-v338-home-product-add" onClick={() => addToCart(p)} disabled={!canOrder(p)} aria-label={`Agregar ${p.name} al pedido`}><ShoppingCart size={15}/></button>
-              </article>)}
-            </div>
-          </section>}
           <small className="catalog-v337-home-disclaimer">Precios sujetos a confirmación de disponibilidad al momento de atender el pedido.</small>
         </section>
       </>}
       {activeSection === 'catalog' && <div className="catalog-v335-catalog-stage">
-      <section className="catalog-v333-category-strip" id="catalog-category-strip" aria-label="Explorar categorías">
-        {categories.map((c) => <button key={c} type="button" className={category === c ? 'active' : ''} onClick={() => chooseCatalogCategory(c)}>
-          {categoryIcon(c)}<span>{c === 'Todas' ? 'Todas' : c}</span><b>{c === 'Todas' ? products.length : categoryCounts[c] || 0}</b>
-        </button>)}
-      </section>
+      <div className="catalog-v339-sticky-controls" aria-label="Controles persistentes del catálogo">
+        <section className="catalog-v333-category-strip" id="catalog-category-strip" aria-label="Explorar categorías">
+          {categories.map((c) => <button key={c} type="button" className={category === c ? 'active' : ''} onClick={() => chooseCatalogCategory(c)}>
+            {categoryIcon(c)}<span>{c === 'Todas' ? 'Todas' : c}</span><b>{c === 'Todas' ? products.length : categoryCounts[c] || 0}</b>
+          </button>)}
+        </section>
+        <div className="catalog-v339-controls-content">
+          <div className="catalog-v331-heading">
+            <div className="catalog-v331-title">
+              <span className="catalog-v331-eyebrow">TIENDA CLOMAR STORE</span>
+              <h1>Catálogo de <em>Productos</em></h1>
+              <p>Explora nuestra selección, filtra por categoría y arma tu pedido fácilmente.</p>
+            </div>
+            <form className="catalog-v331-search" onSubmit={e=>{e.preventDefault();setPage(1);}}>
+              <Search size={20}/>
+              <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="¿Qué estás buscando? (ej. bóxer, calcetines, botas...)" />
+              <button type="submit">Buscar</button>
+            </form>
+          </div>
+
+          <div className="catalog-v331-toolbar">
+            <div className="catalog-v331-count"><ShoppingCart size={16}/><strong>{filteredProducts.length}</strong> productos disponibles</div>
+            <div className="catalog-v331-toolbar-actions">
+              <button type="button" className="catalog-v333-mobile-filter-button" onClick={() => setMobileFiltersOpen(true)}><SlidersHorizontal size={16}/>Filtros <b>{filteredProducts.length}</b></button>
+              <label className="catalog-v331-sort"><span>Ordenar por:</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="featured">Recomendado</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A–Z</option></select><ChevronDown size={16}/></label>
+              <div className="catalog-v331-view-toggle" role="group" aria-label="Tipo de visualización">
+                <button type="button" className={viewMode==='grid'?'active':''} onClick={()=>setViewMode('grid')} aria-label="Vista de cuadrícula"><Grid2X2 size={18}/></button>
+                <button type="button" className={viewMode==='list'?'active':''} onClick={()=>setViewMode('list')} aria-label="Vista de lista"><List size={18}/></button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
 
       {notice && !cartOpen && <div className="catalog-toast catalog-v336-toast" role="status" aria-live="polite"><span>{notice}</span></div>}
 
@@ -4887,31 +4902,6 @@ function PublicCatalogApp() {
         </aside>
 
         <div className="catalog-v331-results">
-          <div className="catalog-v331-heading">
-            <div className="catalog-v331-title">
-              <span className="catalog-v331-eyebrow">TIENDA CLOMAR STORE</span>
-              <h1>Catálogo de <em>Productos</em></h1>
-              <p>Explora nuestra selección, filtra por categoría y arma tu pedido fácilmente.</p>
-            </div>
-            <form className="catalog-v331-search" onSubmit={e=>{e.preventDefault();setPage(1);}}>
-              <Search size={20}/>
-              <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="¿Qué estás buscando? (ej. bóxer, calcetines, botas...)" />
-              <button type="submit">Buscar</button>
-            </form>
-          </div>
-
-          <div className="catalog-v331-toolbar">
-            <div className="catalog-v331-count"><ShoppingCart size={16}/><strong>{filteredProducts.length}</strong> productos disponibles</div>
-            <div className="catalog-v331-toolbar-actions">
-              <button type="button" className="catalog-v333-mobile-filter-button" onClick={() => setMobileFiltersOpen(true)}><SlidersHorizontal size={16}/>Filtros <b>{filteredProducts.length}</b></button>
-              <label className="catalog-v331-sort"><span>Ordenar por:</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="featured">Recomendado</option><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option><option value="name">Nombre A–Z</option></select><ChevronDown size={16}/></label>
-              <div className="catalog-v331-view-toggle" role="group" aria-label="Tipo de visualización">
-                <button type="button" className={viewMode==='grid'?'active':''} onClick={()=>setViewMode('grid')} aria-label="Vista de cuadrícula"><Grid2X2 size={18}/></button>
-                <button type="button" className={viewMode==='list'?'active':''} onClick={()=>setViewMode('list')} aria-label="Vista de lista"><List size={18}/></button>
-              </div>
-            </div>
-          </div>
-
           <div className="catalog-v331-result-meta"><span>Mostrando <strong>{filteredProducts.length ? (safePage-1)*catalogPageSize+1 : 0}–{Math.min(safePage*catalogPageSize, filteredProducts.length)}</strong> de <strong>{filteredProducts.length}</strong> productos</span>{(query || category !== 'Todas' || brandFilters.length || priceMin !== priceBounds.min || priceMax !== priceBounds.max) && <button type="button" onClick={resetCatalogFilters}>Quitar filtros</button>}</div>
 
           {visibleProducts.length ? <div className={`catalog-v331-grid ${viewMode==='list'?'is-list':''}`}>
